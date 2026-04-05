@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: cco_timescaledb
+    environment:
+      POSTGRES_DB: ccorailpulse
+      POSTGRES_USER: railpulse_admin
+      POSTGRES_PASSWORD: secure_password
+    ports:
+      - "5444:5432" # <-- BANCO DEVE ESTAR AQUI (Porta 5444)
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./backend/src/infrastructure/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: cco_redis
+    ports:
+      - "6379:6379" # <-- REDIS DEVE ESTAR AQUI (Porta padrão 6379)
+    restart: unless-stopped
+
+volumes:
+  timescaledb_data:

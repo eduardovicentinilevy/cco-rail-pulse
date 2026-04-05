@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <title>CCO RailPulse | Sistema Integrado de Monitoramento</title>
+
+    <style>
+      /* CRITICAL CSS: Executado antes de qualquer script */
+      :root {
+        --bg-cco: #080a0c;
+      }
+
+      html, body {
+        background-color: var(--bg-cco) !important;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Evita scrolls fantasmas no carregamento */
+        height: 100%;
+        width: 100%;
+        /* Previne o flash branco nativo do Chrome/Edge */
+        color-scheme: dark; 
+      }
+
+      #root {
+        background-color: var(--bg-cco);
+        min-height: 100vh;
+      }
+
+      /* Loader Minimalista (Opcional - Estilo Terminal) */
+      #root:empty::before {
+        content: 'INICIALIZANDO SISTEMA SIL 4...';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 10px;
+        color: #252a31;
+        letter-spacing: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
