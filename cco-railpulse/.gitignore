@@ -1,0 +1,34 @@
+# Dependências
+node_modules/
+jspm_packages/
+
+# Build e Outputs de Compilação
+dist/
+dist-ssr/
+.tsbuildinfo
+*.tsbuildinfo
+
+# Variáveis de Ambiente e Segredos (Crítico para Segurança)
+.env
+.env.local
+.env.*.local
+
+# Logs de Execução e Gerenciadores de Pacotes
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+
+# Arquivos de IDE e Sistema Operacional
+.vscode/
+.idea/
+*.suo
+*.sln
+*.swp
+.DS_Store
+Thumbs.db
+
+# Relatórios de Testes e Cobertura
+coverage/
+.nyc_output/
