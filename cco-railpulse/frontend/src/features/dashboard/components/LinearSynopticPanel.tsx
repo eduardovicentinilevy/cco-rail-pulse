@@ -22,33 +22,26 @@ const LINE_2_STATIONS = [
   { id: 'VMD', name: 'Vila Madalena', lng: -46.6898 }
 ];
 
-// Pegamos os extremos reais para normalização
 const LNG_VALUES = LINE_2_STATIONS.map(s => s.lng);
-const MAX_LNG = Math.max(...LNG_VALUES); // Vila Prudente (Leste)
-const MIN_LNG = Math.min(...LNG_VALUES); // Vila Madalena (Oeste)
+const MAX_LNG = Math.max(...LNG_VALUES);
+const MIN_LNG = Math.min(...LNG_VALUES);
 const RANGE = MAX_LNG - MIN_LNG;
 
 export const LinearSynopticPanel: React.FC<LinearSynopticPanelProps> = ({ trains }) => {
   
-  /**
-   * CORREÇÃO: Função de Normalização Linear de 0 a 100
-   * Mapeia qualquer Longitude dentro do range da linha 2
-   */
   const getPositionPercent = (currentLng: number) => {
-    // 1. Clamp: Garante que o valor não fuja do range 0-100 mesmo com drift de GPS
     const clampedLng = Math.max(MIN_LNG, Math.min(MAX_LNG, currentLng));
-    
-    // 2. Cálculo de Progresso (Invertido para que VPT fique na esquerda e VMD na direita)
-    // Se quiser VMD na esquerda, use: (clampedLng - MIN_LNG) / RANGE
     const progress = (MAX_LNG - clampedLng) / RANGE; 
-    
     return progress * 100;
   };
 
   return (
     <div className="synoptic-wrapper" style={styles.wrapper}>
       
+      {/* O "Trilho" agora é o contêiner mestre de posicionamento */}
       <div className="synoptic-track" style={styles.track}>
+        
+        {/* RENDERIZAÇÃO DAS ESTAÇÕES */}
         {LINE_2_STATIONS.map((station, index) => {
           const posPercent = getPositionPercent(station.lng);
           const isOdd = index % 2 !== 0;
@@ -62,37 +55,38 @@ export const LinearSynopticPanel: React.FC<LinearSynopticPanelProps> = ({ trains
             </div>
           );
         })}
-      </div>
-      
-      {trains.filter(t => t.fleet_code === 'I').map(train => {
-        const isAlert = train.doors_open;
-        const isMoving = train.speed_kmh > 0;
-        const position = getPositionPercent(train.longitude);
+        
+        {/* RENDERIZAÇÃO DOS TRENS (Movidos para dentro do track) */}
+        {trains.filter(t => t.fleet_code === 'I').map(train => {
+          const isAlert = train.doors_open;
+          const isMoving = train.speed_kmh > 0;
+          const position = getPositionPercent(train.longitude);
 
-        return (
-          <div 
-            key={train.train_id}
-            className="train-wrapper"
-            style={{ 
-              ...styles.trainWrapper, 
-              left: `${position}%`,
-              display: (position >= 0 && position <= 100) ? 'flex' : 'none' // Hard-stop visual
-            }}
-          >
-            <span style={styles.trainHeader}>FROTA_I</span>
-            <div style={{ ...styles.trainBody, borderColor: isAlert ? 'var(--sp-vm)' : '#8B3A2B' }}>
-              <div style={styles.trainId}>TR {train.train_id}</div>
-              <div style={{ ...styles.trainLed, backgroundColor: isMoving ? '#007A5E' : '#4A2511' }} />
+          return (
+            <div 
+              key={train.train_id}
+              className="train-wrapper"
+              style={{ 
+                ...styles.trainWrapper, 
+                left: `${position}%`,
+                display: (position >= 0 && position <= 100) ? 'flex' : 'none'
+              }}
+            >
+              <span style={styles.trainHeader}>FROTA_I</span>
+              <div style={{ ...styles.trainBody, borderColor: isAlert ? 'var(--sp-vm)' : '#8B3A2B' }}>
+                <div style={styles.trainId}>TR {train.train_id}</div>
+                <div style={{ ...styles.trainLed, backgroundColor: isMoving ? '#007A5E' : '#4A2511' }} />
+              </div>
+              <div style={{ ...styles.trainConnector, backgroundColor: isAlert ? 'var(--sp-vm)' : '#8B3A2B' }} />
+              <div style={styles.telemetryBox}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: isMoving ? '#007A5E' : '#8c7b70' }}>
+                  {train.speed_kmh} <span style={{ fontSize: '0.45rem', opacity: 0.6 }}>KM/H</span>
+                </span>
+              </div>
             </div>
-            <div style={{ ...styles.trainConnector, backgroundColor: isAlert ? 'var(--sp-vm)' : '#8B3A2B' }} />
-            <div style={styles.telemetryBox}>
-              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: isMoving ? '#007A5E' : '#8c7b70' }}>
-                {train.speed_kmh} <span style={{ fontSize: '0.45rem', opacity: 0.6 }}>KM/H</span>
-              </span>
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -105,15 +99,15 @@ const styles = {
     backgroundColor: '#16110D', 
     border: '1px solid #3A2318', 
     borderRadius: '8px',
-    padding: '2rem 2rem', // Aumentado padding lateral para respiro das labels das pontas
+    padding: '2rem 3rem', // Aumentado um pouco mais para as labels das pontas respirarem
     overflow: 'hidden',
     boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
   },
   track: {
     position: 'absolute' as const,
     top: '50%',
-    left: '2rem',
-    right: '2rem',
+    left: '3rem',  // Alinhado com o padding do wrapper
+    right: '3rem', // Alinhado com o padding do wrapper
     height: '4px',
     backgroundColor: '#007A5E', 
     transform: 'translateY(-50%)',
@@ -138,7 +132,8 @@ const styles = {
   trainWrapper: {
     position: 'absolute' as const,
     top: '50%',
-    transform: 'translate(-50%, -110%)',
+    // translate(-50%, -100%) ancora a base do telemetryBox no meio exato da linha do trilho
+    transform: 'translate(-50%, -100%)', 
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',

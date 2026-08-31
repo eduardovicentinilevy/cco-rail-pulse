@@ -1,32 +1,23 @@
 {
-  "name": "backend",
+  "name": "cco-rail-pulse-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend for CCO Rail Pulse telemetry system",
+  "main": "src/infrastructure/http/server.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx watch src/infrastructure/http/server.ts",
+    "build": "tsup src/infrastructure/http/server.ts --out-dir dist",
+    "start": "node dist/server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "@socket.io/redis-adapter": "^8.3.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.0",
-    "express": "^5.2.1",
-    "helmet": "^8.1.0",
-    "pg": "^8.20.0",
-    "redis": "^5.11.0",
-    "socket.io": "^4.8.3",
-    "zod": "^4.3.6"
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^25.5.0",
-    "@types/pg": "^8.20.0",
-    "eslint": "^10.1.0",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }
