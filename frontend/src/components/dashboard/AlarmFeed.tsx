@@ -6,6 +6,12 @@ interface AlarmFeedProps {
   alarms: AlarmEvent[];
 }
 
+const LEVEL_STYLES: Record<string, { bg: string; color: string }> = {
+  CRITICAL: { bg: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5' },
+  WARNING: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' },
+  INFO: { bg: 'rgba(59, 130, 246, 0.15)', color: '#93c5fd' },
+};
+
 export const AlarmFeed: React.FC<AlarmFeedProps> = ({ alarms }) => {
   return (
     <div style={styles.alarmFeedContainer}>
@@ -13,22 +19,32 @@ export const AlarmFeed: React.FC<AlarmFeedProps> = ({ alarms }) => {
         <h3 style={styles.sectionTitle}>Feed de Ocorrências e Eventos da Via</h3>
         <span style={styles.alarmCount}>{alarms.length} Alertas</span>
       </div>
-      <div style={styles.alarmList}>
-        {alarms.map(alarm => (
-          <div key={alarm.id} style={styles.alarmItem}>
-            <span style={styles.alarmTime}>{alarm.timestamp}</span>
-            <span style={styles.alarmCode}>{alarm.stationCode}</span>
-            <span style={styles.alarmMessage}>{alarm.message}</span>
-            <span style={{
-              ...styles.alarmLevel,
-              backgroundColor: alarm.level === 'CRITICAL' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-              color: alarm.level === 'CRITICAL' ? '#fca5a5' : '#fbbf24'
-            }}>
-              {alarm.level}
-            </span>
-          </div>
-        ))}
-      </div>
+
+      {alarms.length === 0 ? (
+        <p style={styles.emptyState}>Nenhuma ocorrência registrada.</p>
+      ) : (
+        <div style={styles.alarmList}>
+          {alarms.map(alarm => {
+            const levelStyle = LEVEL_STYLES[alarm.level] ?? LEVEL_STYLES.INFO;
+            return (
+              <div key={alarm.id} style={styles.alarmItem}>
+                <span style={styles.alarmTime}>{alarm.timestamp}</span>
+                <span style={styles.alarmCode}>{alarm.stationCode}</span>
+                <span style={styles.alarmMessage}>{alarm.message}</span>
+                <span
+                  style={{
+                    ...styles.alarmLevel,
+                    backgroundColor: levelStyle.bg,
+                    color: levelStyle.color,
+                  }}
+                >
+                  {alarm.level}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -36,11 +52,11 @@ export const AlarmFeed: React.FC<AlarmFeedProps> = ({ alarms }) => {
 const styles: { [key: string]: React.CSSProperties } = {
   alarmFeedContainer: {
     marginTop: '1rem',
-    backgroundColor: '#110a06',
-    border: '1px solid #331e13',
+    backgroundColor: 'var(--uni-bg-secondary, #110a06)',
+    border: '1px solid var(--uni-border, #331e13)',
     borderRadius: '12px',
     padding: '1rem 1.25rem',
-    fontFamily: '"Montserrat", sans-serif',
+    fontFamily: 'var(--uni-font, "Montserrat", sans-serif)',
   },
   alarmFeedHeader: {
     display: 'flex',
@@ -53,12 +69,18 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
-    color: '#a89d93',
+    color: 'var(--uni-text-muted, #a89d93)',
   },
   alarmCount: {
     fontSize: '0.65rem',
-    color: '#887c71',
+    color: 'var(--uni-text-muted, #887c71)',
     fontFamily: 'monospace',
+  },
+  emptyState: {
+    fontSize: '0.75rem',
+    color: 'var(--uni-text-muted, #887c71)',
+    padding: '0.75rem 0',
+    textAlign: 'center',
   },
   alarmList: {
     display: 'flex',
@@ -66,13 +88,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: '0.5rem',
     maxHeight: '140px',
     overflowY: 'auto',
+    scrollbarWidth: 'thin',
+    scrollbarColor: 'var(--uni-border) transparent',
   },
   alarmItem: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0a0604',
-    border: '1px solid #24140b',
+    backgroundColor: 'var(--uni-bg-primary, #0a0604)',
+    border: '1px solid var(--uni-border, #24140b)',
     padding: '0.5rem 0.75rem',
     borderRadius: '6px',
     fontSize: '0.75rem',
@@ -80,17 +104,17 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   alarmTime: {
     fontFamily: 'monospace',
-    color: '#887c71',
+    color: 'var(--uni-text-muted, #887c71)',
     fontSize: '0.7rem',
   },
   alarmCode: {
     fontFamily: 'monospace',
     fontWeight: 'bold',
-    color: '#a0522d',
+    color: 'var(--uni-orange, #a0522d)',
   },
   alarmMessage: {
     flex: 1,
-    color: '#d8cbb8',
+    color: 'var(--uni-text-main, #d8cbb8)',
   },
   alarmLevel: {
     fontSize: '0.6rem',

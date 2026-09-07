@@ -1,5 +1,5 @@
 // frontend/src/components/dashboard/TrackSchematic.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Station } from '../../types';
 
 interface TrackSchematicProps {
@@ -14,10 +14,14 @@ interface SimulatedTrain {
   speed: number;
 }
 
-export const TrackSchematic: React.FC<TrackSchematicProps> = ({ 
-  stations, 
-  selectedStation, 
-  onSelectStation 
+const MIN_SPEED = 55;
+const SPEED_JITTER = 18;
+const TRAIN_TICK_MS = 4000;
+
+export const TrackSchematic: React.FC<TrackSchematicProps> = ({
+  stations,
+  selectedStation,
+  onSelectStation,
 }) => {
   const [activeTrains, setActiveTrains] = useState<SimulatedTrain[]>([
     { id: 'T-01', stationIndex: 0, speed: 64 },
@@ -25,20 +29,32 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
     { id: 'T-08', stationIndex: 7, speed: 52 },
     { id: 'T-12', stationIndex: 11, speed: 67 },
   ]);
+  const [hoveredCode, setHoveredCode] = useState<string | null>(null);
 
   useEffect(() => {
+    if (stations.length === 0) return;
     const interval = setInterval(() => {
       setActiveTrains(prev =>
         prev.map(train => ({
           ...train,
           stationIndex: (train.stationIndex + 1) % stations.length,
-          speed: Math.floor(55 + Math.random() * 18)
+          speed: Math.floor(MIN_SPEED + Math.random() * SPEED_JITTER),
         }))
       );
-    }, 4000);
+    }, TRAIN_TICK_MS);
 
     return () => clearInterval(interval);
   }, [stations.length]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent, station: Station) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onSelectStation(station);
+      }
+    },
+    [onSelectStation]
+  );
 
   return (
     <section style={styles.container}>
@@ -56,13 +72,24 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
           {stations.map((st, idx) => {
             const isSelected = selectedStation.code === st.code;
             const isWarning = st.status === 'ATENÇÃO';
+            const isHovered = hoveredCode === st.code;
             const trainsAtThisStation = activeTrains.filter(t => t.stationIndex === idx);
 
             return (
-              <div 
-                key={st.code} 
-                style={styles.stationColumn}
+              <div
+                key={st.code}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
+                aria-label={`Estação ${st.name}, status ${st.status}`}
+                style={{
+                  ...styles.stationColumn,
+                  transform: isHovered ? 'translateY(-2px)' : 'none',
+                }}
                 onClick={() => onSelectStation(st)}
+                onKeyDown={(e) => handleKeyDown(e, st)}
+                onMouseEnter={() => setHoveredCode(st.code)}
+                onMouseLeave={() => setHoveredCode(null)}
               >
                 {/* Slot superior para Trens em Trânsito */}
                 <div style={styles.trainSlot}>
@@ -77,24 +104,44 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
                 {/* Linha do Trilho com o Nó Central */}
                 <div style={styles.railTrackSegment}>
                   <div style={styles.railBarHorizontal} />
-                  <div style={{
-                    ...styles.nodeDot,
-                    borderColor: isSelected ? 'var(--uni-orange)' : isWarning ? 'var(--uni-warning)' : 'var(--uni-border)',
-                    backgroundColor: isSelected ? 'var(--uni-orange)' : isWarning.toString() === 'true' ? '#78350f' : 'var(--uni-bg-card)',
-                    boxShadow: isSelected ? '0 0 14px var(--uni-orange-glow)' : 'none'
-                  }}>
+                  <div
+                    style={{
+                      ...styles.nodeDot,
+                      borderColor: isSelected
+                        ? 'var(--uni-orange)'
+                        : isWarning
+                        ? 'var(--uni-warning)'
+                        : 'var(--uni-border)',
+                      backgroundColor: isSelected
+                        ? 'var(--uni-orange)'
+                        : isWarning
+                        ? '#78350f'
+                        : 'var(--uni-bg-card)',
+                      boxShadow: isSelected
+                        ? '0 0 14px var(--uni-orange-glow)'
+                        : isHovered
+                        ? '0 0 8px rgba(255, 102, 0, 0.25)'
+                        : 'none',
+                    }}
+                  >
                     <span style={styles.nodeIndex}>{idx + 1}</span>
                   </div>
                 </div>
 
                 {/* Nome da Estação alinhado */}
-                <span style={{
-                  ...styles.stationName,
-                  color: isSelected ? '#ffffff' : 'var(--uni-text-muted)',
-                  fontWeight: isSelected ? 700 : 500,
-                  backgroundColor: isSelected ? 'rgba(255, 102, 0, 0.15)' : 'transparent',
-                  borderColor: isSelected ? 'rgba(255, 102, 0, 0.4)' : 'transparent'
-                }}>
+                <span
+                  style={{
+                    ...styles.stationName,
+                    color: isSelected ? '#ffffff' : 'var(--uni-text-muted)',
+                    fontWeight: isSelected ? 700 : 500,
+                    backgroundColor: isSelected
+                      ? 'rgba(255, 102, 0, 0.15)'
+                      : isHovered
+                      ? 'rgba(255, 102, 0, 0.06)'
+                      : 'transparent',
+                    borderColor: isSelected ? 'rgba(255, 102, 0, 0.4)' : 'transparent',
+                  }}
+                >
                   {st.name}
                 </span>
               </div>
@@ -169,7 +216,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: '130px',
     cursor: 'pointer',
     gap: '0.5rem',
-    transition: 'transform 0.2s',
+    transition: 'transform 0.2s ease',
+    borderRadius: '8px',
   },
   trainSlot: {
     height: '34px',
@@ -230,6 +278,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'box-shadow 0.2s, background-color 0.2s',
   },
   nodeIndex: {
     fontSize: '0.6rem',

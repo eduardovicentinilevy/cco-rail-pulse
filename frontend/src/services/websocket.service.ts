@@ -1,4 +1,3 @@
-// frontend/src/services/websocket.service.ts
 import { io, Socket } from 'socket.io-client';
 
 class WebSocketService {
@@ -8,15 +7,14 @@ class WebSocketService {
   public connect(): Socket {
     if (!this.socket) {
       this.socket = io(this.backendUrl, {
-        // CORREÇÃO: O Polling deve vir primeiro para o handshake do Socket.io
-        transports: ['polling', 'websocket'], 
+        transports: ['polling', 'websocket'],
         autoConnect: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
       });
 
       this.socket.on('connect_error', (error) => {
-        console.warn('[WS] Tentando reconectar ao gateway de telemetria...', error.message);
+        console.warn('[WS] Reconectando ao gateway de telemetria...', error.message);
       });
     }
 
@@ -37,8 +35,6 @@ class WebSocketService {
   public emitCommand(trainId: string, command: string): void {
     if (this.socket && this.socket.connected) {
       this.socket.emit('train:command', { trainId, command });
-    } else {
-      console.error('[WS-ERROR] Falha ao enviar comando: Socket desconectado.');
     }
   }
 }

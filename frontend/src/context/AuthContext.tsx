@@ -1,4 +1,3 @@
-// frontend/src/context/AuthContext.tsx
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import type { OperatorSession } from '../types';
 
@@ -12,14 +11,19 @@ interface AuthContextData {
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  
-  // Força o estado inicial como null e limpa qualquer sessão anterior do navegador
   const [session, setSession] = useState<OperatorSession | null>(() => {
-    localStorage.removeItem('@RailPulse:session');
+    const saved = localStorage.getItem('@RailPulse:session');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        localStorage.removeItem('@RailPulse:session');
+        return null;
+      }
+    }
     return null;
   });
 
-  // Autenticação Integrada com a API REST (PostgreSQL)
   const login = async (operatorId: string, password?: string) => {
     try {
       const response = await fetch('http://localhost:3333/api/auth/login', {
@@ -29,7 +33,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (!response.ok) {
-        throw new Error('Falha na autenticação. Verifique suas credenciais.');
+        throw new Error('Falha na autenticação.');
       }
 
       const data = await response.json();
@@ -44,7 +48,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setSession(newSession);
       localStorage.setItem('@RailPulse:session', JSON.stringify(newSession));
     } catch (error) {
-      console.error('[AUTH] Erro ao realizar login:', error);
+      console.error('[AUTH] Erro:', error);
       alert('Erro de Autenticação: Credencial ou Senha inválida.');
       throw error; 
     }
@@ -53,7 +57,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateAvatar = (avatarUrl: string) => {
     if (!session) return;
     const updatedSession = { ...session, avatarUrl };
-    
     setSession(updatedSession);
     localStorage.setItem('@RailPulse:session', JSON.stringify(updatedSession));
   };

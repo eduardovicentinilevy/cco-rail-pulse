@@ -1,5 +1,9 @@
 {
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "tsx": "^4.23.13"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3"
   }
 }

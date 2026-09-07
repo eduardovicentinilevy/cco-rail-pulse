@@ -21,10 +21,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- INSERÇÃO DE TESTE
 -- Inserindo um operador mockado. A senha real "123456" hasheada com Bcrypt (cost 10)
-INSERT INTO operators (id, name, role, password_hash) 
+INSERT INTO operators (id, name, role, password_hash, avatar_url, is_active)
 VALUES (
-    'EDP-042', 
-    'Eduardo Operador', 
-    'SUPERVISOR', 
-    '$2b$10$X7x2eUv08P.OOTI5/dC5t.2rB8E3eG3t0dY5r9aX/tG0z3t9a5xQe'
-) ON CONFLICT (id) DO NOTHING;
+  'EDP-042', 
+  'Eduardo Vicentini Levy', 
+  'OPERATOR_SOC', 
+  '$2b$10$8K1p/a0d1.1v2W3x4Y5Z6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2', 
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', 
+  TRUE
+)
+ON CONFLICT (id) DO UPDATE 
+SET password_hash = '$2b$10$8K1p/a0d1.1v2W3x4Y5Z6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t2';

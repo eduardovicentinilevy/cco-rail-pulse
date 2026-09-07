@@ -1,29 +1,42 @@
 // frontend/src/components/LoginScreen.tsx
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 
 interface LoginScreenProps {
-  onLogin: (operatorId: string, password?: string) => Promise<void>;
+  onLogin: (operatorId: string, password: string) => Promise<void>;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [operatorId, setOperatorId] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const trimmedOperatorId = operatorId.trim();
+  const trimmedPassword = password.trim();
+  const canSubmit = trimmedOperatorId.length > 0 && trimmedPassword.length > 0 && !isLoading;
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (operatorId.trim() && password.trim()) {
-      setIsLoading(true);
-      try {
-        await onLogin(operatorId.trim(), password.trim());
-      } catch (error) {
-        // Falha no login: reseta apenas a senha
-        setPassword('');
-      } finally {
-        setIsLoading(false);
-      }
+    if (!canSubmit) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      await onLogin(trimmedOperatorId, trimmedPassword);
+    } catch (err) {
+      // Falha no login: mantém a credencial, limpa e refoca a senha
+      setPassword('');
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Credencial ou senha inválida. Tente novamente.'
+      );
+      passwordRef.current?.focus();
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [canSubmit, onLogin, trimmedOperatorId, trimmedPassword]);
 
   return (
     <div style={styles.container}>
@@ -34,13 +47,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <p style={styles.subtitle}>Linha 6-Laranja (Linha Uni)</p>
         </div>
 
-        <form onSubmit={handleSubmit} style={styles.form}>
+        <form onSubmit={handleSubmit} style={styles.form} noValidate>
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Credencial do Operador</label>
-            <input 
-              type="text" 
+            <label htmlFor="operatorId" style={styles.label}>
+              Credencial do Operador
+            </label>
+            <input
+              id="operatorId"
+              name="operatorId"
+              type="text"
+              autoComplete="username"
+              autoFocus
               value={operatorId}
-              onChange={(e) => setOperatorId(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                setOperatorId(e.target.value.toUpperCase());
+                if (error) setError(null);
+              }}
               placeholder="Ex: EDP-042"
               style={styles.input}
               disabled={isLoading}
@@ -49,19 +71,44 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>Senha de Acesso</label>
-            <input 
-              type="password" 
+            <label htmlFor="password" style={styles.label}>
+              Senha de Acesso
+            </label>
+            <input
+              id="password"
+              name="password"
+              ref={passwordRef}
+              type="password"
+              autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+              }}
               placeholder="••••••••"
               style={styles.input}
               disabled={isLoading}
+              aria-invalid={!!error}
+              aria-describedby={error ? 'login-error' : undefined}
               required
             />
           </div>
 
-          <button type="submit" style={{...styles.button, opacity: isLoading ? 0.7 : 1}} disabled={isLoading}>
+          {error && (
+            <p id="login-error" role="alert" style={styles.error}>
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            style={{
+              ...styles.button,
+              opacity: canSubmit ? 1 : 0.6,
+              cursor: canSubmit ? 'pointer' : 'not-allowed',
+            }}
+            disabled={!canSubmit}
+          >
             {isLoading ? 'Autenticando...' : 'Autenticar e Iniciar Turno'}
           </button>
         </form>
@@ -81,5 +128,6 @@ const styles: { [key: string]: React.CSSProperties } = {
   inputGroup: { display: 'flex', flexDirection: 'column', gap: '0.4rem' },
   label: { fontSize: '0.75rem', color: 'var(--uni-text-muted)', fontWeight: 600 },
   input: { backgroundColor: 'var(--uni-bg-primary)', border: '1px solid var(--uni-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--uni-text-main)', fontSize: '0.9rem', outline: 'none', transition: 'border-color 0.2s' },
+  error: { color: '#ff6b6b', fontSize: '0.8rem', margin: 0, textAlign: 'center' },
   button: { backgroundColor: 'var(--uni-orange)', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.85rem', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', marginTop: '0.5rem', transition: 'all 0.2s' }
 };
