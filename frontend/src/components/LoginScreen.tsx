@@ -118,8 +118,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: 'var(--uni-bg-primary)', fontFamily: 'var(--uni-font)' },
-  card: { backgroundColor: 'var(--uni-bg-secondary)', border: '1px solid var(--uni-border)', borderRadius: '12px', padding: '2.5rem', width: '100%', maxWidth: '400px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' },
+  container: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'var(--uni-font)' },
+  card: {
+    backgroundColor: 'var(--uni-bg-secondary)',
+    border: '1px solid var(--uni-border)',
+    borderRadius: '12px',
+    padding: '2.5rem',
+    width: '100%',
+    maxWidth: '400px',
+    boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 102, 0, 0.06)',
+    borderTop: '2px solid var(--uni-orange)',
+    animation: 'railpulse-fade-in 0.35s ease',
+  },
   header: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '2rem', textAlign: 'center' },
   tag: { backgroundColor: 'rgba(255, 102, 0, 0.15)', color: 'var(--uni-orange)', fontSize: '0.7rem', fontWeight: 'bold', padding: '0.3rem 0.6rem', borderRadius: '4px', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '0.05em' },
   title: { fontSize: '1.5rem', fontWeight: 800, color: 'var(--uni-text-main)', margin: '0' },

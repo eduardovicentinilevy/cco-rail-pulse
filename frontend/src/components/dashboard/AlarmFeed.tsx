@@ -52,11 +52,11 @@ export const AlarmFeed: React.FC<AlarmFeedProps> = ({ alarms }) => {
 const styles: { [key: string]: React.CSSProperties } = {
   alarmFeedContainer: {
     marginTop: '1rem',
-    backgroundColor: 'var(--uni-bg-secondary, #110a06)',
-    border: '1px solid var(--uni-border, #331e13)',
+    backgroundColor: 'var(--uni-bg-secondary)',
+    border: '1px solid var(--uni-border)',
     borderRadius: '12px',
     padding: '1rem 1.25rem',
-    fontFamily: 'var(--uni-font, "Montserrat", sans-serif)',
+    fontFamily: 'var(--uni-font)',
   },
   alarmFeedHeader: {
     display: 'flex',
@@ -69,16 +69,16 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
-    color: 'var(--uni-text-muted, #a89d93)',
+    color: 'var(--uni-text-muted)',
   },
   alarmCount: {
     fontSize: '0.65rem',
-    color: 'var(--uni-text-muted, #887c71)',
+    color: 'var(--uni-text-muted)',
     fontFamily: 'monospace',
   },
   emptyState: {
     fontSize: '0.75rem',
-    color: 'var(--uni-text-muted, #887c71)',
+    color: 'var(--uni-text-muted)',
     padding: '0.75rem 0',
     textAlign: 'center',
   },
@@ -95,8 +95,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'var(--uni-bg-primary, #0a0604)',
-    border: '1px solid var(--uni-border, #24140b)',
+    backgroundColor: 'var(--uni-bg-primary)',
+    border: '1px solid var(--uni-border)',
     padding: '0.5rem 0.75rem',
     borderRadius: '6px',
     fontSize: '0.75rem',
@@ -104,17 +104,17 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   alarmTime: {
     fontFamily: 'monospace',
-    color: 'var(--uni-text-muted, #887c71)',
+    color: 'var(--uni-text-muted)',
     fontSize: '0.7rem',
   },
   alarmCode: {
     fontFamily: 'monospace',
     fontWeight: 'bold',
-    color: 'var(--uni-orange, #a0522d)',
+    color: 'var(--uni-orange)',
   },
   alarmMessage: {
     flex: 1,
-    color: 'var(--uni-text-main, #d8cbb8)',
+    color: 'var(--uni-text-main)',
   },
   alarmLevel: {
     fontSize: '0.6rem',

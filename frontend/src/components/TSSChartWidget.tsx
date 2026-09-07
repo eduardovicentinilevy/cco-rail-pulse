@@ -5,7 +5,12 @@ import { wsService } from '../services/websocket.service';
 interface DataPoint {
   time: string;
   BRA: number;
-  AGU: number;
+  ITA: number;
+}
+
+interface TelemetryReading {
+  currentStationCode: string;
+  voltageKV?: number;
 }
 
 export const TSSChartWidget: React.FC = () => {
@@ -13,16 +18,16 @@ export const TSSChartWidget: React.FC = () => {
 
   useEffect(() => {
     const socket = wsService.connect();
-    
-    socket.on('telemetry:batch', (batch: any[]) => {
+
+    socket.on('telemetry:batch', (batch: TelemetryReading[]) => {
       const now = new Date();
       const timeLabel = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-      
-      const braData = batch.find((b: any) => b.currentStationCode === 'BRA')?.voltageKV || 24.5;
-      const aguData = batch.find((b: any) => b.currentStationCode === 'AGU')?.voltageKV || 23.5;
+
+      const braData = batch.find((b) => b.currentStationCode === 'BRA')?.voltageKV || 24.5;
+      const itaData = batch.find((b) => b.currentStationCode === 'ITA')?.voltageKV || 22.0;
 
       setData(prevData => {
-        const newData = [...prevData, { time: timeLabel, BRA: braData, AGU: aguData }];
+        const newData = [...prevData, { time: timeLabel, BRA: braData, ITA: itaData }];
         // Buffer circular limitando a 15 pontos para manter performance do React
         return newData.length > 15 ? newData.slice(newData.length - 15) : newData;
       });
@@ -47,7 +52,7 @@ export const TSSChartWidget: React.FC = () => {
               itemStyle={{ fontWeight: '600' }}
             />
             <Line type="monotone" name="Brasilândia (BRA)" dataKey="BRA" stroke="#FF6600" strokeWidth={3} dot={false} isAnimationActive={false} />
-            <Line type="monotone" name="Água Branca (AGU)" dataKey="AGU" stroke="#00FF66" strokeWidth={3} dot={false} isAnimationActive={false} />
+            <Line type="monotone" name="Itaberaba (ITA)" dataKey="ITA" stroke="#FF0000" strokeWidth={3} dot={false} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -57,18 +62,18 @@ export const TSSChartWidget: React.FC = () => {
 
 const styles: { [key: string]: React.CSSProperties } = {
   card: {
-    backgroundColor: '#141414',
-    border: '1px solid #2E2E2E',
+    backgroundColor: 'var(--uni-bg-secondary)',
+    border: '1px solid var(--uni-border)',
     borderRadius: '10px',
     padding: '1.25rem',
     marginTop: '1.5rem',
     boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-    fontFamily: 'Montserrat, sans-serif'
+    fontFamily: 'var(--uni-font)'
   },
   title: {
     fontSize: '0.95rem',
     fontWeight: 700,
-    color: '#FFFFFF',
+    color: 'var(--uni-text-main)',
     marginTop: 0,
     marginBottom: '1rem'
   }

@@ -34,8 +34,11 @@ export const StationsGrid: React.FC<StationsGridProps> = ({ stations, selectedSt
         <div style={styles.grid}>
           {stations.map(st => {
             const isSelected = st.code === selectedStationCode;
+            const isCritical = st.status === 'CRÍTICO';
             const isWarning = st.status === 'ATENÇÃO';
             const isHovered = hoveredCode === st.code;
+            const statusColor = isCritical ? 'var(--uni-danger)' : isWarning ? 'var(--uni-warning)' : 'var(--uni-success)';
+            const statusBg = isCritical ? 'rgba(255, 0, 0, 0.15)' : isWarning ? 'rgba(255, 102, 0, 0.15)' : 'rgba(0, 255, 102, 0.12)';
             return (
               <div
                 key={st.code}
@@ -49,7 +52,7 @@ export const StationsGrid: React.FC<StationsGridProps> = ({ stations, selectedSt
                 onMouseLeave={() => setHoveredCode(null)}
                 style={{
                   ...styles.stationCard,
-                  borderColor: isSelected ? 'var(--uni-orange)' : isWarning ? 'var(--uni-warning)' : 'var(--uni-border)',
+                  borderColor: isSelected ? 'var(--uni-orange)' : isCritical || isWarning ? statusColor : 'var(--uni-border)',
                   backgroundColor: isSelected ? 'rgba(255, 102, 0, 0.08)' : 'var(--uni-bg-primary)',
                   transform: isHovered && !isSelected ? 'translateY(-2px)' : 'none',
                   boxShadow: isHovered && !isSelected ? '0 6px 16px rgba(0, 0, 0, 0.35)' : 'none',
@@ -57,13 +60,7 @@ export const StationsGrid: React.FC<StationsGridProps> = ({ stations, selectedSt
               >
                 <div style={styles.stationTop}>
                   <span style={styles.codeBadge}>{st.code}</span>
-                  <span
-                    style={{
-                      ...styles.statusBadge,
-                      backgroundColor: isWarning ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                      color: isWarning ? 'var(--uni-warning)' : 'var(--uni-success)',
-                    }}
-                  >
+                  <span style={{ ...styles.statusBadge, backgroundColor: statusBg, color: statusColor }}>
                     {st.status}
                   </span>
                 </div>

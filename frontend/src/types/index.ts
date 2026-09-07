@@ -1,7 +1,8 @@
 // frontend/src/types/index.ts
-export type StationStatus = 'NORMAL' | 'ATENÇÃO' | 'MANUTENÇÃO';
+export type StationStatus = 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO';
 
 export interface Station {
+  id: number;
   code: string;
   name: string;
   status: StationStatus;
@@ -20,7 +21,17 @@ export interface AlarmEvent {
 
 export interface OperatorSession {
   operatorId: string;
+  name?: string;
   role: 'OPERATOR_SOC' | 'SUPERVISOR' | 'ADMIN';
   token: string;
-  avatarUrl?: string; // Novo: URL da foto de perfil
+  avatarUrl?: string; // URL da foto de perfil
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  operatorId: string;
+  action: string;
+  target: string;
+  status: string;
 }
