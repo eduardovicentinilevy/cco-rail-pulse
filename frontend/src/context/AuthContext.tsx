@@ -1,14 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { useState } from 'react';
+import type { ReactNode } from 'react';
 import type { OperatorSession } from '../types';
-
-interface AuthContextData {
-  session: OperatorSession | null;
-  login: (operatorId: string, password?: string) => Promise<void>;
-  logout: () => void;
-  updateAvatar: (avatarUrl: string) => void;
-}
-
-const AuthContext = createContext<AuthContextData>({} as AuthContextData);
+import { AuthContext } from './auth-context';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<OperatorSession | null>(() => {
@@ -25,33 +18,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const login = async (operatorId: string, password?: string) => {
-    try {
-      const response = await fetch('http://localhost:3333/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operatorId, password })
-      });
+    const response = await fetch('http://localhost:3333/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operatorId, password })
+    });
 
-      if (!response.ok) {
-        throw new Error('Falha na autenticação.');
-      }
+    const data = await response.json().catch(() => ({}));
 
-      const data = await response.json();
-
-      const newSession: OperatorSession = {
-        operatorId: data.operatorId,
-        role: data.role,
-        token: data.token,
-        avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
-      };
-      
-      setSession(newSession);
-      localStorage.setItem('@RailPulse:session', JSON.stringify(newSession));
-    } catch (error) {
-      console.error('[AUTH] Erro:', error);
-      alert('Erro de Autenticação: Credencial ou Senha inválida.');
-      throw error; 
+    if (!response.ok) {
+      throw new Error(data.error || 'Falha na autenticação.');
     }
+
+    const newSession: OperatorSession = {
+      operatorId: data.operatorId,
+      name: data.name,
+      role: data.role,
+      token: data.token,
+      avatarUrl: data.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+    };
+
+    setSession(newSession);
+    localStorage.setItem('@RailPulse:session', JSON.stringify(newSession));
   };
 
   const updateAvatar = (avatarUrl: string) => {
@@ -73,4 +61,3 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   );
 };
 
-export const useAuth = () => useContext(AuthContext);

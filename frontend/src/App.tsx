@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './context/useAuth';
 import { LoginScreen } from './components/LoginScreen';
 import { CCODashboard } from './components/CCODashboard';
 
 const AppContent: React.FC = () => {
-  const { session, login, logout } = useAuth();
+  const { session, login, logout, updateAvatar } = useAuth();
 
   useEffect(() => {
     const rawSession = localStorage.getItem('@RailPulse:session');
@@ -18,7 +19,7 @@ const AppContent: React.FC = () => {
     return <LoginScreen onLogin={login} />;
   }
 
-  return <CCODashboard operator={session.operatorId} onLogout={logout} />;
+  return <CCODashboard session={session} onUpdateAvatar={updateAvatar} onLogout={logout} />;
 };
 
 export function App() {

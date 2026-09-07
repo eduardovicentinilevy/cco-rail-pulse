@@ -6,6 +6,7 @@ export const AnalyticsReportsView: React.FC = () => {
     <div style={styles.container}>
       <div style={styles.pageHeader}>
         <div>
+          <span style={styles.pageTag}>Análises</span>
           <h2 style={styles.title}>Relatórios de Desempenho & KPIs</h2>
           <p style={styles.subtitle}>Índices de pontualidade, oferta de lugares e conformidade operacional</p>
         </div>
@@ -47,7 +48,7 @@ export const AnalyticsReportsView: React.FC = () => {
             <span style={styles.barLabel}>Sinalização CBTC</span>
           </div>
           <div style={styles.barGroup}>
-            <div style={{ ...styles.bar, height: '75%', backgroundColor: '#a0522d' }} />
+            <div style={{ ...styles.bar, height: '75%', backgroundColor: 'var(--uni-orange)' }} />
             <span style={styles.barLabel}>Alimentação Aérea</span>
           </div>
           <div style={styles.barGroup}>
@@ -61,20 +62,21 @@ export const AnalyticsReportsView: React.FC = () => {
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: { padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: '"Montserrat", sans-serif' },
-  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: '1.1rem', fontWeight: 700, color: '#ebcf98' },
-  subtitle: { fontSize: '0.75rem', color: '#a89d93', marginTop: '0.2rem' },
-  actionBtn: { backgroundColor: '#1c100a', border: '1px solid #331e13', color: '#ebcf98', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' },
+  container: { display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--uni-font)', animation: 'railpulse-fade-in 0.3s ease' },
+  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' },
+  pageTag: { fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--uni-orange)', letterSpacing: '0.08em' },
+  title: { fontSize: '1.1rem', fontWeight: 700, color: 'var(--uni-text-main)', margin: '0.35rem 0 0.2rem' },
+  subtitle: { fontSize: '0.75rem', color: 'var(--uni-text-muted)', margin: 0 },
+  actionBtn: { backgroundColor: 'var(--uni-bg-secondary)', border: '1px solid var(--uni-border)', color: 'var(--uni-text-main)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' },
   metricsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' },
-  metricCard: { backgroundColor: '#110a06', border: '1px solid #331e13', borderRadius: '12px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' },
-  metricLabel: { fontSize: '0.7rem', color: '#a89d93', fontWeight: 600, textTransform: 'uppercase' },
-  metricValue: { fontSize: '1.5rem', fontWeight: 800, color: '#ebcf98', fontFamily: 'monospace' },
-  metricSub: { fontSize: '0.65rem', color: '#887c71' },
-  chartSection: { backgroundColor: '#110a06', border: '1px solid #331e13', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' },
-  sectionTitle: { fontSize: '0.85rem', fontWeight: 700, color: '#ebcf98' },
-  chartPlaceholder: { display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end', height: '180px', paddingBottom: '1rem', borderBottom: '1px solid #24140b' },
+  metricCard: { backgroundColor: 'var(--uni-bg-secondary)', border: '1px solid var(--uni-border)', borderRadius: '12px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' },
+  metricLabel: { fontSize: '0.7rem', color: 'var(--uni-text-muted)', fontWeight: 600, textTransform: 'uppercase' },
+  metricValue: { fontSize: '1.5rem', fontWeight: 800, color: 'var(--uni-text-main)', fontFamily: 'monospace' },
+  metricSub: { fontSize: '0.65rem', color: 'var(--uni-text-muted)' },
+  chartSection: { backgroundColor: 'var(--uni-bg-secondary)', border: '1px solid var(--uni-border)', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' },
+  sectionTitle: { fontSize: '0.85rem', fontWeight: 700, color: 'var(--uni-text-main)' },
+  chartPlaceholder: { display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end', height: '180px', paddingBottom: '1rem', borderBottom: '1px solid var(--uni-border)' },
   barGroup: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', height: '100%', justifyContent: 'flex-end' },
-  bar: { width: '36px', backgroundColor: '#331e13', borderRadius: '6px 6px 0 0', transition: 'height 0.4s' },
-  barLabel: { fontSize: '0.65rem', color: '#a89d93', textAlign: 'center' }
+  bar: { width: '36px', backgroundColor: 'var(--uni-border)', borderRadius: '6px 6px 0 0', transition: 'height 0.4s' },
+  barLabel: { fontSize: '0.65rem', color: 'var(--uni-text-muted)', textAlign: 'center' }
 };

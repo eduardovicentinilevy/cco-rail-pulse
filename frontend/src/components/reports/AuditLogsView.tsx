@@ -1,21 +1,54 @@
 // frontend/src/components/reports/AuditLogsView.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import type { AuditLogEntry } from '../../types';
 
-interface AuditLogEntry {
-  id: string;
-  timestamp: string;
-  operatorId: string;
-  action: string;
-  target: string;
-  status: 'SUCCESS' | 'WARNING' | 'CRITICAL';
+interface AuditLogsViewProps {
+  token: string;
+  onClose: () => void;
 }
 
-export const AuditLogsView: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const logs: AuditLogEntry[] = [
-    { id: 'LOG-881', timestamp: '06:14:22', operatorId: 'EDP-042', action: 'EMERGENCY_BRAKE_TRIGGER', target: 'TRAIN-04 (Brasilândia)', status: 'CRITICAL' },
-    { id: 'LOG-880', timestamp: '05:50:12', operatorId: 'MAR-109', action: 'SPEED_RESTRICTION_20', target: 'TRAIN-02 (Água Branca)', status: 'WARNING' },
-    { id: 'LOG-879', timestamp: '05:30:00', operatorId: 'SYS-CORE', action: 'AUTOMATIC_HEADWAY_SYNC', target: 'Linha 6 - Tronco', status: 'SUCCESS' },
-  ];
+type FetchState = 'loading' | 'ready' | 'error';
+
+const badgeStyle = (status: string) => {
+  const normalized = status.toUpperCase();
+  if (normalized.includes('FAIL') || normalized.includes('UNAUTHORIZED') || normalized.includes('CRITICAL')) {
+    return { backgroundColor: 'rgba(255, 0, 0, 0.15)', color: 'var(--uni-danger)' };
+  }
+  if (normalized.includes('SUCCESS') || normalized.includes('EXECUTED')) {
+    return { backgroundColor: 'rgba(0, 255, 102, 0.12)', color: 'var(--uni-success)' };
+  }
+  return { backgroundColor: 'rgba(255, 102, 0, 0.15)', color: 'var(--uni-warning)' };
+};
+
+export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ token, onClose }) => {
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
+  const [state, setState] = useState<FetchState>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchLogs = async () => {
+      try {
+        const response = await fetch('http://localhost:3333/api/audit-logs', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error('Falha ao buscar trilha de auditoria.');
+        const data: AuditLogEntry[] = await response.json();
+        if (!cancelled) {
+          setLogs(data);
+          setState('ready');
+        }
+      } catch (error) {
+        console.error('[AUDIT] Erro:', error);
+        if (!cancelled) setState('error');
+      }
+    };
+
+    fetchLogs();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   return (
     <div style={styles.overlay}>
@@ -28,40 +61,42 @@ export const AuditLogsView: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           <button onClick={onClose} style={styles.closeButton}>✕</button>
         </div>
 
-        <div style={styles.tableContainer}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.trHead}>
-                <th style={styles.th}>ID</th>
-                <th style={styles.th}>Horário</th>
-                <th style={styles.th}>Operador</th>
-                <th style={styles.th}>Ação Executada</th>
-                <th style={styles.th}>Alvo</th>
-                <th style={styles.th}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map(log => (
-                <tr key={log.id} style={styles.trBody}>
-                  <td style={{ ...styles.td, fontFamily: 'monospace', color: 'var(--uni-orange)' }}>{log.id}</td>
-                  <td style={styles.tdMono}>{log.timestamp}</td>
-                  <td style={styles.td}>{log.operatorId}</td>
-                  <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.action}</td>
-                  <td style={styles.td}>{log.target}</td>
-                  <td style={styles.td}>
-                    <span style={{
-                      ...styles.badge,
-                      backgroundColor: log.status === 'SUCCESS' ? 'rgba(16, 185, 129, 0.15)' : log.status === 'WARNING' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                      color: log.status === 'SUCCESS' ? 'var(--uni-success)' : log.status === 'WARNING' ? 'var(--uni-warning)' : 'var(--uni-danger)'
-                    }}>
-                      {log.status}
-                    </span>
-                  </td>
+        {state === 'loading' && <p style={styles.emptyState}>Carregando trilha de auditoria…</p>}
+        {state === 'error' && <p style={styles.emptyState}>Não foi possível carregar os registros de auditoria.</p>}
+        {state === 'ready' && logs.length === 0 && (
+          <p style={styles.emptyState}>Nenhum evento de auditoria registrado ainda.</p>
+        )}
+
+        {state === 'ready' && logs.length > 0 && (
+          <div style={styles.tableContainer}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.trHead}>
+                  <th style={styles.th}>ID</th>
+                  <th style={styles.th}>Horário</th>
+                  <th style={styles.th}>Operador</th>
+                  <th style={styles.th}>Ação Executada</th>
+                  <th style={styles.th}>Alvo</th>
+                  <th style={styles.th}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {logs.map(log => (
+                  <tr key={log.id} style={styles.trBody}>
+                    <td style={{ ...styles.td, fontFamily: 'monospace', color: 'var(--uni-orange)' }}>LOG-{log.id}</td>
+                    <td style={styles.tdMono}>{new Date(log.timestamp).toLocaleString('pt-BR')}</td>
+                    <td style={styles.td}>{log.operatorId}</td>
+                    <td style={{ ...styles.td, fontWeight: 'bold' }}>{log.action}</td>
+                    <td style={styles.td}>{log.target}</td>
+                    <td style={styles.td}>
+                      <span style={{ ...styles.badge, ...badgeStyle(log.status) }}>{log.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -74,7 +109,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   modalTitle: { fontSize: '1rem', fontWeight: 700, color: 'var(--uni-text-main)' },
   modalSub: { fontSize: '0.7rem', color: 'var(--uni-text-muted)', marginTop: '0.2rem' },
   closeButton: { background: 'none', border: 'none', color: 'var(--uni-text-muted)', fontSize: '1rem', cursor: 'pointer' },
-  tableContainer: { overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--uni-border)' },
+  emptyState: { fontSize: '0.8rem', color: 'var(--uni-text-muted)', textAlign: 'center', padding: '2rem 0' },
+  tableContainer: { overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--uni-border)', maxHeight: '55vh', overflowY: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
   trHead: { backgroundColor: 'var(--uni-bg-primary)', borderBottom: '1px solid var(--uni-border)' },
   th: { padding: '0.75rem 1rem', fontSize: '0.7rem', color: 'var(--uni-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' },

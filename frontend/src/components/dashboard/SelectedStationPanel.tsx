@@ -24,12 +24,12 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
     const confirmed = window.confirm(
       `Confirmar frenagem de emergência para o trem ${targetTrain}? Esta ação é irreversível.`
     );
-    if (confirmed) onSendCommand(targetTrain, 'EMERGENCY_BRAKE');
+    if (confirmed) onSendCommand(targetTrain, 'EMERGENCY_BRAKE_OVERRIDE');
   };
 
   const handleSpeedRestriction = () => {
     if (!targetTrain) return;
-    onSendCommand(targetTrain, 'SPEED_RESTRICTION_20');
+    onSendCommand(targetTrain, 'SPEED_RESTRICTION_20KM');
   };
 
   return (
@@ -43,7 +43,16 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
       <div style={styles.metricsBox}>
         <div style={styles.metricRow}>
           <span>Status do Bloco:</span>
-          <strong style={{ color: station.status === 'ATENÇÃO' ? 'var(--uni-warning)' : 'var(--uni-success)' }}>
+          <strong
+            style={{
+              color:
+                station.status === 'CRÍTICO'
+                  ? 'var(--uni-danger)'
+                  : station.status === 'ATENÇÃO'
+                  ? 'var(--uni-warning)'
+                  : 'var(--uni-success)',
+            }}
+          >
             {station.status}
           </strong>
         </div>

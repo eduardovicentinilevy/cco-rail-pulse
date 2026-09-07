@@ -8,6 +8,8 @@ import jwt from 'jsonwebtoken';
 
 import { db } from '../../infrastructure/database/postgres';
 import { PgOperatorRepository } from '../../infrastructure/repositories/pg-operator.repository';
+import { TrainRepository } from '../../infrastructure/database/repositories/TrainRepository';
+import { ExecuteTrainCommandUseCase } from '../../application/use-cases/ExecuteTrainCommandUseCase';
 import { verifyJwt, AuthenticatedRequest } from './middlewares/auth.middleware';
 import { domainEventBus } from '../../application/events/event-bus';
 
@@ -16,6 +18,13 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 const operatorRepo = new PgOperatorRepository();
+const executeTrainCommandUseCase = new ExecuteTrainCommandUseCase();
+
+// Malha da Linha 6-Laranja (Linha Uni) — códigos oficiais das 15 estações
+const LINE_STATION_CODES = [
+  'BRA', 'MAR', 'ITA', 'JPI', 'FGO', 'SMA', 'AGB', 'POM',
+  'PDZ', 'PUC', 'FAA', 'HGM', '14B', 'BLV', 'SJQ',
+];
 
 const JWT_SECRET = process.env.JWT_SECRET || 'railpulse_cco_super_secure_secret_key_2026';
 
@@ -94,6 +103,31 @@ app.get('/api/operator/profile', verifyJwt, async (req: AuthenticatedRequest, re
   }
 });
 
+app.get('/api/audit-logs', verifyJwt, async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id, operator_id, action, target, status, created_at
+       FROM audit_logs
+       ORDER BY created_at DESC
+       LIMIT 50`
+    );
+
+    return res.status(200).json(
+      result.rows.map((row: any) => ({
+        id: String(row.id),
+        timestamp: row.created_at,
+        operatorId: row.operator_id,
+        action: row.action,
+        target: row.target,
+        status: row.status,
+      }))
+    );
+  } catch (error) {
+    console.error('[AUDIT-FATAL] Erro ao buscar trilha de auditoria:', error);
+    return res.status(500).json({ error: 'Erro ao buscar trilha de auditoria.' });
+  }
+});
+
 app.get('/health', async (req, res) => {
   try {
     const dbCheck = await db.query('SELECT NOW()');
@@ -124,19 +158,45 @@ io.on('connection', (socket) => {
   domainEventBus.on('telemetry:updated', onTelemetryBatch);
   domainEventBus.on('system:alert', onCriticalAlert);
 
-  socket.on('train:command', async (data: { operatorId: string; trainId: string; command: string }) => {
+  socket.on('train:command', async (data: { operatorId: string; trainId: string; command: string; targetBlock?: string }) => {
     try {
-      await operatorRepo.logAudit(data.operatorId || 'SYSTEM', `EXEC_${data.command}`, `TRAIN_${data.trainId}`, 'EXECUTED');
-      
+      const operatorId = data.operatorId || 'SYSTEM';
+      const targetBlock = data.targetBlock || data.trainId;
+
+      const mappedCommand =
+        data.command === 'EMERGENCY_BRAKE_OVERRIDE' ? 'HALT' :
+        data.command === 'SPEED_RESTRICTION_20KM' ? 'RESTRICT_SPEED' :
+        'RELEASE';
+
+      // Aplica a regra de domínio (validação, cálculo de status/velocidade) e persiste o novo estado do trem
+      const updatedTrain = executeTrainCommandUseCase.execute({
+        operatorId,
+        trainId: data.trainId,
+        command: mappedCommand,
+        targetBlock,
+      });
+      await TrainRepository.save(updatedTrain);
+
+      await operatorRepo.logAudit(operatorId, `EXEC_${data.command}`, `TRAIN_${data.trainId}`, 'EXECUTED');
+
       domainEventBus.emit('system:alert', {
-        severity: 'INFO',
-        message: `Comando ${data.command} executado no ${data.trainId} pelo operador ${data.operatorId}`,
+        severity: mappedCommand === 'HALT' ? 'CRITICAL' : 'INFO',
+        message: `Comando ${data.command} executado no ${data.trainId} pelo operador ${operatorId}`,
         timestamp: new Date().toISOString()
+      });
+
+      io.emit('train:updated', {
+        trainId: updatedTrain.trainId,
+        currentStationCode: updatedTrain.currentStationCode,
+        speedKmH: updatedTrain.speedKmH,
+        voltageKV: updatedTrain.voltageKV,
+        status: updatedTrain.status,
       });
 
       socket.emit('train:command:acknowledged', { trainId: data.trainId, command: data.command, status: 'EXECUTED' });
     } catch (err) {
       console.error('[WS-ERROR]', err);
+      socket.emit('train:command:acknowledged', { trainId: data.trainId, command: data.command, status: 'FAILED' });
     }
   });
 
@@ -148,12 +208,18 @@ io.on('connection', (socket) => {
   });
 });
 
-// SIMULADOR DE HARDWARE: Dispara eventos globalmente a cada 3 segundos
+// SIMULADOR DE HARDWARE: Dispara telemetria de tensão para toda a malha a cada 3 segundos
+const STATION_BASE_VOLTAGE: Record<string, number> = { ITA: 22.0, FGO: 23.2 };
+
 setInterval(() => {
-  domainEventBus.emit('telemetry:updated', [
-    { currentStationCode: 'BRA', voltageKV: Number((24.5 + Math.random() * 0.6).toFixed(2)), status: 'NORMAL' },
-    { currentStationCode: 'AGU', voltageKV: Number((23.0 + Math.random() * 0.5).toFixed(2)), status: 'ATENÇÃO' }
-  ]);
+  const batch = LINE_STATION_CODES.map((code) => {
+    const base = STATION_BASE_VOLTAGE[code] ?? 24.5;
+    const voltageKV = Number((base + Math.random() * 0.6).toFixed(2));
+    const status = voltageKV < 22.5 ? 'CRÍTICO' : voltageKV < 23.8 ? 'ATENÇÃO' : 'NORMAL';
+    return { currentStationCode: code, voltageKV, status };
+  });
+
+  domainEventBus.emit('telemetry:updated', batch);
 }, 3000);
 
 // ==========================================
@@ -186,15 +252,39 @@ const bootstrap = async () => {
         status VARCHAR(50) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS trains (
+        train_id VARCHAR(20) PRIMARY KEY,
+        current_station_code VARCHAR(10) NOT NULL,
+        speed_kmh NUMERIC(5, 1) NOT NULL,
+        voltage_kv NUMERIC(5, 2) NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     const defaultPasswordHash = await bcrypt.hash('123456', 10);
     await client.query(`
       INSERT INTO operators (id, name, role, password_hash, avatar_url, is_active)
       VALUES ('EDP-042', 'Eduardo Vicentini Levy', 'OPERATOR_SOC', $1, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', TRUE)
-      ON CONFLICT (id) DO UPDATE 
+      ON CONFLICT (id) DO UPDATE
       SET password_hash = $1;
     `, [defaultPasswordHash]);
+
+    const seedTrains: Array<[string, string, number, number, string]> = [
+      ['T-01', 'BRA', 45, 24.6, 'NORMAL'],
+      ['T-04', 'FGO', 30, 23.2, 'ATENÇÃO'],
+      ['T-07', 'PDZ', 50, 24.5, 'NORMAL'],
+      ['T-12', '14B', 48, 24.6, 'NORMAL'],
+    ];
+    for (const [trainId, stationCode, speed, voltage, status] of seedTrains) {
+      await client.query(
+        `INSERT INTO trains (train_id, current_station_code, speed_kmh, voltage_kv, status)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (train_id) DO NOTHING`,
+        [trainId, stationCode, speed, voltage, status]
+      );
+    }
 
     client.release();
 

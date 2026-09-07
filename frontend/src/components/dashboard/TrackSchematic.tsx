@@ -71,8 +71,10 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
         <div style={styles.trackLineGrid}>
           {stations.map((st, idx) => {
             const isSelected = selectedStation.code === st.code;
+            const isCritical = st.status === 'CRÍTICO';
             const isWarning = st.status === 'ATENÇÃO';
             const isHovered = hoveredCode === st.code;
+            const statusColor = isCritical ? 'var(--uni-danger)' : isWarning ? 'var(--uni-warning)' : 'var(--uni-border)';
             const trainsAtThisStation = activeTrains.filter(t => t.stationIndex === idx);
 
             return (
@@ -107,18 +109,16 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
                   <div
                     style={{
                       ...styles.nodeDot,
-                      borderColor: isSelected
-                        ? 'var(--uni-orange)'
-                        : isWarning
-                        ? 'var(--uni-warning)'
-                        : 'var(--uni-border)',
+                      borderColor: isSelected ? 'var(--uni-orange)' : statusColor,
                       backgroundColor: isSelected
                         ? 'var(--uni-orange)'
-                        : isWarning
-                        ? '#78350f'
+                        : isCritical || isWarning
+                        ? statusColor
                         : 'var(--uni-bg-card)',
                       boxShadow: isSelected
                         ? '0 0 14px var(--uni-orange-glow)'
+                        : isCritical
+                        ? '0 0 8px rgba(255, 0, 0, 0.4)'
                         : isHovered
                         ? '0 0 8px rgba(255, 102, 0, 0.25)'
                         : 'none',
@@ -155,10 +155,10 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
 
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
-    backgroundColor: 'var(--uni-bg-secondary, #121214)',
-    borderBottom: '1px solid var(--uni-border, #27272a)',
+    backgroundColor: 'var(--uni-bg-secondary)',
+    borderBottom: '1px solid var(--uni-border)',
     padding: '1.25rem 1.5rem',
-    fontFamily: 'var(--uni-font, "Montserrat", sans-serif)',
+    fontFamily: 'var(--uni-font)',
   },
   header: {
     display: 'flex',
@@ -178,24 +178,25 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
-    color: 'var(--uni-text-muted, #a1a1aa)',
+    color: 'var(--uni-text-muted)',
   },
   liveDot: {
     width: '7px',
     height: '7px',
-    backgroundColor: 'var(--uni-success, #10b981)',
+    backgroundColor: 'var(--uni-success)',
     borderRadius: '50%',
     boxShadow: '0 0 6px var(--uni-success)',
+    animation: 'railpulse-pulse 2s ease-in-out infinite',
   },
   liveText: {
     fontSize: '0.65rem',
-    color: 'var(--uni-success, #10b981)',
+    color: 'var(--uni-success)',
     fontWeight: 'bold',
     fontFamily: 'monospace',
   },
   subText: {
     fontSize: '0.7rem',
-    color: 'var(--uni-text-muted, #a1a1aa)',
+    color: 'var(--uni-text-muted)',
   },
   scrollContainer: {
     overflowX: 'auto',
@@ -228,8 +229,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: '100%',
   },
   trainBadge: {
-    backgroundColor: 'var(--uni-bg-card, #18181b)',
-    border: '1px solid var(--uni-orange, #ff6600)',
+    backgroundColor: 'var(--uni-bg-card)',
+    border: '1px solid var(--uni-orange)',
     borderRadius: '6px',
     padding: '0.15rem 0.4rem',
     display: 'flex',
@@ -240,12 +241,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   trainId: {
     fontSize: '0.6rem',
     fontWeight: 'bold',
-    color: 'var(--uni-orange, #ff6600)',
+    color: 'var(--uni-orange)',
     fontFamily: 'monospace',
   },
   trainSpeed: {
     fontSize: '0.55rem',
-    color: 'var(--uni-text-muted, #a1a1aa)',
+    color: 'var(--uni-text-muted)',
     fontFamily: 'monospace',
   },
   railTrackSegment: {
@@ -262,9 +263,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     right: 0,
     height: '4px',
-    backgroundColor: 'var(--uni-bg-primary, #09090b)',
-    borderTop: '1px solid var(--uni-border, #27272a)',
-    borderBottom: '1px solid var(--uni-border, #27272a)',
+    backgroundColor: 'var(--uni-bg-primary)',
+    borderTop: '1px solid var(--uni-border)',
+    borderBottom: '1px solid var(--uni-border)',
     transform: 'translateY(-50%)',
     zIndex: 1,
   },

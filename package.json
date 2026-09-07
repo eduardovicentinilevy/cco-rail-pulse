@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch backend/presentation/http/server.ts",
-    "build": "rimraf dist && tsc",
-    "start": "node dist/presentation/http/server.ts"
+    "build": "rimraf backend/dist && tsc -p backend/tsconfig.json",
+    "start": "node backend/dist/presentation/http/server.js"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +28,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.4.0",
+    "@types/pg": "^8.23.1",
     "rimraf": "^6.1.3",
     "tsx": "^4.19.0",
     "typescript": "^7.0.2"
