@@ -1,80 +1,97 @@
-import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { wsService } from '../services/websocket.service';
+// frontend/src/components/TSSChartWidget.tsx
+import React, { useMemo } from 'react';
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import type { Station } from '../types';
+import { EmptyState } from './common/EmptyState';
 
-interface DataPoint {
+/** Uma amostra do histórico: horário + tensão por código de estação. */
+export interface VoltageSample {
   time: string;
-  BRA: number;
-  ITA: number;
+  readings: Record<string, number>;
 }
 
-interface TelemetryReading {
-  currentStationCode: string;
-  voltageKV?: number;
+interface TSSChartWidgetProps {
+  history: VoltageSample[];
+  seriesCodes: string[];
+  stations: Station[];
 }
 
-export const TSSChartWidget: React.FC = () => {
-  const [data, setData] = useState<DataPoint[]>([]);
+/** Paleta derivada do laranja oficial, mantendo contraste entre séries no tema escuro. */
+const SERIES_COLORS = ['#ff6600', '#ffab2e', '#22e07a', '#ff4747'];
 
-  useEffect(() => {
-    const socket = wsService.connect();
+export const TSSChartWidget: React.FC<TSSChartWidgetProps> = ({ history, seriesCodes, stations }) => {
+  const nameByCode = useMemo(
+    () => new Map(stations.map((station) => [station.code, station.name])),
+    [stations],
+  );
 
-    socket.on('telemetry:batch', (batch: TelemetryReading[]) => {
-      const now = new Date();
-      const timeLabel = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+  const data = useMemo(
+    () =>
+      history.map((sample) => {
+        const row: Record<string, string | number> = { time: sample.time };
+        for (const code of seriesCodes) {
+          const value = sample.readings[code];
+          if (typeof value === 'number') row[code] = value;
+        }
+        return row;
+      }),
+    [history, seriesCodes],
+  );
 
-      const braData = batch.find((b) => b.currentStationCode === 'BRA')?.voltageKV || 24.5;
-      const itaData = batch.find((b) => b.currentStationCode === 'ITA')?.voltageKV || 22.0;
-
-      setData(prevData => {
-        const newData = [...prevData, { time: timeLabel, BRA: braData, ITA: itaData }];
-        // Buffer circular limitando a 15 pontos para manter performance do React
-        return newData.length > 15 ? newData.slice(newData.length - 15) : newData;
-      });
-    });
-
-    return () => {
-      socket.off('telemetry:batch');
-    };
-  }, []);
+  if (data.length === 0) {
+    return (
+      <EmptyState
+        icon="📈"
+        title="Aguardando as primeiras leituras de telemetria…"
+        hint="As curvas aparecem assim que o barramento publicar o próximo lote."
+      />
+    );
+  }
 
   return (
-    <div style={styles.card}>
-      <h3 style={styles.title}>📈 Telemetria de Tração (TSS) - Tempo Real</h3>
-      <div style={{ width: '100%', height: 250 }}>
-        <ResponsiveContainer>
-          <LineChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: -20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2E2E2E" vertical={false} />
-            <XAxis dataKey="time" stroke="#A3A3A3" fontSize={10} tickMargin={10} />
-            <YAxis domain={['auto', 'auto']} stroke="#A3A3A3" fontSize={10} tickFormatter={(val) => `${val}kV`} />
-            <Tooltip 
-              contentStyle={{ backgroundColor: '#141414', borderColor: '#2E2E2E', color: '#FFF', borderRadius: '8px' }}
-              itemStyle={{ fontWeight: '600' }}
+    <div style={{ width: '100%', height: 280 }}>
+      <ResponsiveContainer>
+        <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: -12 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" vertical={false} />
+          <XAxis dataKey="time" stroke="#a3a3a3" fontSize={10} tickMargin={8} minTickGap={24} />
+          <YAxis
+            stroke="#a3a3a3"
+            fontSize={10}
+            width={56}
+            domain={['dataMin - 0.3', 'dataMax + 0.3']}
+            tickFormatter={(value) => `${Number(value).toFixed(1)} kV`}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: '#141414',
+              border: '1px solid #2e2e2e',
+              borderRadius: 8,
+              fontSize: 12,
+            }}
+            labelStyle={{ color: '#a3a3a3' }}
+            formatter={(value, name) => [
+              `${Number(value).toFixed(2)} kV`,
+              nameByCode.get(String(name)) ?? String(name),
+            ]}
+          />
+          <Legend
+            wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+            formatter={(value) => nameByCode.get(String(value)) ?? String(value)}
+          />
+          {seriesCodes.map((code, index) => (
+            <Line
+              key={code}
+              type="monotone"
+              dataKey={code}
+              stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
+              strokeWidth={2.5}
+              dot={false}
+              isAnimationActive={false}
+              connectNulls
             />
-            <Line type="monotone" name="Brasilândia (BRA)" dataKey="BRA" stroke="#FF6600" strokeWidth={3} dot={false} isAnimationActive={false} />
-            <Line type="monotone" name="Itaberaba (ITA)" dataKey="ITA" stroke="#FF0000" strokeWidth={3} dot={false} isAnimationActive={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
-};
-
-const styles: { [key: string]: React.CSSProperties } = {
-  card: {
-    backgroundColor: 'var(--uni-bg-secondary)',
-    border: '1px solid var(--uni-border)',
-    borderRadius: '10px',
-    padding: '1.25rem',
-    marginTop: '1.5rem',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-    fontFamily: 'var(--uni-font)'
-  },
-  title: {
-    fontSize: '0.95rem',
-    fontWeight: 700,
-    color: 'var(--uni-text-main)',
-    marginTop: 0,
-    marginBottom: '1rem'
-  }
 };

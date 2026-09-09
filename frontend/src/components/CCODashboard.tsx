@@ -1,79 +1,172 @@
 // frontend/src/components/CCODashboard.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { wsService } from '../services/websocket.service';
-import { LINE_STATIONS } from '../data/stations';
-import type { AlarmEvent, OperatorSession, Station } from '../types';
-import { Header, type ConnectionStatus } from './layout/Header';
+import { api, ApiError } from '../services/api';
+import { headwayFor, LINE_STATIONS } from '../data/stations';
+import type {
+  AlarmEvent,
+  AlarmLevel,
+  OperationalCommand,
+  OperatorSession,
+  Station,
+  StationStatus,
+  Train,
+} from '../types';
+import { Header } from './layout/Header';
+import type { ConnectionStatus } from './layout/Header';
+import { TabBar } from './layout/TabBar';
+import type { TabDefinition } from './layout/TabBar';
 import { TrackSchematic } from './dashboard/TrackSchematic';
 import { StationsGrid } from './dashboard/StationsGrid';
 import { SelectedStationPanel } from './dashboard/SelectedStationPanel';
 import { AlarmFeed } from './dashboard/AlarmFeed';
 import { AuditLogsView } from './reports/AuditLogsView';
 import { OverviewView } from './views/OverviewView';
+import { EnergyView } from './views/EnergyView';
 import { AnalyticsReportsView } from './views/AnalyticsReportsView';
 import { AssetMaintenanceView } from './views/AssetMaintenanceView';
 import { TimetableDispatchView } from './views/TimetableDispatchView';
-import { CCOVisualWidgets } from './CCOVisualWidgets';
-import { TSSChartWidget } from './TSSChartWidget';
-import { ToastStack, type Toast, type ToastType } from './common/ToastStack';
+import { ToastStack } from './common/ToastStack';
+import type { Toast, ToastType } from './common/ToastStack';
+import { ConfirmDialog } from './common/ConfirmDialog';
+import type { ConfirmRequest } from './common/ConfirmDialog';
+import type { VoltageSample } from './TSSChartWidget';
+import { formatTime } from '../lib/format';
 
 interface CCODashboardProps {
   session: OperatorSession;
-  onUpdateAvatar: (url: string) => void;
+  onUpdateAvatar: (url: string) => Promise<void>;
+  onExpireSession: (reason: string) => void;
   onLogout: () => void;
 }
 
 type TabKey = 'overview' | 'ats' | 'energy' | 'assets' | 'analytics' | 'timetable';
 
-const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: 'overview', label: '🏠 Painel Executivo' },
-  { key: 'ats', label: '🗺️ Malha ATS' },
-  { key: 'energy', label: '⚡ Telemetria de Tração' },
-  { key: 'assets', label: '🔧 Saúde de Ativos (TSS)' },
-  { key: 'analytics', label: '📊 Relatórios & KPIs' },
-  { key: 'timetable', label: '🕒 Escala & Partidas' },
+const TABS: ReadonlyArray<TabDefinition<TabKey>> = [
+  { key: 'overview', label: 'Painel executivo', icon: '🏠' },
+  { key: 'ats', label: 'Malha ATS', icon: '🗺️' },
+  { key: 'energy', label: 'Telemetria de tração', icon: '⚡' },
+  { key: 'assets', label: 'Saúde de ativos', icon: '🔧' },
+  { key: 'analytics', label: 'Relatórios & KPIs', icon: '📊' },
+  { key: 'timetable', label: 'Escala & partidas', icon: '🕒' },
 ];
 
-const MAX_ALARMS = 30;
+const STATUS_FILTERS: ReadonlyArray<{ key: StationStatus | 'ALL'; label: string }> = [
+  { key: 'ALL', label: 'Todas' },
+  { key: 'CRÍTICO', label: 'Críticas' },
+  { key: 'ATENÇÃO', label: 'Atenção' },
+  { key: 'NORMAL', label: 'Normais' },
+];
 
-export const CCODashboard: React.FC<CCODashboardProps> = ({ session, onUpdateAvatar, onLogout }) => {
+const MAX_ALARMS = 60;
+const MAX_HISTORY_SAMPLES = 40;
+const TOAST_TTL_MS = 4500;
+
+export const CCODashboard: React.FC<CCODashboardProps> = ({
+  session,
+  onUpdateAvatar,
+  onExpireSession,
+  onLogout,
+}) => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [stations, setStations] = useState<Station[]>(LINE_STATIONS);
+  const [trains, setTrains] = useState<Train[]>([]);
+  const [history, setHistory] = useState<VoltageSample[]>([]);
   const [selectedCode, setSelectedCode] = useState<string>(LINE_STATIONS[0].code);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StationStatus | 'ALL'>('ALL');
   const [alarms, setAlarms] = useState<AlarmEvent[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [commandLoading, setCommandLoading] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
 
   const [shiftStartedAt] = useState(() => Date.now());
   const nextAlarmId = useRef(1);
+  const toastTimers = useRef(new Map<string, number>());
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const selectedStation = useMemo(
-    () => stations.find(st => st.code === selectedCode) ?? stations[0],
-    [stations, selectedCode]
+    () => stations.find((station) => station.code === selectedCode) ?? stations[0],
+    [stations, selectedCode],
   );
 
-  const addAlarm = useCallback((stationCode: string, message: string, level: AlarmEvent['level']) => {
-    setAlarms(prev => [
-      { id: `alarm-${nextAlarmId.current++}`, timestamp: new Date().toLocaleTimeString('pt-BR'), stationCode, message, level },
-      ...prev,
-    ].slice(0, MAX_ALARMS));
-  }, []);
-
-  const addToast = useCallback((message: string, type: ToastType) => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4500);
+  const addAlarm = useCallback((stationCode: string, message: string, level: AlarmLevel) => {
+    setAlarms((previous) =>
+      [
+        { id: `alarm-${nextAlarmId.current++}`, timestamp: formatTime(), stationCode, message, level },
+        ...previous,
+      ].slice(0, MAX_ALARMS),
+    );
   }, []);
 
   const dismissToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+    const timer = toastTimers.current.get(id);
+    if (timer) {
+      window.clearTimeout(timer);
+      toastTimers.current.delete(id);
+    }
+    setToasts((previous) => previous.filter((toast) => toast.id !== id));
   }, []);
 
+  const addToast = useCallback(
+    (message: string, type: ToastType) => {
+      const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      setToasts((previous) => [...previous, { id, message, type }]);
+      // O timer é rastreado para poder ser cancelado no unmount e no fechamento manual.
+      toastTimers.current.set(id, window.setTimeout(() => dismissToast(id), TOAST_TTL_MS));
+    },
+    [dismissToast],
+  );
+
   useEffect(() => {
-    const socket = wsService.connect();
+    const timers = toastTimers.current;
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
+
+  // Carga inicial via REST: o catálogo de estações e as composições persistidas.
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      try {
+        const [stationsPayload, trainsPayload] = await Promise.all([
+          api.stations(session.token),
+          api.trains(session.token),
+        ]);
+        if (cancelled) return;
+
+        setStations(
+          (stationsPayload.stations as unknown as Station[]).map((station) => ({
+            ...station,
+            headway: headwayFor(station.code),
+          })),
+        );
+        setTrains(trainsPayload as unknown as Train[]);
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof ApiError && error.isAuthError) {
+          onExpireSession('Sua sessão expirou. Autentique-se novamente para reassumir o turno.');
+          return;
+        }
+        // Sem backend o painel segue operando com o catálogo local da linha.
+        addAlarm('CORE', 'Carga inicial via API indisponível — exibindo catálogo local da linha', 'WARNING');
+      }
+    };
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.token, addAlarm, onExpireSession]);
+
+  // Conexão com o gateway de telemetria.
+  useEffect(() => {
+    const socket = wsService.connect(session.token);
 
     const handleConnect = () => {
       setConnectionStatus('online');
@@ -82,229 +175,276 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({ session, onUpdateAva
 
     const handleDisconnect = () => {
       setConnectionStatus('offline');
-      addAlarm('CORE', 'Aviso: conexão com o Gateway perdida', 'WARNING');
+      addAlarm('CORE', 'Conexão com o Gateway perdida — tentando reconectar', 'WARNING');
     };
 
-    const handleError = () => setConnectionStatus('offline');
-
-    const handleTelemetryBatch = (batch: Array<{ currentStationCode: string; voltageKV?: number; status?: Station['status'] }>) => {
-      setStations(prev =>
-        prev.map(st => {
-          const update = batch.find(b => b.currentStationCode === st.code);
-          if (!update) return st;
-          return {
-            ...st,
-            voltageKV: update.voltageKV ?? st.voltageKV,
-            status: update.status ?? st.status,
-          };
-        })
-      );
+    const handleConnectError = (error: Error) => {
+      setConnectionStatus('offline');
+      // O gateway recusa o handshake quando o JWT expira: encerrar o turno é o correto.
+      if (error.message === 'UNAUTHORIZED') {
+        onExpireSession('Sua sessão expirou. Autentique-se novamente para reassumir o turno.');
+      }
     };
 
-    const handleCriticalAlert = (alert: { message: string; severity?: 'INFO' | 'WARNING' | 'CRITICAL' }) => {
-      addAlarm('REDE', alert.message, alert.severity === 'CRITICAL' ? 'CRITICAL' : alert.severity === 'WARNING' ? 'WARNING' : 'INFO');
+    const handleTelemetryBatch = (batch: Array<{ currentStationCode: string; voltageKV: number; status: StationStatus }>) => {
+      setStations((previous) => {
+        const updates = new Map(batch.map((item) => [item.currentStationCode, item]));
+        return previous.map((station) => {
+          const update = updates.get(station.code);
+          return update ? { ...station, voltageKV: update.voltageKV, status: update.status } : station;
+        });
+      });
+
+      setHistory((previous) => {
+        const readings: Record<string, number> = {};
+        for (const item of batch) readings[item.currentStationCode] = item.voltageKV;
+        return [...previous, { time: formatTime(), readings }].slice(-MAX_HISTORY_SAMPLES);
+      });
     };
 
-    const handleCommandAck = (ack: { trainId: string; command: string; status: string }) => {
-      setCommandLoading(false);
+    const upsertTrain = (train: Train) =>
+      setTrains((previous) => {
+        const index = previous.findIndex((item) => item.trainId === train.trainId);
+        if (index === -1) return [...previous, train];
+        const next = [...previous];
+        next[index] = train;
+        return next;
+      });
+
+    const handleCriticalAlert = (alert: { message: string; severity?: AlarmLevel }) => {
+      addAlarm('REDE', alert.message, alert.severity ?? 'INFO');
+    };
+
+    const handleCommandAck = (ack: { trainId: string; command: string; status: string; message?: string }) => {
+      setPendingCommand(null);
       if (ack.status === 'EXECUTED') {
-        addToast(`Comando "${ack.command}" enviado para ${ack.trainId}.`, 'success');
+        addToast(`Comando "${ack.command}" executado em ${ack.trainId}.`, 'success');
       } else {
-        addToast(`Falha ao enviar o comando "${ack.command}" para ${ack.trainId}.`, 'error');
+        addToast(ack.message ?? `Falha ao executar "${ack.command}" em ${ack.trainId}.`, 'error');
       }
     };
 
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
-    socket.on('connect_error', handleError);
+    socket.on('connect_error', handleConnectError);
     socket.on('telemetry:batch', handleTelemetryBatch);
+    socket.on('train:sync', setTrains);
+    socket.on('train:updated', upsertTrain);
     socket.on('alert:critical', handleCriticalAlert);
     socket.on('train:command:acknowledged', handleCommandAck);
 
     return () => {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
-      socket.off('connect_error', handleError);
+      socket.off('connect_error', handleConnectError);
       socket.off('telemetry:batch', handleTelemetryBatch);
+      socket.off('train:sync', setTrains);
+      socket.off('train:updated', upsertTrain);
       socket.off('alert:critical', handleCriticalAlert);
       socket.off('train:command:acknowledged', handleCommandAck);
-      wsService.disconnect();
     };
-  }, [addAlarm, addToast]);
+  }, [session.token, addAlarm, addToast, onExpireSession]);
 
-  const handleSelectStation = useCallback((station: Station) => {
-    setSelectedCode(station.code);
+  const criticalAlarms = useMemo(
+    () => alarms.filter((alarm) => alarm.level === 'CRITICAL' && !alarm.acknowledged).length,
+    [alarms],
+  );
+
+  // O título da aba funciona como alerta periférico quando o painel está em segundo plano.
+  useEffect(() => {
+    document.title = criticalAlarms > 0 ? `(${criticalAlarms}) RailPulse CCO` : 'RailPulse CCO — Linha 6-Laranja';
+  }, [criticalAlarms]);
+
+  // Atalhos de teclado: 1–6 alternam abas, "/" foca a busca da malha.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTyping = target?.matches('input, textarea, select') ?? false;
+
+      if (event.key === '/' && !isTyping) {
+        event.preventDefault();
+        setActiveTab('ats');
+        window.setTimeout(() => searchInputRef.current?.focus(), 0);
+        return;
+      }
+
+      if (isTyping || event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const index = Number.parseInt(event.key, 10) - 1;
+      if (index >= 0 && index < TABS.length) setActiveTab(TABS[index].key);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleSendCommand = useCallback((trainId: string, command: string) => {
-    setCommandLoading(true);
-    const socket = wsService.connect();
-    socket.emit('train:command', {
-      operatorId: session.operatorId,
-      trainId,
-      command,
-      targetBlock: selectedStation.code,
-    });
-  }, [session.operatorId, selectedStation]);
+  const handleSelectStation = useCallback((station: Station) => setSelectedCode(station.code), []);
+
+  const handleSendCommand = useCallback(
+    (trainId: string, command: OperationalCommand) => {
+      const delivered = wsService.sendCommand(trainId, command, selectedStation.code);
+      if (!delivered) {
+        addToast('Sem conexão com o Gateway — comando não enviado.', 'error');
+        return;
+      }
+      setPendingCommand(command);
+    },
+    [addToast, selectedStation.code],
+  );
 
   const handleInjectAlert = useCallback(() => {
-    addAlarm(selectedStation.code, `Ocorrência registrada manualmente em ${selectedStation.name} pelo operador ${session.operatorId}`, 'WARNING');
+    addAlarm(
+      selectedStation.code,
+      `Ocorrência registrada manualmente em ${selectedStation.name} pelo operador ${session.operatorId}`,
+      'WARNING',
+    );
     addToast('Ocorrência registrada no feed de eventos.', 'info');
   }, [addAlarm, addToast, selectedStation, session.operatorId]);
 
+  const handleAcknowledgeAlarm = useCallback((id: string) => {
+    setAlarms((previous) => previous.map((alarm) => (alarm.id === id ? { ...alarm, acknowledged: true } : alarm)));
+  }, []);
+
   const handleLogout = useCallback(() => {
-    const confirmed = window.confirm('Deseja encerrar o turno e sair do sistema?');
-    if (confirmed) onLogout();
+    setConfirmRequest({
+      title: 'Encerrar turno',
+      message: 'Deseja encerrar o turno e sair do sistema? A sessão será registrada na trilha de auditoria.',
+      tone: 'warning',
+      confirmLabel: 'Encerrar turno',
+      onConfirm: onLogout,
+    });
   }, [onLogout]);
 
   const filteredStations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (query.length === 0) return stations;
-    return stations.filter(st => st.name.toLowerCase().includes(query) || st.code.toLowerCase().includes(query));
-  }, [stations, searchQuery]);
+    return stations.filter((station) => {
+      const matchesStatus = statusFilter === 'ALL' || station.status === statusFilter;
+      const matchesQuery =
+        query.length === 0 ||
+        station.name.toLowerCase().includes(query) ||
+        station.code.toLowerCase().includes(query);
+      return matchesStatus && matchesQuery;
+    });
+  }, [stations, searchQuery, statusFilter]);
+
+  const selectedStationTrains = useMemo(
+    () => trains.filter((train) => train.currentStationCode === selectedStation.code),
+    [trains, selectedStation.code],
+  );
 
   return (
-    <div style={styles.dashboardContainer}>
+    <div className="rp-shell">
       <Header
         session={session}
         connectionStatus={connectionStatus}
         shiftStartedAt={shiftStartedAt}
+        criticalAlarms={criticalAlarms}
         onUpdateAvatar={onUpdateAvatar}
         onOpenAuditLogs={() => setIsAuditOpen(true)}
+        onReconnect={() => wsService.reconnect()}
         onLogout={handleLogout}
       />
 
-      <nav style={styles.navTabs} role="tablist" aria-label="Seções do painel">
-        {TABS.map(tab => (
-          <button
-            key={tab.key}
-            role="tab"
-            aria-selected={activeTab === tab.key}
-            style={{ ...styles.tabButton, ...(activeTab === tab.key ? styles.tabActive : {}) }}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      <TabBar tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
-      <main style={styles.mainContent}>
+      <main className="rp-main">
         {activeTab === 'overview' && (
-          <OverviewView stations={stations} alarms={alarms} connectionStatus={connectionStatus} onNavigate={(tab) => setActiveTab(tab as TabKey)} />
+          <OverviewView
+            stations={stations}
+            trains={trains}
+            alarms={alarms}
+            connectionStatus={connectionStatus}
+            onNavigate={setActiveTab}
+            onSelectStation={handleSelectStation}
+          />
         )}
 
         {activeTab === 'ats' && (
-          <div style={styles.atsContainer}>
-            <TrackSchematic stations={stations} selectedStation={selectedStation} onSelectStation={handleSelectStation} />
+          <div className="rp-stack rp-animate-in">
+            <TrackSchematic
+              stations={stations}
+              trains={trains}
+              selectedStation={selectedStation}
+              onSelectStation={handleSelectStation}
+            />
 
-            <div style={styles.searchRow}>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar estação por nome ou código (ex: FGO, Perdizes)…"
-                style={styles.searchInput}
-                aria-label="Buscar estação"
-              />
-              {searchQuery && (
-                <button style={styles.searchClear} onClick={() => setSearchQuery('')} aria-label="Limpar busca">✕</button>
-              )}
-            </div>
-
-            <div style={styles.atsBody}>
-              <div style={styles.gridColumn}>
-                <StationsGrid stations={filteredStations} selectedStationCode={selectedStation.code} onSelectStation={handleSelectStation} />
-              </div>
-              <div style={styles.panelColumn}>
-                <SelectedStationPanel
-                  station={selectedStation}
-                  onSendCommand={handleSendCommand}
-                  onInjectAlert={handleInjectAlert}
+            <div className="rp-row rp-row--between">
+              <div className="rp-search">
+                <span className="rp-search__icon" aria-hidden="true">
+                  ⌕
+                </span>
+                <input
+                  ref={searchInputRef}
+                  className="rp-input"
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Buscar estação por nome ou código (atalho: /)"
+                  aria-label="Buscar estação"
                 />
-                {commandLoading && <p style={styles.loadingHint}>Enviando comando…</p>}
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="rp-search__clear"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Limpar busca"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="rp-chip-row" role="group" aria-label="Filtrar estações por status">
+                {STATUS_FILTERS.map((filter) => (
+                  <button
+                    key={filter.key}
+                    type="button"
+                    className="rp-chip"
+                    aria-pressed={statusFilter === filter.key}
+                    onClick={() => setStatusFilter(filter.key)}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <AlarmFeed alarms={alarms} />
+            <div className="rp-ats">
+              <StationsGrid
+                stations={filteredStations}
+                trains={trains}
+                totalStations={stations.length}
+                selectedStationCode={selectedStation.code}
+                onSelectStation={handleSelectStation}
+              />
+
+              <SelectedStationPanel
+                station={selectedStation}
+                trains={selectedStationTrains}
+                pendingCommand={pendingCommand}
+                onSendCommand={handleSendCommand}
+                onRequestConfirm={setConfirmRequest}
+                onInjectAlert={handleInjectAlert}
+              />
+            </div>
+
+            <AlarmFeed alarms={alarms} onClear={() => setAlarms([])} onAcknowledge={handleAcknowledgeAlarm} />
           </div>
         )}
 
-        {activeTab === 'energy' && (
-          <>
-            <CCOVisualWidgets />
-            <TSSChartWidget />
-          </>
-        )}
-
-        {activeTab === 'assets' && <AssetMaintenanceView />}
-        {activeTab === 'analytics' && <AnalyticsReportsView />}
-        {activeTab === 'timetable' && <TimetableDispatchView />}
+        {activeTab === 'energy' && <EnergyView stations={stations} history={history} />}
+        {activeTab === 'assets' && <AssetMaintenanceView stations={stations} />}
+        {activeTab === 'analytics' && <AnalyticsReportsView stations={stations} trains={trains} alarms={alarms} />}
+        {activeTab === 'timetable' && <TimetableDispatchView trains={trains} stations={stations} />}
       </main>
 
-      {isAuditOpen && <AuditLogsView token={session.token} onClose={() => setIsAuditOpen(false)} />}
+      {isAuditOpen && (
+        <AuditLogsView token={session.token} onClose={() => setIsAuditOpen(false)} onAuthError={onExpireSession} />
+      )}
+
+      {confirmRequest && <ConfirmDialog request={confirmRequest} onClose={() => setConfirmRequest(null)} />}
+
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
-};
-
-const styles: { [key: string]: React.CSSProperties } = {
-  dashboardContainer: {
-    minHeight: '100vh',
-    color: 'var(--uni-text-main)',
-    fontFamily: 'var(--uni-font)',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  navTabs: {
-    display: 'flex',
-    gap: '0.5rem',
-    padding: '1rem 1.75rem 0 1.75rem',
-    backgroundColor: 'var(--uni-bg-secondary)',
-    borderBottom: '1px solid var(--uni-border)',
-    flexWrap: 'wrap',
-  },
-  tabButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.4rem',
-    backgroundColor: 'transparent',
-    border: 'none',
-    color: 'var(--uni-text-muted)',
-    padding: '0.75rem 1.15rem',
-    fontSize: '0.82rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-    borderBottom: '2px solid transparent',
-    transition: 'color 0.15s, border-color 0.15s',
-  },
-  tabActive: {
-    color: 'var(--uni-orange)',
-    borderBottom: '2px solid var(--uni-orange)',
-    backgroundColor: 'rgba(255, 102, 0, 0.05)',
-  },
-  mainContent: { padding: '1.75rem', flex: 1, overflowY: 'auto' },
-  atsContainer: { display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'railpulse-fade-in 0.3s ease' },
-  searchRow: { display: 'flex', gap: '0.5rem', maxWidth: '420px' },
-  searchInput: {
-    flex: 1,
-    backgroundColor: 'var(--uni-bg-secondary)',
-    border: '1px solid var(--uni-border)',
-    borderRadius: '8px',
-    padding: '0.55rem 0.75rem',
-    color: 'var(--uni-text-main)',
-    fontSize: '0.8rem',
-    outline: 'none',
-  },
-  searchClear: {
-    backgroundColor: 'transparent',
-    border: '1px solid var(--uni-border)',
-    color: 'var(--uni-text-muted)',
-    borderRadius: '8px',
-    width: '36px',
-    cursor: 'pointer',
-  },
-  atsBody: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '1.25rem', alignItems: 'start' },
-  gridColumn: { minWidth: 0 },
-  panelColumn: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
-  loadingHint: { fontSize: '0.7rem', color: 'var(--uni-orange)', textAlign: 'center', margin: 0 },
 };

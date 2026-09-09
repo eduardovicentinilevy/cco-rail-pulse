@@ -1,0 +1,369 @@
+/* ==========================================================================
+   RailPulse CCO — Widgets operacionais (ATS, estações, alarmes, login)
+   ========================================================================== */
+
+/* --- Tela de login ---------------------------------------------------------- */
+.rp-login {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: var(--sp-5);
+}
+
+.rp-login__card {
+  width: 100%;
+  max-width: 25rem;
+  padding: var(--sp-8);
+  background-color: var(--uni-bg-secondary);
+  border: 1px solid var(--uni-border);
+  border-top: 2px solid var(--uni-orange);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: rp-fade-in var(--dur-slow) var(--ease);
+}
+
+.rp-login__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: center;
+  margin-bottom: var(--sp-6);
+}
+
+.rp-login__tag {
+  padding: 0.3rem 0.6rem;
+  background-color: var(--uni-orange-soft);
+  color: var(--uni-orange);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-radius: var(--radius-sm);
+}
+
+.rp-login__title { font-size: var(--fs-2xl); font-weight: 800; letter-spacing: -0.01em; }
+.rp-login__subtitle { font-size: var(--fs-sm); color: var(--uni-text-muted); }
+
+.rp-login__error {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.6rem 0.75rem;
+  background-color: var(--uni-danger-soft);
+  border: 1px solid var(--uni-danger);
+  border-radius: var(--radius-md);
+  color: #ffb4b4;
+  font-size: var(--fs-xs);
+}
+
+.rp-login__footer {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--uni-border);
+  text-align: center;
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-dim);
+}
+
+/* --- Esquemático ATS -------------------------------------------------------- */
+.rp-track {
+  padding: var(--sp-5);
+  background-color: var(--uni-bg-secondary);
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-lg);
+}
+
+.rp-track__scroll {
+  overflow-x: auto;
+  padding-bottom: var(--sp-2);
+}
+
+.rp-track__line {
+  display: flex;
+  gap: var(--sp-6);
+  min-width: max-content;
+  padding: var(--sp-2) var(--sp-2) 0;
+}
+
+.rp-station-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 8.25rem;
+  border: none;
+  background: transparent;
+  padding: 0;
+  transition: transform var(--dur-base) var(--ease);
+}
+
+.rp-station-node:hover { transform: translateY(-3px); }
+
+.rp-station-node__trains {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  height: 2.6rem;
+  width: 100%;
+}
+
+.rp-train-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  background-color: var(--uni-bg-card);
+  border: 1px solid var(--rp-status, var(--uni-orange));
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--uni-font-mono);
+  font-size: var(--fs-2xs);
+  white-space: nowrap;
+}
+
+.rp-train-badge__id { font-weight: 700; color: var(--rp-status, var(--uni-orange)); }
+.rp-train-badge__speed { color: var(--uni-text-muted); }
+
+.rp-station-node__rail {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 2rem;
+}
+
+/* Trilho contínuo desenhado atrás do nó da estação. */
+.rp-station-node__rail::before {
+  content: '';
+  position: absolute;
+  inset-inline: -0.75rem;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  background-color: var(--uni-bg-primary);
+  border-block: 1px solid var(--uni-border);
+}
+
+.rp-station-node__dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  border: 2px solid var(--rp-status, var(--uni-border));
+  background-color: var(--uni-bg-card);
+  font-family: var(--uni-font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: var(--uni-text-main);
+  transition: box-shadow var(--dur-base) var(--ease), background-color var(--dur-base) var(--ease);
+}
+
+.rp-station-node[data-alert='true'] .rp-station-node__dot {
+  background-color: var(--rp-status);
+  color: #0a0a0a;
+  box-shadow: 0 0 10px var(--rp-status);
+}
+
+.rp-station-node[aria-pressed='true'] .rp-station-node__dot {
+  border-color: var(--uni-orange);
+  background-color: var(--uni-orange);
+  color: #fff;
+  box-shadow: 0 0 16px var(--uni-orange-glow);
+}
+
+.rp-station-node__name {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 2.6em;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-2xs);
+  line-height: 1.25;
+  text-align: center;
+  color: var(--uni-text-muted);
+  transition: all var(--dur-base) var(--ease);
+}
+
+.rp-station-node:hover .rp-station-node__name { background-color: var(--uni-orange-softer); }
+
+.rp-station-node[aria-pressed='true'] .rp-station-node__name {
+  color: #fff;
+  font-weight: 700;
+  background-color: var(--uni-orange-soft);
+  border-color: rgba(255, 102, 0, 0.4);
+}
+
+/* --- Cartões de estação ----------------------------------------------------- */
+.rp-station-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: 0.85rem;
+  text-align: left;
+  background-color: var(--uni-bg-primary);
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-md);
+  transition: transform var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease),
+    border-color var(--dur-base) var(--ease);
+}
+
+.rp-station-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--uni-border-strong);
+}
+
+.rp-station-card[data-alert='true'] { border-color: var(--rp-status); }
+
+.rp-station-card[aria-pressed='true'] {
+  border-color: var(--uni-orange);
+  background-color: var(--uni-orange-softer);
+  box-shadow: 0 0 0 1px var(--uni-orange-soft);
+}
+
+.rp-station-card__name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  min-height: 2.4em;
+  color: var(--uni-text-main);
+}
+
+.rp-station-card__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--uni-border);
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-muted);
+}
+
+.rp-station-card__footer strong { color: var(--uni-text-main); font-family: var(--uni-font-mono); }
+
+/* --- Feed de eventos -------------------------------------------------------- */
+.rp-feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-height: 16rem;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.rp-feed--tall { max-height: 22rem; }
+
+.rp-feed__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0.5rem 0.75rem;
+  background-color: var(--uni-bg-primary);
+  border: 1px solid var(--uni-border);
+  border-left: 3px solid var(--rp-status, var(--uni-border));
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  animation: rp-fade-in var(--dur-base) var(--ease);
+}
+
+.rp-feed__time {
+  font-family: var(--uni-font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-muted);
+  flex-shrink: 0;
+}
+
+.rp-feed__source {
+  font-family: var(--uni-font-mono);
+  font-weight: 700;
+  color: var(--uni-orange);
+  flex-shrink: 0;
+}
+
+.rp-feed__message { flex: 1; min-width: 0; color: var(--uni-text-main); }
+
+/* --- Subestações (TSS) ------------------------------------------------------ */
+.rp-tss-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  background-color: var(--uni-bg-primary);
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-md);
+}
+
+.rp-tss-card__voltage {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-family: var(--uni-font-mono);
+}
+
+.rp-tss-card__value { font-size: var(--fs-xl); font-weight: 800; color: var(--rp-status, var(--uni-text-main)); }
+.rp-tss-card__unit { font-size: var(--fs-xs); color: var(--uni-text-muted); font-weight: 600; }
+
+/* --- Gráfico de barras (relatórios) ----------------------------------------- */
+.rp-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: var(--sp-3);
+  height: 12rem;
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--uni-border);
+}
+
+.rp-bars__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+.rp-bars__bar {
+  width: min(2.5rem, 100%);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background-color: var(--rp-status, var(--uni-border-strong));
+  transition: height var(--dur-slow) var(--ease), filter var(--dur-fast) var(--ease);
+}
+
+.rp-bars__group:hover .rp-bars__bar { filter: brightness(1.25); }
+
+.rp-bars__label {
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.rp-bars__value { font-family: var(--uni-font-mono); font-size: var(--fs-2xs); color: var(--uni-text-main); }
+
+/* --- Terminal de controle --------------------------------------------------- */
+.rp-terminal__metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background-color: var(--uni-bg-primary);
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-md);
+}
+
+.rp-terminal__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--uni-border);
+}

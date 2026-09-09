@@ -1,15 +1,23 @@
-// src/application/dtos/TrainDTO.ts
+// backend/application/dtos/TrainDTO.ts
+import type { TrainCommand, TrainStatus } from '../../domain/entities/TrainSession';
+
 export interface TrainResponseDTO {
   trainId: string;
   currentStationCode: string;
   speedKmH: number;
   voltageKV: number;
-  status: 'NORMAL' | 'ATENÇÃO' | 'EMERGÊNCIA';
+  status: TrainStatus;
   updatedAt: string;
 }
 
 export interface ExecuteCommandDTO {
   trainId: string;
-  command: 'HALT' | 'RESTRICT_SPEED' | 'RELEASE';
+  command: TrainCommand;
   targetBlock: string;
+}
+
+export interface StationTelemetryDTO {
+  currentStationCode: string;
+  voltageKV: number;
+  status: 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO';
 }

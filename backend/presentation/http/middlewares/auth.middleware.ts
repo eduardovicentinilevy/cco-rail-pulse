@@ -1,29 +1,37 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'railpulse_cco_super_secure_secret_key_2026';
+// backend/presentation/http/middlewares/auth.middleware.ts
+import type { Request, Response, NextFunction } from 'express';
+import { extractBearerToken, verifyOperatorToken } from '../../../shared/jwt';
+import type { OperatorTokenPayload } from '../../../shared/jwt';
 
 export interface AuthenticatedRequest extends Request {
-  operator?: {
-    operatorId: string;
-    role: string;
-  };
+  operator?: OperatorTokenPayload;
 }
 
-export const verifyJwt = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
+export const verifyJwt = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+  const token = extractBearerToken(req.headers.authorization);
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Acesso negado. Token JWT ausente ou malformado.' });
+  if (!token) {
+    res.status(401).json({ error: 'Acesso negado. Token JWT ausente ou malformado.', code: 'TOKEN_MISSING' });
+    return;
   }
 
-  const token = authHeader.split(' ')[1];
+  const operator = verifyOperatorToken(token);
 
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { operatorId: string; role: string };
-    req.operator = decoded;
-    next();
-  } catch (error) {
-    return res.status(403).json({ error: 'Token inválido ou expirado.' });
+  if (!operator) {
+    res.status(401).json({ error: 'Sessão expirada ou token inválido.', code: 'TOKEN_INVALID' });
+    return;
   }
+
+  req.operator = operator;
+  next();
 };
+
+/** Restringe uma rota a perfis específicos de operador. */
+export const requireRole = (...roles: string[]) =>
+  (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    if (!req.operator || !roles.includes(req.operator.role)) {
+      res.status(403).json({ error: 'Credenciamento insuficiente para esta operação.', code: 'FORBIDDEN' });
+      return;
+    }
+    next();
+  };

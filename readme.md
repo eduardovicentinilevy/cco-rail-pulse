@@ -1,7 +1,3 @@
-Aqui está uma documentação completa e profissional em nível **Enterprise**, pronta para o `README.md` do repositório **RailPulse CCO**.
-
----
-
 # 🚆 RailPulse CCO — Centro de Controle Operacional (Linha 6-Laranja)
 
 > **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacionante em tempo real para a malha ferroviária da **Linha 6-Laranja (Linha Uni)**. A plataforma integra telemetria de subestações de tração (TSS), sinalização ATS ao longo das 15 estações do traçado e envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
@@ -10,14 +6,15 @@ Aqui está uma documentação completa e profissional em nível **Enterprise**, 
 
 ## 📌 Sumário
 
-* [Visão Geral](https://www.google.com/search?q=%23-vis%C3%A3o-geral)
-* [Principais Funcionalidades](https://www.google.com/search?q=%23-principais-funcionalidades)
-* [Arquitetura e Decisões Técnicas](https://www.google.com/search?q=%23-arquitetura-e-decis%C3%B5es-t%C3%A9cnicas)
-* [Tech Stack](https://www.google.com/search?q=%23-tech-stack)
-* [Estrutura do Projeto](https://www.google.com/search?q=%23-estrutura-do-projeto)
-* [Como Executar o Projeto](https://www.google.com/search?q=%23-como-executar-o-projeto)
-* [Credenciais de Teste](https://www.google.com/search?q=%23-credenciais-de-teste)
-* [Documentação do Barramento e APIs](https://www.google.com/search?q=%23-documenta%C3%A7%C3%A3o-do-barramento-e-apis)
+* [Visão Geral](#-visão-geral)
+* [Principais Funcionalidades](#-principais-funcionalidades)
+* [Arquitetura e Decisões Técnicas](#️-arquitetura-e-decisões-técnicas)
+* [Tech Stack](#️-tech-stack)
+* [Estrutura do Projeto](#-estrutura-do-projeto)
+* [Como Executar o Projeto](#️-como-executar-o-projeto)
+* [Variáveis de Ambiente](#-variáveis-de-ambiente)
+* [Credenciais de Teste](#-credenciais-de-teste)
+* [Documentação do Barramento e APIs](#-documentação-do-barramento-e-apis)
 
 ---
 
@@ -76,7 +73,7 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 ### **Backend**
 
-* **Runtime:** Node.js (v24+) com TypeScript (`tsx`)
+* **Runtime:** Node.js (v20+) com TypeScript (`tsx`)
 * **Framework:** Express.js
 * **Comunicação em Tempo Real:** Socket.IO
 * **Segurança:** JSON Web Token (JWT) e Bcrypt
@@ -84,9 +81,9 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 ### **Frontend**
 
-* **Biblioteca:** React 18 com TypeScript
+* **Biblioteca:** React 19 com TypeScript (modo `strict`)
 * **Visualização de Dados:** Recharts
-* **Estilização:** CSS Custom Properties (Design System Linha Uni / Montserrat Font)
+* **Estilização:** Design system em CSS puro (tokens, componentes e breakpoints) — Montserrat + JetBrains Mono
 * **Build Tool:** Vite
 
 ---
@@ -96,96 +93,143 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 ```text
 cco-rail-pulse/
 ├── backend/
+│   ├── config/
+│   │   └── env.ts                          # Configuração validada e centralizada (fail-fast)
+│   ├── shared/
+│   │   ├── errors.ts                       # AppError e subclasses com status HTTP
+│   │   ├── jwt.ts                          # Assinatura e verificação de tokens
+│   │   └── logger.ts                       # Logger com escopo por módulo
+│   ├── domain/
+│   │   ├── line.ts                         # Catálogo oficial das 15 estações (fonte única)
+│   │   ├── entities/TrainSession.ts        # Entidade + regras de comando ferroviário
+│   │   └── value-objects/StationCode.ts    # Código ATS validado contra a malha
+│   ├── application/
+│   │   ├── events/event-bus.ts             # Barramento de eventos de domínio (tipado)
+│   │   ├── services/TelemetrySimulator.ts  # Simulador SCADA (random walk ancorado)
+│   │   └── use-cases/                      # Casos de uso (comando com lock pessimista)
 │   ├── infrastructure/
 │   │   ├── database/
-│   │   │   └── postgres.ts               # Pool de Conexão com PostgreSQL
-│   │   └── repositories/
-│   │       └── pg-operator.repository.ts  # Persistência de Operadores e Logs
-│   ├── application/
-│   │   └── events/
-│   │       └── event-bus.ts              # Barramento de Eventos de Domínio
+│   │   │   ├── postgres.ts                 # Pool + helper de transação
+│   │   │   ├── migrations.ts               # Self-healing DDL + auto-seeding
+│   │   │   └── repositories/               # Persistência das composições
+│   │   ├── repositories/                   # Operadores e trilha de auditoria
+│   │   └── security/AuditLogger.ts         # Trilha append-only em disco
 │   └── presentation/
-│       └── http/
-│           ├── middlewares/
-│           │   └── auth.middleware.ts    # Validação e Proteção JWT
-│           └── server.ts                 # Entrypoint HTTP, WS e Bootstrap
+│       ├── http/
+│       │   ├── app.ts                      # Composição do Express (CORS, headers, rotas)
+│       │   ├── middlewares/                # JWT, rate limit, erro e 404
+│       │   ├── routes/                     # auth, operator, audit, network, health
+│       │   └── server.ts                   # Bootstrap e encerramento gracioso
+│       └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
 │
 └── frontend/
     └── src/
-        ├── components/
-        │   ├── CCODashboard.tsx          # Painel Principal do CCO
-        │   ├── CCOVisualWidgets.tsx      # Feeds de Alerta e Status TSS
-        │   ├── TSSChartWidget.tsx        # Gráfico de Telemetria de Tensão
-        │   └── LoginScreen.tsx           # Tela de Autenticação
-        ├── context/
-        │   └── AuthContext.tsx           # Gerenciamento de Sessão JWT
+        ├── styles/                         # Design system (tokens, base, componentes, layout)
+        ├── config/env.ts                   # URL da API e chaves de storage
+        ├── lib/format.ts                   # Datas, números, CSV e download
+        ├── hooks/                          # Relógio, foco de modal, debounce
         ├── services/
-        │   └── websocket.service.ts      # Singleton do Cliente Socket.IO
-        ├── App.tsx                       # Roteamento de Autenticação
-        └── index.css                     # Design System & Cores da Linha Uni
-
+        │   ├── api.ts                      # Cliente HTTP com tratamento de sessão
+        │   └── websocket.service.ts        # Socket.IO autenticado por JWT
+        ├── context/                        # Sessão do operador (validação + expiração)
+        ├── components/
+        │   ├── common/                     # Modal, ConfirmDialog, Toast, StatusPill…
+        │   ├── layout/                      # Cabeçalho e barra de abas
+        │   ├── dashboard/                   # Esquemático ATS, grade, terminal, feed
+        │   ├── views/                       # Painel executivo, energia, ativos, KPIs, escala
+        │   └── reports/AuditLogsView.tsx    # Trilha de auditoria paginada
+        └── App.tsx
 ```
 
 ---
 
 ## ⚙️ Como Executar o Projeto
 
-### Pró-requisitos
+### Pré-requisitos
 
-* **Node.js** (v18 ou superior)
-* **PostgreSQL** rodando localmente ou via Docker.
+* **Node.js** v20 ou superior
+* **PostgreSQL** rodando localmente ou via Docker
 
-### 1. Configuração do Banco de Dados
+### 1. Banco de dados
 
-Certifique-se de ter um banco de dados PostgreSQL criado (padrão: `railpulse_cco`).
-
-### 2. Configuração do Backend
+Crie o banco (padrão: `railpulse_cco`). O schema e a carga inicial são aplicados
+automaticamente no boot — não há script manual a rodar.
 
 ```bash
-# Entre no diretório do backend
-cd backend
-
-# Instale as dependências
-npm install
-
-# Configure as variáveis de ambiente (.env na raiz ou na pasta backend)
-# Exemplo de .env:
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/railpulse_cco
-# PORT=3333
-# JWT_SECRET=railpulse_cco_super_secure_secret_key_2026
-
-# Inicie o servidor em modo de desenvolvimento
-npm run dev
-
+createdb railpulse_cco
 ```
 
-### 3. Configuração do Frontend
+### 2. Backend
 
 ```bash
-# Abra um novo terminal e entre na pasta frontend
+# Na raiz do repositório
+npm install
+
+# Configure o ambiente
+cp .env.example .env   # ajuste DB_PASS e, em produção, JWT_SECRET
+
+npm run dev            # desenvolvimento (tsx watch)
+npm run typecheck      # verificação de tipos
+npm run build && npm start   # produção
+```
+
+### 3. Frontend
+
+```bash
 cd frontend
-
-# Instale as dependências
 npm install
-
-# Inicie o ambiente de desenvolvimento do Vite
+cp .env.example .env   # opcional: em dev o Vite já faz proxy para o backend
 npm run dev
-
 ```
 
-Acesse a aplicação no navegador em: `http://localhost:5173`
+Acesse `http://localhost:5173`.
+
+O servidor de desenvolvimento do Vite faz proxy de `/api`, `/socket.io` e `/health`
+para o backend, de modo que **nenhuma URL fica hardcoded no código do frontend**.
+
+---
+
+## 🔧 Variáveis de Ambiente
+
+Referência completa em [`.env.example`](.env.example). Principais:
+
+| Variável | Padrão | Descrição |
+| --- | --- | --- |
+| `PORT` | `3333` | Porta HTTP do backend |
+| `DATABASE_URL` | — | Alternativa às variáveis `DB_*` |
+| `JWT_SECRET` | *(dev-only)* | **Obrigatório** quando `NODE_ENV=production` — o boot falha sem ele |
+| `JWT_EXPIRES_IN` | `8h` | Validade do token de sessão |
+| `CORS_ORIGIN` | `*` | Origens permitidas, separadas por vírgula |
+| `LOGIN_MAX_ATTEMPTS` | `8` | Tentativas de login por janela |
+| `LOGIN_WINDOW_MS` | `60000` | Janela do limitador de tentativas |
+| `TELEMETRY_INTERVAL_MS` | `3000` | Período de emissão da telemetria SCADA |
+| `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
+
+> ⚠️ O arquivo `.env` **não é versionado**. Use `.env.example` como modelo.
 
 ---
 
 ## 🔐 Credenciais de Teste
 
-O servidor cria automaticamente a conta de operador administrativo padrão ao inicializar:
+O operador padrão é criado na **primeira** inicialização (nas seguintes, a senha
+existente é preservada):
 
-| Parâmetro | Credencial de Acesso |
+| Parâmetro | Valor |
 | --- | --- |
-| **Credencial / ID:** | `EDP-042` |
-| **Senha Padrão:** | `123456` |
-| **Nível de Acesso:** | `OPERATOR_SOC` |
+| **Credencial / ID** | `EDP-042` |
+| **Senha padrão** | `123456` (configurável via `SEED_OPERATOR_PASSWORD`) |
+| **Nível de acesso** | `OPERATOR_SOC` |
+
+---
+
+## ⌨️ Atalhos de Teclado
+
+| Atalho | Ação |
+| --- | --- |
+| `1` – `6` | Alterna entre as abas do painel |
+| `←` / `→` | Navega entre abas (com foco na barra de abas) |
+| `/` | Abre a Malha ATS e foca a busca de estações |
+| `Esc` | Fecha o diálogo aberto |
 
 ---
 
@@ -193,22 +237,33 @@ O servidor cria automaticamente a conta de operador administrativo padrão ao in
 
 ### REST Endpoints
 
-* `POST /api/auth/login` — Autentica o operador e retorna o Token JWT.
-* `GET /api/operator/profile` — Retorna o perfil do operador (Requer `Bearer Token`).
-* `GET /health` — Retorna o status de saúde da aplicação e da conexão com o banco.
+| Método | Rota | Autenticação | Descrição |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/login` | — | Autentica o operador e retorna o JWT |
+| `GET` | `/api/auth/session` | Bearer | Valida a sessão restaurada pelo painel |
+| `POST` | `/api/auth/logout` | Bearer | Registra o encerramento do turno |
+| `GET` | `/api/operator/profile` | Bearer | Perfil do operador autenticado |
+| `PATCH` | `/api/operator/profile/avatar` | Bearer | Persiste o avatar no cadastro |
+| `GET` | `/api/network/stations` | Bearer | Catálogo da malha + telemetria corrente |
+| `GET` | `/api/network/trains` | Bearer | Estado persistido das composições |
+| `GET` | `/api/audit-logs?limit&offset&search` | Bearer | Trilha de auditoria paginada |
+| `GET` | `/health` | — | Saúde da aplicação e do banco (`503` se degradado) |
 
 ### Eventos WebSocket (`Socket.IO`)
 
-* **Entrada (`Inbound`):**
-* `train:command` — Emite comandos operacionais para os trens e registra em auditoria.
+A conexão é **autenticada no handshake** (`auth.token`). O `operatorId` usado nos
+comandos vem do token — nunca do payload enviado pelo cliente.
 
+* **Entrada (`Inbound`)**
+  * `train:command` — `{ trainId, command, targetBlock? }`, com `command` em
+    `EMERGENCY_BRAKE_OVERRIDE` | `SPEED_RESTRICTION_20KM` | `RELEASE_SIGNAL`.
 
-* **Saída (`Outbound`):**
-* `telemetry:batch` — Pacote de leituras de tensão de subestações enviadas a cada 3s.
-* `alert:critical` — Notificações e alarmes operacionais em tempo real.
-* `train:command:acknowledged` — Confirmação do recebimento de comando enviado pelo operador.
-
-
+* **Saída (`Outbound`)**
+  * `telemetry:batch` — leituras de tensão de todas as estações (a cada 3 s).
+  * `train:sync` — estado completo das composições, enviado ao conectar.
+  * `train:updated` — composição alterada por um comando.
+  * `alert:critical` — alarmes e notificações operacionais.
+  * `train:command:acknowledged` — confirmação (`EXECUTED` | `FAILED`) do comando.
 
 ---
 

@@ -1,6 +1,9 @@
-// src/infrastructure/security/AuditLogger.ts
+// backend/infrastructure/security/AuditLogger.ts
 import fs from 'fs';
 import path from 'path';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('SOC-AUDIT');
 
 export interface AuditEvent {
   timestamp: string;
@@ -11,32 +14,34 @@ export interface AuditEvent {
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
 }
 
+/**
+ * Trilha de auditoria em arquivo (append-only), complementar à tabela `audit_logs`.
+ * Serve de evidência local caso o banco esteja indisponível durante um incidente.
+ */
 export class AuditLogger {
-  private static logFilePath = path.resolve(process.cwd(), 'logs', 'audit-security.log');
+  private static readonly logFilePath = path.resolve(process.cwd(), 'logs', 'audit-security.log');
+  private static directoryReady = false;
 
-  public static record(eventOmitTimestamp: Omit<AuditEvent, 'timestamp'>): void {
-    const event: AuditEvent = {
-      timestamp: new Date().toISOString(),
-      ...eventOmitTimestamp,
-    };
+  private static ensureDirectory(): void {
+    if (this.directoryReady) return;
+    fs.mkdirSync(path.dirname(this.logFilePath), { recursive: true });
+    this.directoryReady = true;
+  }
 
-    const logEntry = JSON.stringify(event) + '\n';
+  public static record(event: Omit<AuditEvent, 'timestamp'>): void {
+    const entry: AuditEvent = { timestamp: new Date().toISOString(), ...event };
 
-    // Garante que o diretório de logs exista
-    const dir = path.dirname(this.logFilePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    try {
+      this.ensureDirectory();
+      fs.appendFile(this.logFilePath, `${JSON.stringify(entry)}\n`, (error) => {
+        if (error) logger.error('Falha ao gravar log de auditoria em disco.', error);
+      });
+    } catch (error) {
+      logger.error('Falha ao preparar o diretório de logs de auditoria.', error);
     }
 
-    fs.appendFile(this.logFilePath, logEntry, (err) => {
-      if (err) {
-        console.error('[CRITICAL-SECURITY] Falha ao gravar log de auditoria:', err);
-      }
-    });
-
-    // Em ambiente SOC, eventos críticos também geram alertas imediatos no console
-    if (event.severity === 'CRITICAL' || event.severity === 'WARNING') {
-      console.warn(`[SOC-ALERT] [${event.severity}] Operador: ${event.operatorId} | Ação: ${event.action} em ${event.targetResource}`);
+    if (entry.severity !== 'INFO') {
+      logger.warn(`[${entry.severity}] ${entry.operatorId} → ${entry.action} em ${entry.targetResource}`);
     }
   }
 }

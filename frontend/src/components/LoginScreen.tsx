@@ -3,141 +3,137 @@ import React, { useCallback, useRef, useState } from 'react';
 
 interface LoginScreenProps {
   onLogin: (operatorId: string, password: string) => Promise<void>;
+  /** Aviso da sessão anterior (expiração, revogação). */
+  notice?: string | null;
+  onDismissNotice?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, notice, onDismissNotice }) => {
   const [operatorId, setOperatorId] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
   const trimmedOperatorId = operatorId.trim();
-  const trimmedPassword = password.trim();
-  const canSubmit = trimmedOperatorId.length > 0 && trimmedPassword.length > 0 && !isLoading;
+  const canSubmit = trimmedOperatorId.length > 0 && password.length > 0 && !isLoading;
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit) return;
+  const handleSubmit = useCallback(
+    async (event: React.FormEvent) => {
+      event.preventDefault();
+      if (!canSubmit) return;
 
-    setIsLoading(true);
-    setError(null);
-    try {
-      await onLogin(trimmedOperatorId, trimmedPassword);
-    } catch (err) {
-      // Falha no login: mantém a credencial, limpa e refoca a senha
-      setPassword('');
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : 'Credencial ou senha inválida. Tente novamente.'
-      );
-      passwordRef.current?.focus();
-    } finally {
-      setIsLoading(false);
-    }
-  }, [canSubmit, onLogin, trimmedOperatorId, trimmedPassword]);
+      setIsLoading(true);
+      setError(null);
+      onDismissNotice?.();
+
+      try {
+        await onLogin(trimmedOperatorId, password);
+      } catch (err) {
+        // Falha no login: mantém a credencial, limpa e refoca a senha.
+        setPassword('');
+        setError(err instanceof Error && err.message ? err.message : 'Credencial ou senha inválida. Tente novamente.');
+        passwordRef.current?.focus();
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [canSubmit, onLogin, onDismissNotice, trimmedOperatorId, password],
+  );
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <span style={styles.tag}>Acesso Restrito</span>
-          <h1 style={styles.title}>RailPulse CCO</h1>
-          <p style={styles.subtitle}>Linha 6-Laranja (Linha Uni)</p>
-        </div>
+    <main className="rp-login">
+      <div className="rp-login__card">
+        <header className="rp-login__header">
+          <span className="rp-login__tag">Acesso restrito</span>
+          <h1 className="rp-login__title">RailPulse CCO</h1>
+          <p className="rp-login__subtitle">Centro de Controle Operacional • Linha 6-Laranja (Linha Uni)</p>
+        </header>
 
-        <form onSubmit={handleSubmit} style={styles.form} noValidate>
-          <div style={styles.inputGroup}>
-            <label htmlFor="operatorId" style={styles.label}>
-              Credencial do Operador
+        {notice && (
+          <p className="rp-login__error" role="status" style={{ marginBottom: 'var(--sp-4)' }}>
+            {notice}
+          </p>
+        )}
+
+        <form className="rp-stack" onSubmit={handleSubmit} noValidate>
+          <div className="rp-field">
+            <label className="rp-label" htmlFor="operatorId">
+              Credencial do operador
             </label>
             <input
               id="operatorId"
               name="operatorId"
+              className="rp-input mono"
               type="text"
               autoComplete="username"
               autoFocus
               value={operatorId}
-              onChange={(e) => {
-                setOperatorId(e.target.value.toUpperCase());
+              onChange={(event) => {
+                setOperatorId(event.target.value.toUpperCase());
                 if (error) setError(null);
               }}
               placeholder="Ex: EDP-042"
-              style={styles.input}
               disabled={isLoading}
               required
             />
           </div>
 
-          <div style={styles.inputGroup}>
-            <label htmlFor="password" style={styles.label}>
-              Senha de Acesso
+          <div className="rp-field">
+            <label className="rp-label" htmlFor="password">
+              Senha de acesso
             </label>
-            <input
-              id="password"
-              name="password"
-              ref={passwordRef}
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (error) setError(null);
-              }}
-              placeholder="••••••••"
-              style={styles.input}
-              disabled={isLoading}
-              aria-invalid={!!error}
-              aria-describedby={error ? 'login-error' : undefined}
-              required
-            />
+            <div className="rp-search">
+              <input
+                id="password"
+                name="password"
+                ref={passwordRef}
+                className="rp-input"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="••••••••"
+                style={{ paddingLeft: '0.8rem' }}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? 'login-error' : undefined}
+                disabled={isLoading}
+                required
+              />
+              <button
+                type="button"
+                className="rp-search__clear"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                aria-pressed={showPassword}
+                disabled={isLoading}
+              >
+                {showPassword ? '🙈' : '👁'}
+              </button>
+            </div>
           </div>
 
           {error && (
-            <p id="login-error" role="alert" style={styles.error}>
+            <p id="login-error" className="rp-login__error" role="alert">
+              <span aria-hidden="true">⚠</span>
               {error}
             </p>
           )}
 
-          <button
-            type="submit"
-            style={{
-              ...styles.button,
-              opacity: canSubmit ? 1 : 0.6,
-              cursor: canSubmit ? 'pointer' : 'not-allowed',
-            }}
-            disabled={!canSubmit}
-          >
-            {isLoading ? 'Autenticando...' : 'Autenticar e Iniciar Turno'}
+          <button type="submit" className="rp-btn rp-btn--primary rp-btn--lg rp-btn--block" disabled={!canSubmit}>
+            {isLoading && <span className="rp-spinner" aria-hidden="true" />}
+            {isLoading ? 'Autenticando…' : 'Autenticar e iniciar turno'}
           </button>
         </form>
-      </div>
-    </div>
-  );
-};
 
-const styles: { [key: string]: React.CSSProperties } = {
-  container: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'var(--uni-font)' },
-  card: {
-    backgroundColor: 'var(--uni-bg-secondary)',
-    border: '1px solid var(--uni-border)',
-    borderRadius: '12px',
-    padding: '2.5rem',
-    width: '100%',
-    maxWidth: '400px',
-    boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 102, 0, 0.06)',
-    borderTop: '2px solid var(--uni-orange)',
-    animation: 'railpulse-fade-in 0.35s ease',
-  },
-  header: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '2rem', textAlign: 'center' },
-  tag: { backgroundColor: 'rgba(255, 102, 0, 0.15)', color: 'var(--uni-orange)', fontSize: '0.7rem', fontWeight: 'bold', padding: '0.3rem 0.6rem', borderRadius: '4px', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '0.05em' },
-  title: { fontSize: '1.5rem', fontWeight: 800, color: 'var(--uni-text-main)', margin: '0' },
-  subtitle: { fontSize: '0.85rem', color: 'var(--uni-text-muted)', marginTop: '0.2rem' },
-  form: { display: 'flex', flexDirection: 'column', gap: '1.25rem' },
-  inputGroup: { display: 'flex', flexDirection: 'column', gap: '0.4rem' },
-  label: { fontSize: '0.75rem', color: 'var(--uni-text-muted)', fontWeight: 600 },
-  input: { backgroundColor: 'var(--uni-bg-primary)', border: '1px solid var(--uni-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--uni-text-main)', fontSize: '0.9rem', outline: 'none', transition: 'border-color 0.2s' },
-  error: { color: '#ff6b6b', fontSize: '0.8rem', margin: 0, textAlign: 'center' },
-  button: { backgroundColor: 'var(--uni-orange)', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.85rem', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', marginTop: '0.5rem', transition: 'all 0.2s' }
+        <p className="rp-login__footer">
+          Acesso monitorado. Todas as tentativas de autenticação são registradas na trilha de auditoria.
+        </p>
+      </div>
+    </main>
+  );
 };

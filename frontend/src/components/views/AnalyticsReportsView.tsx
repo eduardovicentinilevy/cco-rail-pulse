@@ -1,82 +1,113 @@
 // frontend/src/components/views/AnalyticsReportsView.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
+import type { AlarmEvent, Station, Train } from '../../types';
+import { formatNumber, downloadTextFile, toCsv } from '../../lib/format';
 
-export const AnalyticsReportsView: React.FC = () => {
+interface AnalyticsReportsViewProps {
+  stations: Station[];
+  trains: Train[];
+  alarms: AlarmEvent[];
+}
+
+interface Interference {
+  label: string;
+  value: number;
+  status: string;
+}
+
+export const AnalyticsReportsView: React.FC<AnalyticsReportsViewProps> = ({ stations, trains, alarms }) => {
+  const metrics = useMemo(() => {
+    const normalStations = stations.filter((station) => station.status === 'NORMAL').length;
+    const availability = stations.length === 0 ? 0 : (normalStations / stations.length) * 100;
+    const runningTrains = trains.filter((train) => train.status !== 'EMERGÊNCIA').length;
+    const avgSpeed = trains.length === 0 ? 0 : trains.reduce((sum, train) => sum + train.speedKmH, 0) / trains.length;
+
+    return [
+      { label: 'Disponibilidade da malha', value: `${formatNumber(availability, 1)}%`, status: availability >= 90 ? 'NORMAL' : 'ATENÇÃO', hint: `${normalStations} de ${stations.length} estações nominais` },
+      { label: 'Composições em marcha', value: `${runningTrains} / ${trains.length}`, status: runningTrains === trains.length ? 'NORMAL' : 'CRÍTICO', hint: 'Trens fora de emergência' },
+      { label: 'Velocidade média da frota', value: `${formatNumber(avgSpeed, 1)} km/h`, status: avgSpeed >= 35 ? 'NORMAL' : 'ATENÇÃO', hint: 'Média instantânea das composições' },
+      { label: 'Ocorrências na sessão', value: String(alarms.length), status: alarms.some((a) => a.level === 'CRITICAL') ? 'CRÍTICO' : 'INFO', hint: `${alarms.filter((a) => a.level === 'CRITICAL').length} críticas` },
+    ] as const;
+  }, [stations, trains, alarms]);
+
+  // Distribuição real das ocorrências da sessão por categoria inferida da mensagem.
+  const interferences = useMemo<Interference[]>(() => {
+    const buckets: Record<string, { count: number; status: string }> = {
+      'Alimentação aérea': { count: 0, status: 'ATENÇÃO' },
+      'Sinalização / ATS': { count: 0, status: 'INFO' },
+      'Comandos operacionais': { count: 0, status: 'CRÍTICO' },
+      'Via permanente': { count: 0, status: 'NORMAL' },
+    };
+
+    for (const alarm of alarms) {
+      const message = alarm.message.toLowerCase();
+      if (message.includes('comando')) buckets['Comandos operacionais'].count += 1;
+      else if (message.includes('tensão') || message.includes('catenária') || message.includes('subestação')) {
+        buckets['Alimentação aérea'].count += 1;
+      } else if (message.includes('ats') || message.includes('sinal') || message.includes('baliza')) {
+        buckets['Sinalização / ATS'].count += 1;
+      } else buckets['Via permanente'].count += 1;
+    }
+
+    return Object.entries(buckets).map(([label, { count, status }]) => ({ label, value: count, status }));
+  }, [alarms]);
+
+  const maxInterference = Math.max(1, ...interferences.map((item) => item.value));
+
+  const handleExport = () => {
+    const csv = toCsv(
+      ['Indicador', 'Valor', 'Observação'],
+      metrics.map((metric) => [metric.label, metric.value, metric.hint]),
+    );
+    downloadTextFile(`railpulse-kpis-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+  };
+
   return (
-    <div style={styles.container}>
-      <div style={styles.pageHeader}>
+    <div className="rp-stack rp-animate-in">
+      <div className="rp-page-header">
         <div>
-          <span style={styles.pageTag}>Análises</span>
-          <h2 style={styles.title}>Relatórios de Desempenho & KPIs</h2>
-          <p style={styles.subtitle}>Índices de pontualidade, oferta de lugares e conformidade operacional</p>
+          <span className="rp-eyebrow">Análises</span>
+          <h2 className="rp-page-header__title">Relatórios de desempenho &amp; KPIs</h2>
+          <p className="rp-page-header__subtitle">Indicadores calculados sobre o estado corrente da malha</p>
         </div>
-        <button style={styles.actionBtn}>Exportar Relatório PDF</button>
+        <button type="button" className="rp-btn" onClick={handleExport}>
+          Exportar KPIs (CSV)
+        </button>
       </div>
 
-      <div style={styles.metricsGrid}>
-        <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Índice de Pontualidade (IP)</span>
-          <span style={styles.metricValue}>99.4%</span>
-          <span style={styles.metricSub}>Meta contratual: &gt; 98.5%</span>
-        </div>
-        <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Disponibilidade de Frota</span>
-          <span style={styles.metricValue}>18 / 18</span>
-          <span style={styles.metricSub}>Trens operacionais na via</span>
-        </div>
-        <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Demanda Acumulada Dia</span>
-          <span style={styles.metricValue}>342.100</span>
-          <span style={styles.metricSub}>Passageiros transportados</span>
-        </div>
-        <div style={styles.metricCard}>
-          <span style={styles.metricLabel}>Consumo Médio de Energia</span>
-          <span style={styles.metricValue}>2.41 kWh</span>
-          <span style={styles.metricSub}>Por trem-km percorrido</span>
-        </div>
+      <div className="rp-grid rp-grid--kpi">
+        {metrics.map((metric) => (
+          <article key={metric.label} className="rp-metric" data-status={metric.status}>
+            <span className="rp-metric__label">{metric.label}</span>
+            <span className="rp-metric__value">{metric.value}</span>
+            <span className="rp-metric__hint">{metric.hint}</span>
+          </article>
+        ))}
       </div>
 
-      <div style={styles.chartSection}>
-        <h3 style={styles.sectionTitle}>Análise de Interferências por Categoria (Últimos 30 dias)</h3>
-        <div style={styles.chartPlaceholder}>
-          <div style={styles.barGroup}>
-            <div style={{ ...styles.bar, height: '40%' }} />
-            <span style={styles.barLabel}>Porta de Plataforma</span>
+      <section className="rp-card" aria-label="Análise de interferências por categoria">
+        <header className="rp-card__header">
+          <div>
+            <h3 className="rp-card__title">Interferências por categoria</h3>
+            <p className="rp-card__subtitle">Classificação automática das ocorrências registradas nesta sessão</p>
           </div>
-          <div style={styles.barGroup}>
-            <div style={{ ...styles.bar, height: '15%' }} />
-            <span style={styles.barLabel}>Sinalização CBTC</span>
-          </div>
-          <div style={styles.barGroup}>
-            <div style={{ ...styles.bar, height: '75%', backgroundColor: 'var(--uni-orange)' }} />
-            <span style={styles.barLabel}>Alimentação Aérea</span>
-          </div>
-          <div style={styles.barGroup}>
-            <div style={{ ...styles.bar, height: '25%' }} />
-            <span style={styles.barLabel}>Via Permanente</span>
-          </div>
+        </header>
+
+        <div className="rp-bars">
+          {interferences.map((item) => (
+            <div key={item.label} className="rp-bars__group" data-status={item.status}>
+              <span className="rp-bars__value">{item.value}</span>
+              <div
+                className="rp-bars__bar"
+                style={{ height: `${Math.max(4, (item.value / maxInterference) * 100)}%` }}
+                role="img"
+                aria-label={`${item.label}: ${item.value} ocorrências`}
+              />
+              <span className="rp-bars__label">{item.label}</span>
+            </div>
+          ))}
         </div>
-      </div>
+      </section>
     </div>
   );
-};
-
-const styles: { [key: string]: React.CSSProperties } = {
-  container: { display: 'flex', flexDirection: 'column', gap: '1.25rem', fontFamily: 'var(--uni-font)', animation: 'railpulse-fade-in 0.3s ease' },
-  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' },
-  pageTag: { fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--uni-orange)', letterSpacing: '0.08em' },
-  title: { fontSize: '1.1rem', fontWeight: 700, color: 'var(--uni-text-main)', margin: '0.35rem 0 0.2rem' },
-  subtitle: { fontSize: '0.75rem', color: 'var(--uni-text-muted)', margin: 0 },
-  actionBtn: { backgroundColor: 'var(--uni-bg-secondary)', border: '1px solid var(--uni-border)', color: 'var(--uni-text-main)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' },
-  metricsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' },
-  metricCard: { backgroundColor: 'var(--uni-bg-secondary)', border: '1px solid var(--uni-border)', borderRadius: '12px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' },
-  metricLabel: { fontSize: '0.7rem', color: 'var(--uni-text-muted)', fontWeight: 600, textTransform: 'uppercase' },
-  metricValue: { fontSize: '1.5rem', fontWeight: 800, color: 'var(--uni-text-main)', fontFamily: 'monospace' },
-  metricSub: { fontSize: '0.65rem', color: 'var(--uni-text-muted)' },
-  chartSection: { backgroundColor: 'var(--uni-bg-secondary)', border: '1px solid var(--uni-border)', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' },
-  sectionTitle: { fontSize: '0.85rem', fontWeight: 700, color: 'var(--uni-text-main)' },
-  chartPlaceholder: { display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end', height: '180px', paddingBottom: '1rem', borderBottom: '1px solid var(--uni-border)' },
-  barGroup: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', height: '100%', justifyContent: 'flex-end' },
-  bar: { width: '36px', backgroundColor: 'var(--uni-border)', borderRadius: '6px 6px 0 0', transition: 'height 0.4s' },
-  barLabel: { fontSize: '0.65rem', color: 'var(--uni-text-muted)', textAlign: 'center' }
 };

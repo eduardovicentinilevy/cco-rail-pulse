@@ -1,104 +1,71 @@
 // frontend/src/components/dashboard/StationsGrid.tsx
-import React, { useState, useCallback } from 'react';
-import type { Station } from '../../types';
+import React from 'react';
+import type { Station, Train } from '../../types';
+import { EmptyState } from '../common/EmptyState';
+import { StatusPill } from '../common/StatusPill';
 
 interface StationsGridProps {
   stations: Station[];
+  trains: Train[];
   selectedStationCode: string;
+  totalStations: number;
   onSelectStation: (station: Station) => void;
 }
 
-export const StationsGrid: React.FC<StationsGridProps> = ({ stations, selectedStationCode, onSelectStation }) => {
-  const [hoveredCode, setHoveredCode] = useState<string | null>(null);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent, station: Station) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onSelectStation(station);
-      }
-    },
-    [onSelectStation]
-  );
-
-  return (
-    <div style={styles.card}>
-      <div style={styles.cardHeader}>
-        <h3 style={styles.title}>Status Operacional das Estações (Linha 6)</h3>
-        <span style={styles.subtitle}>Clique em uma estação para inspecionar parâmetros</span>
+export const StationsGrid: React.FC<StationsGridProps> = ({
+  stations,
+  trains,
+  selectedStationCode,
+  totalStations,
+  onSelectStation,
+}) => (
+  <section className="rp-card" aria-label="Status operacional das estações">
+    <header className="rp-card__header">
+      <div>
+        <h2 className="rp-card__title">Status operacional das estações</h2>
+        <p className="rp-card__subtitle">Selecione uma estação para inspecionar parâmetros e emitir comandos</p>
       </div>
+      <span className="rp-badge">
+        {stations.length} de {totalStations}
+      </span>
+    </header>
 
-      {stations.length === 0 ? (
-        <p style={styles.emptyState}>Nenhuma estação disponível no momento.</p>
-      ) : (
-        <div style={styles.grid}>
-          {stations.map(st => {
-            const isSelected = st.code === selectedStationCode;
-            const isCritical = st.status === 'CRÍTICO';
-            const isWarning = st.status === 'ATENÇÃO';
-            const isHovered = hoveredCode === st.code;
-            const statusColor = isCritical ? 'var(--uni-danger)' : isWarning ? 'var(--uni-warning)' : 'var(--uni-success)';
-            const statusBg = isCritical ? 'rgba(255, 0, 0, 0.15)' : isWarning ? 'rgba(255, 102, 0, 0.15)' : 'rgba(0, 255, 102, 0.12)';
-            return (
-              <div
-                key={st.code}
-                role="button"
-                tabIndex={0}
-                aria-pressed={isSelected}
-                aria-label={`Estação ${st.name}, status ${st.status}`}
-                onClick={() => onSelectStation(st)}
-                onKeyDown={(e) => handleKeyDown(e, st)}
-                onMouseEnter={() => setHoveredCode(st.code)}
-                onMouseLeave={() => setHoveredCode(null)}
-                style={{
-                  ...styles.stationCard,
-                  borderColor: isSelected ? 'var(--uni-orange)' : isCritical || isWarning ? statusColor : 'var(--uni-border)',
-                  backgroundColor: isSelected ? 'rgba(255, 102, 0, 0.08)' : 'var(--uni-bg-primary)',
-                  transform: isHovered && !isSelected ? 'translateY(-2px)' : 'none',
-                  boxShadow: isHovered && !isSelected ? '0 6px 16px rgba(0, 0, 0, 0.35)' : 'none',
-                }}
-              >
-                <div style={styles.stationTop}>
-                  <span style={styles.codeBadge}>{st.code}</span>
-                  <span style={{ ...styles.statusBadge, backgroundColor: statusBg, color: statusColor }}>
-                    {st.status}
-                  </span>
-                </div>
-                <h4 style={styles.stationName}>{st.name}</h4>
-                <div style={styles.stationFooter}>
-                  <span>Tensão: <strong>{st.voltageKV} kV</strong></span>
-                  <span>Headway: <strong>{st.headway}</strong></span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
+    {stations.length === 0 ? (
+      <EmptyState icon="🔎" title="Nenhuma estação corresponde ao filtro." hint="Ajuste a busca ou limpe os filtros." />
+    ) : (
+      <div className="rp-grid rp-grid--cards">
+        {stations.map((station) => {
+          const stationTrains = trains.filter((train) => train.currentStationCode === station.code);
+          return (
+            <button
+              key={station.code}
+              type="button"
+              className="rp-station-card"
+              data-status={station.status}
+              data-alert={station.status !== 'NORMAL'}
+              aria-pressed={station.code === selectedStationCode}
+              aria-label={`Estação ${station.name}, status ${station.status}`}
+              onClick={() => onSelectStation(station)}
+            >
+              <span className="rp-row rp-row--between">
+                <span className="rp-badge rp-badge--code">{station.code}</span>
+                <StatusPill status={station.status} />
+              </span>
 
-const styles: { [key: string]: React.CSSProperties } = {
-  card: { backgroundColor: 'var(--uni-bg-secondary)', border: '1px solid var(--uni-border)', borderRadius: '12px', padding: '1.25rem' },
-  cardHeader: { marginBottom: '1rem' },
-  title: { fontSize: '0.85rem', fontWeight: 700, color: 'var(--uni-text-main)' },
-  subtitle: { fontSize: '0.7rem', color: 'var(--uni-text-muted)' },
-  emptyState: { fontSize: '0.8rem', color: 'var(--uni-text-muted)', textAlign: 'center', padding: '1.5rem 0' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '0.85rem' },
-  stationCard: {
-    backgroundColor: 'var(--uni-bg-primary)',
-    border: '1px solid var(--uni-border)',
-    borderRadius: '8px',
-    padding: '0.85rem',
-    cursor: 'pointer',
-    transition: 'transform 0.2s, box-shadow 0.2s, border-color 0.2s',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  stationTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  codeBadge: { fontSize: '0.65rem', fontWeight: 'bold', backgroundColor: 'var(--uni-bg-card)', padding: '0.15rem 0.4rem', borderRadius: '4px', color: 'var(--uni-orange)', fontFamily: 'monospace' },
-  statusBadge: { fontSize: '0.55rem', fontWeight: 'bold', padding: '0.15rem 0.4rem', borderRadius: '4px', fontFamily: 'monospace' },
-  stationName: { fontSize: '0.8rem', fontWeight: 600, color: 'var(--uni-text-main)', height: '2.4em' },
-  stationFooter: { display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--uni-text-muted)', borderTop: '1px solid var(--uni-border)', paddingTop: '0.4rem' },
-};
+              <span className="rp-station-card__name">{station.name}</span>
+
+              <span className="rp-station-card__footer">
+                <span>
+                  Tensão <strong>{station.voltageKV.toFixed(2)} kV</strong>
+                </span>
+                <span>
+                  Trens <strong>{stationTrains.length > 0 ? stationTrains.map((t) => t.trainId).join(', ') : '—'}</strong>
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    )}
+  </section>
+);

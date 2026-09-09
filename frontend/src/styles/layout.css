@@ -1,0 +1,260 @@
+/* ==========================================================================
+   RailPulse CCO — Layout do painel (com breakpoints reais)
+   ========================================================================== */
+
+.rp-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.rp-main {
+  flex: 1;
+  padding: var(--content-gutter);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+/* --- Cabeçalho -------------------------------------------------------------- */
+.rp-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: 0.75rem var(--content-gutter);
+  background-color: color-mix(in srgb, var(--uni-bg-secondary) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--uni-border);
+}
+
+.rp-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.rp-header__logo {
+  display: grid;
+  place-items: center;
+  padding: 0.4rem 0.75rem;
+  background-color: var(--uni-orange);
+  color: #fff;
+  font-weight: 900;
+  font-size: var(--fs-sm);
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 18px var(--uni-orange-glow);
+  flex-shrink: 0;
+}
+
+.rp-header__title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.rp-header__subtitle {
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-muted);
+}
+
+.rp-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.rp-header__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.4rem 0.7rem;
+  background-color: var(--uni-bg-primary);
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--uni-text-muted);
+}
+
+.rp-header__stat strong { color: var(--uni-text-main); }
+
+.rp-header__connection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--rp-status);
+  background-color: var(--rp-status-soft);
+  color: var(--rp-status);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.rp-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.2rem 0.85rem 0.2rem 0.2rem;
+  background-color: var(--uni-bg-primary);
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-pill);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.rp-profile:hover { border-color: var(--uni-orange); }
+
+.rp-profile__avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--uni-orange);
+  flex-shrink: 0;
+}
+
+.rp-profile__avatar--lg { width: 3.75rem; height: 3.75rem; border-width: 2px; }
+
+.rp-profile__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.rp-profile__name { font-size: var(--fs-xs); font-weight: 700; }
+.rp-profile__role { font-size: var(--fs-2xs); color: var(--uni-text-muted); font-family: var(--uni-font-mono); }
+
+/* --- Abas ------------------------------------------------------------------- */
+.rp-tabs {
+  display: flex;
+  gap: var(--sp-1);
+  padding: 0 var(--content-gutter);
+  background-color: var(--uni-bg-secondary);
+  border-bottom: 1px solid var(--uni-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.rp-tabs::-webkit-scrollbar { display: none; }
+
+.rp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.85rem 1rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background-color: transparent;
+  color: var(--uni-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.rp-tab:hover { color: var(--uni-text-main); }
+
+.rp-tab[aria-selected='true'] {
+  color: var(--uni-orange);
+  border-bottom-color: var(--uni-orange);
+  background-color: var(--uni-orange-softer);
+}
+
+.rp-tab__key {
+  font-family: var(--uni-font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-dim);
+  border: 1px solid var(--uni-border);
+  border-radius: 3px;
+  padding: 0 0.25rem;
+}
+
+/* --- Grades ----------------------------------------------------------------- */
+.rp-grid {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.rp-grid--kpi { grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr)); }
+.rp-grid--cards { grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); }
+.rp-grid--panels { grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr)); }
+.rp-grid--wide { grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr)); }
+
+.rp-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.rp-stack--tight { gap: var(--sp-2); }
+
+.rp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.rp-row--between { justify-content: space-between; }
+
+/* Layout da aba ATS: malha + terminal de controle lateral. */
+.rp-ats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+.rp-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.rp-page-header__title {
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  margin: var(--sp-1) 0 0.15rem;
+}
+
+.rp-page-header__subtitle {
+  font-size: var(--fs-xs);
+  color: var(--uni-text-muted);
+}
+
+/* --- Responsividade --------------------------------------------------------- */
+@media (max-width: 1100px) {
+  .rp-ats { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 860px) {
+  .rp-header { gap: var(--sp-2); }
+  .rp-header__stat--optional { display: none; }
+  .rp-profile__text { display: none; }
+  .rp-profile { padding: 0.2rem; }
+  .rp-grid--kpi { grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
+  .rp-grid--wide,
+  .rp-grid--panels { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .rp-header { flex-direction: column; align-items: stretch; }
+  .rp-header__actions { justify-content: space-between; }
+  .rp-header__subtitle { display: none; }
+  .rp-grid--cards { grid-template-columns: minmax(0, 1fr); }
+  .rp-metric__value { font-size: var(--fs-2xl); }
+  .rp-modal { padding: var(--sp-4); }
+  .rp-toast-stack { right: var(--sp-3); left: var(--sp-3); bottom: var(--sp-3); width: auto; }
+}

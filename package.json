@@ -1,12 +1,17 @@
 {
   "name": "cco-rail-pulse",
   "version": "1.0.0",
-  "description": "RailPulse CCO Enterprise Backend",
-  "main": "index.js",
+  "description": "RailPulse CCO \u2014 Centro de Controle Operacional da Linha 6-Laranja (backend Node/Express + PostgreSQL)",
+  "main": "backend/dist/presentation/http/server.js",
   "scripts": {
     "dev": "tsx watch backend/presentation/http/server.ts",
     "build": "rimraf backend/dist && tsc -p backend/tsconfig.json",
-    "start": "node backend/dist/presentation/http/server.js"
+    "start": "node backend/dist/presentation/http/server.js",
+    "typecheck": "tsc -p backend/tsconfig.json --noEmit",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:lint": "npm --prefix frontend run lint",
+    "check": "npm run typecheck && npm run frontend:lint && npm run frontend:build"
   },
   "keywords": [],
   "author": "",
@@ -32,5 +37,8 @@
     "rimraf": "^6.1.3",
     "tsx": "^4.19.0",
     "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -1,5 +1,23 @@
+# Dependências
 node_modules/
+
+# Builds
 dist/
+build/
+backend/dist/
+
+# Logs
 logs/
 *.log
+npm-debug.log*
+
+# Ambiente (nunca versionar credenciais)
+.env
+.env.local
+.env.*.local
+
+# Sistema / editores
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,33 +1,43 @@
-import React, { useEffect } from 'react';
+// frontend/src/App.tsx
+import React from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import { LoginScreen } from './components/LoginScreen';
 import { CCODashboard } from './components/CCODashboard';
 
 const AppContent: React.FC = () => {
-  const { session, login, logout, updateAvatar } = useAuth();
+  const { session, isRestoring, sessionNotice, login, logout, expireSession, updateAvatar, dismissNotice } = useAuth();
 
-  useEffect(() => {
-    const rawSession = localStorage.getItem('@RailPulse:session');
-    if (rawSession && !session) {
-      localStorage.removeItem('@RailPulse:session');
-      window.location.reload();
-    }
-  }, [session]);
-
-  if (!session) {
-    return <LoginScreen onLogin={login} />;
+  // Enquanto a sessão restaurada é validada, evita piscar a tela de login.
+  if (isRestoring) {
+    return (
+      <div className="rp-login" role="status" aria-live="polite">
+        <div className="rp-empty">
+          <span className="rp-spinner" aria-hidden="true" />
+          <span>Restaurando a sessão do operador…</span>
+        </div>
+      </div>
+    );
   }
 
-  return <CCODashboard session={session} onUpdateAvatar={updateAvatar} onLogout={logout} />;
+  if (!session) {
+    return <LoginScreen onLogin={login} notice={sessionNotice} onDismissNotice={dismissNotice} />;
+  }
+
+  return (
+    <CCODashboard
+      session={session}
+      onUpdateAvatar={updateAvatar}
+      onExpireSession={expireSession}
+      onLogout={logout}
+    />
+  );
 };
 
-export function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
-}
+export const App: React.FC = () => (
+  <AuthProvider>
+    <AppContent />
+  </AuthProvider>
+);
 
 export default App;
