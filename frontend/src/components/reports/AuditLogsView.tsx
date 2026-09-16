@@ -1,11 +1,13 @@
 // frontend/src/components/reports/AuditLogsView.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import type { AuditLogEntry } from '../../types';
 import { Modal } from '../common/Modal';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
-import { api, ApiError } from '../../services/api';
+import { api } from '../../services/api';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useResource } from '../../hooks/useResource';
+import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
 import { downloadTextFile, formatDateTime, toCsv } from '../../lib/format';
 
 interface AuditLogsViewProps {
@@ -15,13 +17,6 @@ interface AuditLogsViewProps {
 }
 
 const PAGE_SIZE = 25;
-
-/** Resultado de uma consulta, marcado com a chave da requisição que o originou. */
-interface AuditResult {
-  key: string;
-  items: AuditLogEntry[];
-  total: number;
-}
 
 /** Normaliza o status do registro para a paleta de cores do design system. */
 const statusTone = (status: string): string => {
@@ -34,44 +29,19 @@ const statusTone = (status: string): string => {
 export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ token, onClose, onAuthError }) => {
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
-  const [result, setResult] = useState<AuditResult | null>(null);
-  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
 
   const debouncedSearch = useDebouncedValue(search, 350);
-  const requestKey = `${offset}|${debouncedSearch}`;
 
-  // O estado de carregamento é derivado: nem o resultado nem o erro correspondem
-  // à consulta corrente. Evita um setState síncrono dentro do efeito.
-  const isLoading = result?.key !== requestKey && failure?.key !== requestKey;
-  const logs = result?.key === requestKey ? result.items : [];
-  const total = result?.key === requestKey ? result.total : 0;
+  const load = useCallback(
+    () => api.auditLogs(token, { limit: PAGE_SIZE, offset, search: debouncedSearch }),
+    [token, offset, debouncedSearch],
+  );
 
-  useEffect(() => {
-    let cancelled = false;
+  const handleError = useAuthErrorHandler(onAuthError, 'consultar a trilha de auditoria');
+  const { data, error, isLoading } = useResource(`${offset}|${debouncedSearch}`, load, handleError);
 
-    const load = async () => {
-      try {
-        const page = await api.auditLogs(token, { limit: PAGE_SIZE, offset, search: debouncedSearch });
-        if (cancelled) return;
-        setResult({ key: requestKey, items: page.items as AuditLogEntry[], total: page.total });
-      } catch (error) {
-        if (cancelled) return;
-        if (error instanceof ApiError && error.isAuthError) {
-          onAuthError('Sua sessão expirou ao consultar a trilha de auditoria.');
-          return;
-        }
-        setFailure({
-          key: requestKey,
-          message: error instanceof Error ? error.message : 'Falha ao buscar a trilha de auditoria.',
-        });
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [token, offset, debouncedSearch, requestKey, onAuthError]);
+  const logs = (data?.items ?? []) as AuditLogEntry[];
+  const total = data?.total ?? 0;
 
   // Uma nova busca sempre reinicia a paginação (ajuste no handler, não em efeito).
   const handleSearchChange = (value: string) => {
@@ -153,11 +123,9 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ token, onClose, on
         </div>
       )}
 
-      {!isLoading && failure?.key === requestKey && (
-        <EmptyState icon="⚠" title="Não foi possível carregar os registros." hint={failure.message} />
-      )}
+      {!isLoading && error && <EmptyState icon="⚠" title="Não foi possível carregar os registros." hint={error} />}
 
-      {!isLoading && failure?.key !== requestKey && logs.length === 0 && (
+      {!isLoading && !error && logs.length === 0 && (
         <EmptyState
           icon="🗒"
           title={search ? 'Nenhum registro corresponde ao filtro.' : 'Nenhum evento de auditoria registrado ainda.'}

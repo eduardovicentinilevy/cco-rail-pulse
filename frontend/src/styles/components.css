@@ -4,14 +4,27 @@
 
 /* --- Cartão ---------------------------------------------------------------- */
 .rp-card {
+  position: relative;
   background-color: var(--uni-bg-secondary);
+  background-image: var(--grad-surface);
   border: 1px solid var(--uni-border);
   border-radius: var(--radius-lg);
   padding: var(--sp-5);
+  box-shadow: var(--shadow-sm), var(--shadow-inset);
 }
 
 .rp-card--flush { padding: 0; overflow: hidden; }
-.rp-card--accent { border-top: 2px solid var(--uni-orange); }
+
+/* Fio laranja no topo — usado em cards que abrem uma seção. */
+.rp-card--accent::before {
+  content: '';
+  position: absolute;
+  inset-inline: var(--sp-5);
+  top: 0;
+  height: 2px;
+  border-radius: 0 0 var(--radius-pill) var(--radius-pill);
+  background: var(--grad-rail);
+}
 
 .rp-card__header {
   display: flex;
@@ -58,6 +71,7 @@
   gap: var(--sp-2);
   border: 1px solid var(--uni-border);
   background-color: var(--uni-bg-card);
+  background-image: var(--grad-surface);
   color: var(--uni-text-main);
   border-radius: var(--radius-md);
   padding: 0.55rem 0.9rem;
@@ -84,15 +98,15 @@
 }
 
 .rp-btn--primary {
-  background-color: var(--uni-orange);
+  background: var(--grad-accent);
   border-color: var(--uni-orange);
   color: #fff;
-  box-shadow: 0 6px 18px -8px var(--uni-orange);
+  box-shadow: 0 8px 22px -10px var(--uni-orange-glow), var(--shadow-inset);
 }
 
 .rp-btn--primary:hover:not(:disabled) {
-  background-color: #ff7a1f;
-  border-color: #ff7a1f;
+  background: linear-gradient(135deg, var(--uni-orange-bright) 0%, var(--uni-orange) 100%);
+  border-color: var(--uni-orange-bright);
 }
 
 .rp-btn--outline {
@@ -216,7 +230,7 @@
 
 .rp-input {
   width: 100%;
-  background-color: var(--uni-bg-primary);
+  background-color: var(--uni-bg-void);
   border: 1px solid var(--uni-border);
   border-radius: var(--radius-md);
   padding: 0.68rem 0.8rem;
@@ -353,7 +367,7 @@
 /* --- Chips de filtro -------------------------------------------------------- */
 .rp-chip {
   border: 1px solid var(--uni-border);
-  background-color: var(--uni-bg-primary);
+  background-color: var(--uni-bg-void);
   color: var(--uni-text-muted);
   font-size: var(--fs-2xs);
   font-weight: 600;
@@ -368,29 +382,59 @@
   border-color: var(--uni-orange);
   color: var(--uni-orange);
   background-color: var(--uni-orange-soft);
+  box-shadow: 0 0 14px -6px var(--uni-orange-glow);
 }
 
 .rp-chip-row {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--sp-2);
 }
 
+/* Rótulo que separa visualmente grupos de filtro adjacentes. */
+.rp-chip-row__label {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--uni-text-dim);
+}
+
 /* --- Métricas e KPIs -------------------------------------------------------- */
 .rp-metric {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
+  overflow: hidden;
   background-color: var(--uni-bg-secondary);
+  background-image: var(--grad-surface);
   border: 1px solid var(--uni-border);
   border-radius: var(--radius-lg);
   padding: var(--sp-5);
-  transition: border-color var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+  box-shadow: var(--shadow-sm), var(--shadow-inset);
+  transition:
+    border-color var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease);
+}
+
+/* Faixa vertical na cor do status — leitura periférica do KPI. */
+.rp-metric::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 3px;
+  background: var(--rp-status, var(--uni-orange));
+  opacity: 0.85;
 }
 
 .rp-metric:hover {
   border-color: var(--uni-border-strong);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md), var(--shadow-inset);
 }
 
 .rp-metric__label {
@@ -457,7 +501,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background-color: var(--uni-bg-primary);
+  background-color: var(--uni-bg-void);
   padding: 0.75rem 1rem;
   font-size: var(--fs-xs);
   font-weight: 600;

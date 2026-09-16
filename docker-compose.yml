@@ -1,0 +1,24 @@
+# Sobe apenas a dependência de infraestrutura do RailPulse CCO.
+# O backend e o frontend rodam localmente (npm run dev), para manter o ciclo de
+# desenvolvimento rápido e o hot reload funcionando.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: railpulse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      POSTGRES_DB: ${DB_NAME:-railpulse_cco}
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - railpulse-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-railpulse_cco}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  railpulse-pgdata:

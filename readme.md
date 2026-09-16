@@ -12,6 +12,7 @@
 * [Tech Stack](#️-tech-stack)
 * [Estrutura do Projeto](#-estrutura-do-projeto)
 * [Como Executar o Projeto](#️-como-executar-o-projeto)
+* [Qualidade: Testes e CI](#-qualidade-testes-e-ci)
 * [Variáveis de Ambiente](#-variáveis-de-ambiente)
 * [Credenciais de Teste](#-credenciais-de-teste)
 * [Documentação do Barramento e APIs](#-documentação-do-barramento-e-apis)
@@ -32,6 +33,9 @@ O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo 
 * ⚡ **Telemetria SCADA em Tempo Real (TSS):** Leitura de tensão das Subestações de Tração (kV) via WebSocket com gráficos dinâmicos de alta performance (`Recharts`).
 * 🎮 **Painel de Comandos Operacionais:** Emissão de bloqueios de emergência (SIV), restrições de velocidade (20 km/h) e normalização de sinais com registro em log de auditoria.
 * 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
+* 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
+* 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador SOC, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
+* 📈 **Série Histórica de Telemetria:** Leituras agregadas por janela (mínima, média e máxima) e persistidas no PostgreSQL, com gráfico de faixa, seleção de período e poda automática por retenção.
 * 📋 **Trilha de Auditoria em Tempo Real:** Log contínuo de ações de operadores e eventos críticos de rede salvos no banco PostgreSQL.
 
 ---
@@ -92,54 +96,65 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 ```text
 cco-rail-pulse/
+├── .github/workflows/ci.yml                # Tipos, testes, lint, build e integração
+├── docker-compose.yml                      # PostgreSQL para desenvolvimento
 ├── backend/
-│   ├── config/
-│   │   └── env.ts                          # Configuração validada e centralizada (fail-fast)
-│   ├── shared/
-│   │   ├── errors.ts                       # AppError e subclasses com status HTTP
-│   │   ├── jwt.ts                          # Assinatura e verificação de tokens
-│   │   └── logger.ts                       # Logger com escopo por módulo
+│   ├── config/env.ts                       # Configuração validada e centralizada (fail-fast)
+│   ├── shared/                             # Erros, JWT, logger e helpers de HTTP
 │   ├── domain/
 │   │   ├── line.ts                         # Catálogo oficial das 15 estações (fonte única)
-│   │   ├── entities/TrainSession.ts        # Entidade + regras de comando ferroviário
+│   │   ├── roles.ts                        # Perfis hierárquicos e permissões
+│   │   ├── entities/TrainSession.ts        # Regras de comando ferroviário
+│   │   ├── entities/Incident.ts            # Máquina de estados das ocorrências
 │   │   └── value-objects/StationCode.ts    # Código ATS validado contra a malha
 │   ├── application/
 │   │   ├── events/event-bus.ts             # Barramento de eventos de domínio (tipado)
 │   │   ├── services/TelemetrySimulator.ts  # Simulador SCADA (random walk ancorado)
-│   │   └── use-cases/                      # Casos de uso (comando com lock pessimista)
+│   │   ├── services/TelemetryArchiver.ts   # Agregação por janela da série histórica
+│   │   └── use-cases/                      # Comando de trem com lock pessimista
 │   ├── infrastructure/
-│   │   ├── database/
-│   │   │   ├── postgres.ts                 # Pool + helper de transação
-│   │   │   ├── migrations.ts               # Self-healing DDL + auto-seeding
-│   │   │   └── repositories/               # Persistência das composições
+│   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding
+│   │   ├── database/repositories/          # Trens, ocorrências e telemetria
 │   │   ├── repositories/                   # Operadores e trilha de auditoria
 │   │   └── security/AuditLogger.ts         # Trilha append-only em disco
-│   └── presentation/
-│       ├── http/
-│       │   ├── app.ts                      # Composição do Express (CORS, headers, rotas)
-│       │   ├── middlewares/                # JWT, rate limit, erro e 404
-│       │   ├── routes/                     # auth, operator, audit, network, health
-│       │   └── server.ts                   # Bootstrap e encerramento gracioso
-│       └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
+│   ├── presentation/
+│   │   ├── http/app.ts                     # Composição do Express
+│   │   ├── http/middlewares/               # JWT, permissões, rate limit, erro e 404
+│   │   ├── http/routes/                    # auth, operator, team, incidents, network, audit
+│   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
+│   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
+│   └── tests/                              # 50 testes unitários (node:test)
 │
 └── frontend/
     └── src/
         ├── styles/                         # Design system (tokens, base, componentes, layout)
         ├── config/env.ts                   # URL da API e chaves de storage
-        ├── lib/format.ts                   # Datas, números, CSV e download
-        ├── hooks/                          # Relógio, foco de modal, debounce
-        ├── services/
-        │   ├── api.ts                      # Cliente HTTP com tratamento de sessão
-        │   └── websocket.service.ts        # Socket.IO autenticado por JWT
+        ├── lib/                            # Formatação, CSV e espelho das permissões
+        ├── hooks/                          # useResource, relógio, foco de modal, debounce
+        ├── services/                       # Cliente HTTP e Socket.IO autenticado
         ├── context/                        # Sessão do operador (validação + expiração)
         ├── components/
         │   ├── common/                     # Modal, ConfirmDialog, Toast, StatusPill…
-        │   ├── layout/                      # Cabeçalho e barra de abas
-        │   ├── dashboard/                   # Esquemático ATS, grade, terminal, feed
-        │   ├── views/                       # Painel executivo, energia, ativos, KPIs, escala
-        │   └── reports/AuditLogsView.tsx    # Trilha de auditoria paginada
+        │   ├── layout/                     # Cabeçalho e navegação lateral
+        │   ├── dashboard/                  # Esquemático ATS, grade, terminal, feed
+        │   ├── views/                      # As nove seções do console
+        │   └── reports/AuditLogsView.tsx   # Trilha de auditoria paginada
         └── App.tsx
 ```
+
+### Seções do console
+
+| Seção | O que entrega |
+| --- | --- |
+| **Painel executivo** | KPIs da malha, estações em alerta e últimas ocorrências |
+| **Malha ATS** | Esquemático da via com trens reais, grade de estações e terminal de comandos |
+| **Ocorrências** | Registro, tratativa e resolução com MTTR e trilha de auditoria |
+| **Telemetria TSS** | Tensão por subestação em tempo real e comparação de curvas |
+| **Série histórica** | Janelas agregadas (mín./méd./máx.) persistidas, por período |
+| **Saúde de ativos** | Carga estimada dos transformadores a partir do afundamento de tensão |
+| **Relatórios & KPIs** | Indicadores derivados do estado corrente e exportação CSV |
+| **Escala & partidas** | Aderência à tabela horária calculada pela marcha real |
+| **Equipe** | Cadastro de operadores, perfis de acesso e revogação de credenciais |
 
 ---
 
@@ -152,12 +167,20 @@ cco-rail-pulse/
 
 ### 1. Banco de dados
 
-Crie o banco (padrão: `railpulse_cco`). O schema e a carga inicial são aplicados
-automaticamente no boot — não há script manual a rodar.
+Com Docker (recomendado):
+
+```bash
+docker compose up -d postgres
+```
+
+Ou com um PostgreSQL local:
 
 ```bash
 createdb railpulse_cco
 ```
+
+O schema e a carga inicial são aplicados automaticamente no boot (self-healing DDL
+e auto-seeding) — não há script de migração manual a rodar.
 
 ### 2. Backend
 
@@ -203,7 +226,10 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `LOGIN_MAX_ATTEMPTS` | `8` | Tentativas de login por janela |
 | `LOGIN_WINDOW_MS` | `60000` | Janela do limitador de tentativas |
 | `TELEMETRY_INTERVAL_MS` | `3000` | Período de emissão da telemetria SCADA |
+| `TELEMETRY_BUCKET_SECONDS` | `60` | Janela de agregação da série histórica |
+| `TELEMETRY_RETENTION_DAYS` | `7` | Retenção da série histórica |
 | `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
+| `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador de demonstração |
 
 > ⚠️ O arquivo `.env` **não é versionado**. Use `.env.example` como modelo.
 
@@ -212,13 +238,46 @@ Referência completa em [`.env.example`](.env.example). Principais:
 ## 🔐 Credenciais de Teste
 
 O operador padrão é criado na **primeira** inicialização (nas seguintes, a senha
-existente é preservada):
+existente é preservada). A equipe de plantão (`MAR-109`, `SOU-012`, `LIV-551`)
+também é semeada, compartilhando a mesma senha de demonstração, para exercitar o
+cadastro e os perfis de acesso:
 
 | Parâmetro | Valor |
 | --- | --- |
 | **Credencial / ID** | `EDP-042` |
 | **Senha padrão** | `123456` (configurável via `SEED_OPERATOR_PASSWORD`) |
-| **Nível de acesso** | `OPERATOR_SOC` |
+| **Nível de acesso** | `SUPERVISOR` (configurável em `SEED_OPERATOR_ROLE`) |
+
+### Perfis de acesso
+
+| Perfil | Comandos na malha | Ocorrências | Consultar equipe | Gerir equipe |
+| --- | :---: | :---: | :---: | :---: |
+| `OPERATOR_SOC` | ✅ | ✅ | ✅ | — |
+| `SUPERVISOR` | ✅ | ✅ | ✅ | ✅ |
+| `ADMIN` | ✅ | ✅ | ✅ | ✅ |
+
+Os perfis são hierárquicos: cada nível herda as permissões dos níveis abaixo. A
+verificação ocorre **no servidor** (`requirePermission`); a interface apenas desabilita
+o que seria recusado, para não prometer ao operador uma ação que ele não tem.
+
+---
+
+## 🧪 Qualidade: Testes e CI
+
+```bash
+npm test          # 50 testes unitários do domínio e da infraestrutura
+npm run typecheck # tipos do backend, incluindo a suíte de testes
+npm run check     # typecheck + testes + lint e build do frontend
+```
+
+A suíte cobre as regras que não podem regredir: ciclo de vida das ocorrências,
+comandos ferroviários, validação de código de estação, hierarquia de permissões,
+limitador de tentativas de login, deriva do simulador SCADA e verificação de JWT.
+
+O workflow do GitHub Actions (`.github/workflows/ci.yml`) roda três jobs em paralelo:
+tipos e testes do backend, lint e build do frontend, e um teste de integração que
+sobe a API contra um PostgreSQL real para validar bootstrap, autenticação e a
+recusa de rotas protegidas sem token.
 
 ---
 
@@ -226,8 +285,8 @@ existente é preservada):
 
 | Atalho | Ação |
 | --- | --- |
-| `1` – `6` | Alterna entre as abas do painel |
-| `←` / `→` | Navega entre abas (com foco na barra de abas) |
+| `1` – `9` | Alterna entre as seções do console |
+| `↑` / `↓` | Navega entre seções (com foco na barra lateral) |
 | `/` | Abre a Malha ATS e foca a busca de estações |
 | `Esc` | Fecha o diálogo aberto |
 
@@ -246,6 +305,16 @@ existente é preservada):
 | `PATCH` | `/api/operator/profile/avatar` | Bearer | Persiste o avatar no cadastro |
 | `GET` | `/api/network/stations` | Bearer | Catálogo da malha + telemetria corrente |
 | `GET` | `/api/network/trains` | Bearer | Estado persistido das composições |
+| `GET` | `/api/network/telemetry/history?hours&stations` | Bearer | Série histórica agregada de tensão |
+| `GET` | `/api/incidents?limit&offset&status&severity&search` | Bearer | Ocorrências paginadas e filtráveis |
+| `POST` | `/api/incidents` | Bearer | Registra uma ocorrência |
+| `GET` | `/api/incidents/stats` | Bearer | Contadores e MTTR |
+| `GET` | `/api/incidents/:id` | Bearer | Detalhe da ocorrência |
+| `PATCH` | `/api/incidents/:id/status` | Bearer | Avança o ciclo de vida da ocorrência |
+| `GET` | `/api/team` | Bearer | Cadastro de operadores e perfis |
+| `POST` | `/api/team` | Supervisor+ | Cadastra um operador |
+| `PATCH` | `/api/team/:id/role` | Supervisor+ | Altera o perfil de acesso |
+| `PATCH` | `/api/team/:id/active` | Supervisor+ | Revoga ou reativa a credencial |
 | `GET` | `/api/audit-logs?limit&offset&search` | Bearer | Trilha de auditoria paginada |
 | `GET` | `/health` | — | Saúde da aplicação e do banco (`503` se degradado) |
 
@@ -262,6 +331,7 @@ comandos vem do token — nunca do payload enviado pelo cliente.
   * `telemetry:batch` — leituras de tensão de todas as estações (a cada 3 s).
   * `train:sync` — estado completo das composições, enviado ao conectar.
   * `train:updated` — composição alterada por um comando.
+  * `incident:changed` — ocorrência registrada ou alterada por qualquer operador.
   * `alert:critical` — alarmes e notificações operacionais.
   * `train:command:acknowledged` — confirmação (`EXECUTED` | `FAILED`) do comando.
 

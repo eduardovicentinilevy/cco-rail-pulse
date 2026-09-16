@@ -2,6 +2,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { extractBearerToken, verifyOperatorToken } from '../../../shared/jwt';
 import type { OperatorTokenPayload } from '../../../shared/jwt';
+import { can } from '../../../domain/roles';
+import type { Permission } from '../../../domain/roles';
 
 export interface AuthenticatedRequest extends Request {
   operator?: OperatorTokenPayload;
@@ -31,6 +33,23 @@ export const requireRole = (...roles: string[]) =>
   (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.operator || !roles.includes(req.operator.role)) {
       res.status(403).json({ error: 'Credenciamento insuficiente para esta operação.', code: 'FORBIDDEN' });
+      return;
+    }
+    next();
+  };
+
+/**
+ * Restringe uma rota por permissão em vez de perfil literal.
+ * Como os perfis são hierárquicos, isso evita listar cada nível superior em toda rota.
+ */
+export const requirePermission = (permission: Permission) =>
+  (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    if (!can(req.operator?.role, permission)) {
+      res.status(403).json({
+        error: 'Credenciamento insuficiente para esta operação.',
+        code: 'FORBIDDEN',
+        requiredPermission: permission,
+      });
       return;
     }
     next();

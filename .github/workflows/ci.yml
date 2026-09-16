@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — tipos e testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verificação de tipos (inclui a suíte de testes)
+        run: npm run typecheck
+
+      - name: Testes unitários
+        run: npm test
+
+      - name: Build de produção
+        run: npx tsc -p backend/tsconfig.json
+
+  frontend:
+    name: Frontend — lint e build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  integration:
+    name: Integração — API contra PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: railpulse_cco
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_NAME: railpulse_cco
+      JWT_SECRET: ci_only_secret_not_used_in_production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sobe o backend e valida o bootstrap
+        run: |
+          npx tsx backend/presentation/http/server.ts &
+          SERVER_PID=$!
+          # Aguarda o /health responder ONLINE (self-healing DDL + seed concluídos).
+          for attempt in $(seq 1 30); do
+            if curl -sf http://localhost:3333/health | grep -q '"status":"ONLINE"'; then
+              echo "Backend pronto."
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://localhost:3333/health | grep -q '"database":"CONNECTED"'
+          # Autenticação deve emitir um JWT utilizável nas rotas protegidas.
+          TOKEN=$(curl -sf -X POST http://localhost:3333/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"operatorId":"EDP-042","password":"123456"}' | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
+          test -n "$TOKEN"
+          curl -sf http://localhost:3333/api/network/trains -H "Authorization: Bearer $TOKEN" | grep -q 'T-01'
+          # Rota protegida sem token precisa ser recusada.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3333/api/network/trains)" = "401"
+          kill $SERVER_PID

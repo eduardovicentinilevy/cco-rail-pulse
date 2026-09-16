@@ -38,6 +38,41 @@ const DDL = `
     status VARCHAR(20) NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  CREATE TABLE IF NOT EXISTS incidents (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(120) NOT NULL,
+    description TEXT NOT NULL,
+    station_code VARCHAR(10),
+    train_id VARCHAR(20),
+    category VARCHAR(30) NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ABERTA',
+    opened_by VARCHAR(50) NOT NULL,
+    assigned_to VARCHAR(50),
+    resolution_note TEXT,
+    opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents (status, opened_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_incidents_station ON incidents (station_code);
+
+  -- Série histórica agregada por janela: uma linha por estação por janela,
+  -- em vez de uma linha por leitura (que geraria 5 escritas por segundo).
+  CREATE TABLE IF NOT EXISTS telemetry_samples (
+    id BIGSERIAL PRIMARY KEY,
+    station_code VARCHAR(10) NOT NULL,
+    bucket_at TIMESTAMPTZ NOT NULL,
+    min_kv NUMERIC(5, 2) NOT NULL,
+    avg_kv NUMERIC(5, 2) NOT NULL,
+    max_kv NUMERIC(5, 2) NOT NULL,
+    readings INTEGER NOT NULL,
+    UNIQUE (station_code, bucket_at)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_telemetry_bucket ON telemetry_samples (bucket_at DESC);
 `;
 
 /** Composições semeadas na malha, posicionadas em estações reais do traçado. */
@@ -48,11 +83,13 @@ const SEED_TRAINS: ReadonlyArray<[trainId: string, stationCode: string, speed: n
   ['T-12', '14B', 48, 24.6, 'NORMAL'],
 ];
 
-/**
- * Self-healing DDL + seed idempotente.
- * A senha do operador padrão só é (re)gravada quando o registro ainda não existe,
- * para não sobrescrever a credencial de um operador real a cada boot.
- */
+/** Equipe de plantão semeada para demonstrar o cadastro e os perfis de acesso. */
+const SEED_TEAM: ReadonlyArray<[id: string, name: string, role: string]> = [
+  ['MAR-109', 'Marina Rezende', 'OPERATOR_SOC'],
+  ['SOU-012', 'Sousa Okamoto', 'OPERATOR_SOC'],
+  ['LIV-551', 'Lívia Nakamura', 'SUPERVISOR'],
+];
+
 export const runMigrations = async (): Promise<void> => {
   await db.query(DDL);
   logger.info('Schema verificado (self-healing DDL aplicado).');
@@ -60,14 +97,31 @@ export const runMigrations = async (): Promise<void> => {
   const passwordHash = await bcrypt.hash(env.seedOperatorPassword, env.bcryptRounds);
   const seeded = await db.query(
     `INSERT INTO operators (id, name, role, password_hash, avatar_url, is_active)
-     VALUES ($1, $2, 'OPERATOR_SOC', $3, NULL, TRUE)
+     VALUES ($1, $2, $3, $4, NULL, TRUE)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
-    [env.seedOperatorId, env.seedOperatorName, passwordHash],
+    [env.seedOperatorId, env.seedOperatorName, env.seedOperatorRole, passwordHash],
   );
 
   if (seeded.rowCount && seeded.rowCount > 0) {
-    logger.info(`Operador padrão "${env.seedOperatorId}" criado.`);
+    logger.info(`Operador padrão "${env.seedOperatorId}" criado como ${env.seedOperatorRole}.`);
+  } else {
+    // Mantém o perfil do operador de demonstração alinhado à configuração,
+    // sem jamais sobrescrever a senha de uma conta já existente.
+    await db.query(`UPDATE operators SET role = $2 WHERE id = $1 AND role <> $2`, [
+      env.seedOperatorId,
+      env.seedOperatorRole,
+    ]);
+  }
+
+  // A equipe de plantão compartilha a senha padrão apenas em ambiente de demonstração.
+  for (const [id, name, role] of SEED_TEAM) {
+    await db.query(
+      `INSERT INTO operators (id, name, role, password_hash, is_active)
+       VALUES ($1, $2, $3, $4, TRUE)
+       ON CONFLICT (id) DO NOTHING`,
+      [id, name, role, passwordHash],
+    );
   }
 
   const knownCodes = new Set(LINE_STATIONS.map((station) => station.code));

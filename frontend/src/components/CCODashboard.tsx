@@ -14,8 +14,8 @@ import type {
 } from '../types';
 import { Header } from './layout/Header';
 import type { ConnectionStatus } from './layout/Header';
-import { TabBar } from './layout/TabBar';
-import type { TabDefinition } from './layout/TabBar';
+import { Sidebar } from './layout/Sidebar';
+import type { NavGroup } from './layout/Sidebar';
 import { TrackSchematic } from './dashboard/TrackSchematic';
 import { StationsGrid } from './dashboard/StationsGrid';
 import { SelectedStationPanel } from './dashboard/SelectedStationPanel';
@@ -26,6 +26,9 @@ import { EnergyView } from './views/EnergyView';
 import { AnalyticsReportsView } from './views/AnalyticsReportsView';
 import { AssetMaintenanceView } from './views/AssetMaintenanceView';
 import { TimetableDispatchView } from './views/TimetableDispatchView';
+import { IncidentsView } from './views/IncidentsView';
+import { TeamView } from './views/TeamView';
+import { HistoryView } from './views/HistoryView';
 import { ToastStack } from './common/ToastStack';
 import type { Toast, ToastType } from './common/ToastStack';
 import { ConfirmDialog } from './common/ConfirmDialog';
@@ -40,15 +43,55 @@ interface CCODashboardProps {
   onLogout: () => void;
 }
 
-type TabKey = 'overview' | 'ats' | 'energy' | 'assets' | 'analytics' | 'timetable';
+type TabKey =
+  | 'overview'
+  | 'ats'
+  | 'incidents'
+  | 'energy'
+  | 'history'
+  | 'assets'
+  | 'analytics'
+  | 'timetable'
+  | 'team';
 
-const TABS: ReadonlyArray<TabDefinition<TabKey>> = [
-  { key: 'overview', label: 'Painel executivo', icon: '🏠' },
-  { key: 'ats', label: 'Malha ATS', icon: '🗺️' },
-  { key: 'energy', label: 'Telemetria de tração', icon: '⚡' },
-  { key: 'assets', label: 'Saúde de ativos', icon: '🔧' },
-  { key: 'analytics', label: 'Relatórios & KPIs', icon: '📊' },
-  { key: 'timetable', label: 'Escala & partidas', icon: '🕒' },
+/** Ordem da navegação — também define a ordem dos atalhos numéricos 1–9. */
+const NAV_ORDER: readonly TabKey[] = [
+  'overview',
+  'ats',
+  'incidents',
+  'energy',
+  'history',
+  'assets',
+  'analytics',
+  'timetable',
+  'team',
+];
+
+const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
+  {
+    label: 'Supervisão',
+    items: [
+      { key: 'overview', label: 'Painel executivo', icon: '◉' },
+      { key: 'ats', label: 'Malha ATS', icon: '⌖' },
+      { key: 'incidents', label: 'Ocorrências', icon: '⚠' },
+    ],
+  },
+  {
+    label: 'Energia & ativos',
+    items: [
+      { key: 'energy', label: 'Telemetria TSS', icon: '⚡' },
+      { key: 'history', label: 'Série histórica', icon: '◫' },
+      { key: 'assets', label: 'Saúde de ativos', icon: '⚙' },
+    ],
+  },
+  {
+    label: 'Gestão',
+    items: [
+      { key: 'analytics', label: 'Relatórios & KPIs', icon: '◧' },
+      { key: 'timetable', label: 'Escala & partidas', icon: '◔' },
+      { key: 'team', label: 'Equipe', icon: '⬡' },
+    ],
+  },
 ];
 
 const STATUS_FILTERS: ReadonlyArray<{ key: StationStatus | 'ALL'; label: string }> = [
@@ -79,8 +122,12 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   const [alarms, setAlarms] = useState<AlarmEvent[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+  /** Incrementado a cada evento `incident:changed` — sinaliza recarga à aba de ocorrências. */
+  const [incidentRefresh, setIncidentRefresh] = useState(0);
+  const [openIncidents, setOpenIncidents] = useState(0);
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
+  const [isNavCollapsed, setIsNavCollapsed] = useState(false);
 
   const [shiftStartedAt] = useState(() => Date.now());
   const nextAlarmId = useRef(1);
@@ -215,6 +262,15 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       addAlarm('REDE', alert.message, alert.severity ?? 'INFO');
     };
 
+    const handleIncidentChanged = (incident: { id: string; title: string; status: string }) => {
+      setIncidentRefresh((value) => value + 1);
+      addAlarm(
+        'OCORR',
+        `Ocorrência #${incident.id} (${incident.title}) → ${incident.status.replace('_', ' ').toLowerCase()}`,
+        incident.status === 'RESOLVIDA' ? 'INFO' : 'WARNING',
+      );
+    };
+
     const handleCommandAck = (ack: { trainId: string; command: string; status: string; message?: string }) => {
       setPendingCommand(null);
       if (ack.status === 'EXECUTED') {
@@ -231,6 +287,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
     socket.on('train:sync', setTrains);
     socket.on('train:updated', upsertTrain);
     socket.on('alert:critical', handleCriticalAlert);
+    socket.on('incident:changed', handleIncidentChanged);
     socket.on('train:command:acknowledged', handleCommandAck);
 
     return () => {
@@ -241,9 +298,26 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       socket.off('train:sync', setTrains);
       socket.off('train:updated', upsertTrain);
       socket.off('alert:critical', handleCriticalAlert);
+      socket.off('incident:changed', handleIncidentChanged);
       socket.off('train:command:acknowledged', handleCommandAck);
     };
   }, [session.token, addAlarm, addToast, onExpireSession]);
+
+  // Contador de ocorrências abertas exibido no cabeçalho; recarrega a cada mudança.
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .incidentStats(session.token)
+      .then((stats) => {
+        if (!cancelled) setOpenIncidents(stats.open + stats.inProgress);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session.token, incidentRefresh]);
 
   const criticalAlarms = useMemo(
     () => alarms.filter((alarm) => alarm.level === 'CRITICAL' && !alarm.acknowledged).length,
@@ -271,7 +345,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       if (isTyping || event.ctrlKey || event.metaKey || event.altKey) return;
 
       const index = Number.parseInt(event.key, 10) - 1;
-      if (index >= 0 && index < TABS.length) setActiveTab(TABS[index].key);
+      if (index >= 0 && index < NAV_ORDER.length) setActiveTab(NAV_ORDER[index]);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -332,8 +406,34 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
     [trains, selectedStation.code],
   );
 
+  // O contador de ocorrências aparece no item de navegação correspondente.
+  const navGroups = useMemo<ReadonlyArray<NavGroup<TabKey>>>(
+    () =>
+      NAV_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.map((item) => (item.key === 'incidents' ? { ...item, badge: openIncidents } : item)),
+      })),
+    [openIncidents],
+  );
+
   return (
-    <div className="rp-shell">
+    <div className="rp-shell" data-collapsed={isNavCollapsed}>
+      <Sidebar
+        groups={navGroups}
+        activeKey={activeTab}
+        collapsed={isNavCollapsed}
+        onSelect={setActiveTab}
+        onToggleCollapse={() => setIsNavCollapsed((value) => !value)}
+        footer={
+          <span className="rp-sidebar__meta">
+            {session.name ?? session.operatorId}
+            <br />
+            Turno em curso
+          </span>
+        }
+      />
+
+      <div className="rp-content">
       <Header
         session={session}
         connectionStatus={connectionStatus}
@@ -344,8 +444,6 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         onReconnect={() => wsService.reconnect()}
         onLogout={handleLogout}
       />
-
-      <TabBar tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
       <main className="rp-main">
         {activeTab === 'overview' && (
@@ -432,11 +530,34 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           </div>
         )}
 
+        {activeTab === 'incidents' && (
+          <IncidentsView
+            session={session}
+            stations={stations}
+            trains={trains}
+            refreshToken={incidentRefresh}
+            onNotify={addToast}
+            onAuthError={onExpireSession}
+          />
+        )}
+
         {activeTab === 'energy' && <EnergyView stations={stations} history={history} />}
+        {activeTab === 'history' && (
+          <HistoryView session={session} stations={stations} onAuthError={onExpireSession} />
+        )}
         {activeTab === 'assets' && <AssetMaintenanceView stations={stations} />}
         {activeTab === 'analytics' && <AnalyticsReportsView stations={stations} trains={trains} alarms={alarms} />}
         {activeTab === 'timetable' && <TimetableDispatchView trains={trains} stations={stations} />}
-      </main>
+        {activeTab === 'team' && (
+          <TeamView
+            session={session}
+            onNotify={addToast}
+            onRequestConfirm={setConfirmRequest}
+            onAuthError={onExpireSession}
+          />
+        )}
+        </main>
+      </div>
 
       {isAuditOpen && (
         <AuditLogsView token={session.token} onClose={() => setIsAuditOpen(false)} onAuthError={onExpireSession} />

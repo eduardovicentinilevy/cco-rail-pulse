@@ -81,3 +81,87 @@ export interface CommandAck {
 
 /** Comandos operacionais expostos ao painel. */
 export type OperationalCommand = 'EMERGENCY_BRAKE_OVERRIDE' | 'SPEED_RESTRICTION_20KM' | 'RELEASE_SIGNAL';
+
+// --- Ocorrências -----------------------------------------------------------
+
+export const INCIDENT_SEVERITIES = ['BAIXA', 'MÉDIA', 'ALTA', 'CRÍTICA'] as const;
+export type IncidentSeverity = (typeof INCIDENT_SEVERITIES)[number];
+
+export const INCIDENT_STATUSES = ['ABERTA', 'EM_ANDAMENTO', 'RESOLVIDA'] as const;
+export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
+
+export const INCIDENT_CATEGORIES = [
+  'ENERGIA',
+  'SINALIZACAO',
+  'VIA_PERMANENTE',
+  'MATERIAL_RODANTE',
+  'PASSAGEIRO',
+  'OUTROS',
+] as const;
+export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
+
+export interface Incident {
+  id: string;
+  title: string;
+  description: string;
+  stationCode: string | null;
+  trainId: string | null;
+  category: IncidentCategory;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  openedBy: string;
+  openedByName?: string;
+  assignedTo: string | null;
+  assignedToName?: string | null;
+  resolutionNote: string | null;
+  openedAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+  resolutionMinutes: number | null;
+}
+
+export interface IncidentStats {
+  open: number;
+  inProgress: number;
+  resolved: number;
+  critical: number;
+  averageResolutionMinutes: number | null;
+}
+
+// --- Equipe ----------------------------------------------------------------
+
+export const OPERATOR_ROLES = ['OPERATOR_SOC', 'SUPERVISOR', 'ADMIN'] as const;
+export type OperatorRole = (typeof OPERATOR_ROLES)[number];
+
+export interface OperatorProfile {
+  id: string;
+  name: string;
+  role: string;
+  avatarUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+export interface RoleOption {
+  value: OperatorRole;
+  label: string;
+}
+
+// --- Série histórica de telemetria ------------------------------------------
+
+export interface HistorySample {
+  stationCode: string;
+  bucketAt: string;
+  minKV: number;
+  avgKV: number;
+  maxKV: number;
+}
+
+export interface HistorySummaryRow {
+  stationCode: string;
+  minKV: number;
+  avgKV: number;
+  maxKV: number;
+  buckets: number;
+}

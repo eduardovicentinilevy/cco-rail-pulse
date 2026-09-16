@@ -7,6 +7,7 @@ import { createLogger } from '../../shared/logger';
 import { createApp } from './app';
 import { registerCcoGateway } from '../websocket/cco.gateway';
 import { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
+import { TelemetryArchiver } from '../../application/services/TelemetryArchiver';
 import { runMigrations } from '../../infrastructure/database/migrations';
 import { closeDatabase, db } from '../../infrastructure/database/postgres';
 import { domainEventBus } from '../../application/events/event-bus';
@@ -14,6 +15,7 @@ import { domainEventBus } from '../../application/events/event-bus';
 const logger = createLogger('BOOT');
 
 const simulator = new TelemetrySimulator(env.telemetryIntervalMs);
+const archiver = new TelemetryArchiver(env.telemetryBucketSeconds, env.telemetryRetentionDays);
 const app = createApp(simulator);
 const server = http.createServer(app);
 
@@ -26,6 +28,16 @@ const io = new SocketIOServer(server, {
 
 registerCcoGateway(io, simulator);
 
+// Sem este handler, uma porta ocupada derruba o processo com stack trace bruto.
+server.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EADDRINUSE') {
+    logger.error(`A porta ${env.port} já está em uso. Encerre o outro processo ou ajuste PORT no .env.`);
+  } else {
+    logger.error('Falha no servidor HTTP.', error);
+  }
+  process.exit(1);
+});
+
 let shuttingDown = false;
 
 /** Encerramento gracioso: para a telemetria, fecha sockets, HTTP e o pool do Postgres. */
@@ -35,6 +47,8 @@ const shutdown = async (signal: string): Promise<void> => {
   logger.info(`Sinal ${signal} recebido — iniciando encerramento gracioso.`);
 
   simulator.stop();
+  // Descarrega a janela pendente antes de derrubar o barramento.
+  await archiver.stop().catch((error) => logger.error('Falha ao encerrar o arquivamento.', error));
   domainEventBus.removeAllListeners();
 
   await new Promise<void>((resolve) => io.close(() => resolve()));
@@ -52,6 +66,7 @@ const bootstrap = async (): Promise<void> => {
     logger.info('Conexão com PostgreSQL estabelecida.');
 
     await runMigrations();
+    archiver.start();
     simulator.start();
 
     server.listen(env.port, () => {

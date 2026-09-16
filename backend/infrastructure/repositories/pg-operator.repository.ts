@@ -13,6 +13,25 @@ export interface OperatorEntity {
   is_active: boolean;
 }
 
+/** Projeção pública do operador — nunca carrega o hash da senha. */
+export interface OperatorProfile {
+  id: string;
+  name: string;
+  role: string;
+  avatarUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  /** Último login bem-sucedido, derivado da trilha de auditoria. */
+  lastLoginAt: string | null;
+}
+
+export interface CreateOperatorInput {
+  id: string;
+  name: string;
+  role: string;
+  passwordHash: string;
+}
+
 export interface AuditLogRecord {
   id: string;
   timestamp: string;
@@ -49,6 +68,69 @@ export class PgOperatorRepository {
 
   public async updateAvatar(operatorId: string, avatarUrl: string): Promise<void> {
     await db.query(`UPDATE operators SET avatar_url = $2 WHERE id = $1`, [operatorId, avatarUrl]);
+  }
+
+  /**
+   * Cadastro completo da equipe, com o último login trazido da trilha de auditoria
+   * por LATERAL — evita N+1 e mantém a leitura em uma única ida ao banco.
+   */
+  public async listAll(): Promise<OperatorProfile[]> {
+    const result = await db.query<{
+      id: string;
+      name: string;
+      role: string;
+      avatar_url: string | null;
+      is_active: boolean;
+      created_at: Date;
+      last_login_at: Date | null;
+    }>(
+      `SELECT o.id, o.name, o.role, o.avatar_url, o.is_active, o.created_at, last_login.created_at AS last_login_at
+       FROM operators o
+       LEFT JOIN LATERAL (
+         SELECT created_at
+         FROM audit_logs
+         WHERE operator_id = o.id AND action = 'LOGIN_SUCCESS'
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) AS last_login ON TRUE
+       ORDER BY o.is_active DESC, o.id ASC`,
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      role: row.role,
+      avatarUrl: row.avatar_url,
+      isActive: row.is_active,
+      createdAt: new Date(row.created_at).toISOString(),
+      lastLoginAt: row.last_login_at ? new Date(row.last_login_at).toISOString() : null,
+    }));
+  }
+
+  public async exists(operatorId: string): Promise<boolean> {
+    const result = await db.query(`SELECT 1 FROM operators WHERE id = $1`, [operatorId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  public async create(input: CreateOperatorInput): Promise<void> {
+    await db.query(
+      `INSERT INTO operators (id, name, role, password_hash, is_active) VALUES ($1, $2, $3, $4, TRUE)`,
+      [input.id, input.name, input.role, input.passwordHash],
+    );
+  }
+
+  public async updateRole(operatorId: string, role: string): Promise<void> {
+    await db.query(`UPDATE operators SET role = $2 WHERE id = $1`, [operatorId, role]);
+  }
+
+  public async setActive(operatorId: string, isActive: boolean): Promise<void> {
+    await db.query(`UPDATE operators SET is_active = $2 WHERE id = $1`, [operatorId, isActive]);
+  }
+
+  /** Nomes por id, usados para exibir responsáveis sem um segundo round-trip. */
+  public async namesById(): Promise<Map<string, string>> {
+    const result = await db.query<{ id: string; name: string }>(`SELECT id, name FROM operators`);
+    return new Map(result.rows.map((row) => [row.id, row.name]));
   }
 
   /**

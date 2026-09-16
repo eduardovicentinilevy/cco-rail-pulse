@@ -41,11 +41,10 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header className="rp-header">
-        <div className="rp-header__brand">
-          <span className="rp-header__logo">L06-UNI</span>
+        <div className="rp-header__left">
           <div className="truncate">
-            <h1 className="rp-header__title">RailPulse CCO — Linha 6-Laranja</h1>
-            <p className="rp-header__subtitle">Centro de Controle Operacional • Supervisão ATS &amp; SCADA</p>
+            <h1 className="rp-header__title">Centro de Controle Operacional</h1>
+            <p className="rp-header__subtitle">Supervisão ATS &amp; telemetria SCADA • Brasilândia ➔ São Joaquim</p>
           </div>
         </div>
 

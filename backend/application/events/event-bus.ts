@@ -2,6 +2,7 @@
 import { EventEmitter } from 'events';
 import type { StationTelemetryDTO } from '../dtos/TrainDTO';
 import type { TrainSnapshot } from '../../domain/entities/TrainSession';
+import type { IncidentSnapshot } from '../../domain/entities/Incident';
 
 export interface SystemAlert {
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
@@ -13,6 +14,7 @@ export interface SystemAlert {
 export interface DomainEvents {
   'telemetry:updated': [StationTelemetryDTO[]];
   'train:updated': [TrainSnapshot];
+  'incident:changed': [IncidentSnapshot];
   'system:alert': [SystemAlert];
 }
 

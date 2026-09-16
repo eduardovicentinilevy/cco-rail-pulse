@@ -7,11 +7,12 @@
     "dev": "tsx watch backend/presentation/http/server.ts",
     "build": "rimraf backend/dist && tsc -p backend/tsconfig.json",
     "start": "node backend/dist/presentation/http/server.js",
-    "typecheck": "tsc -p backend/tsconfig.json --noEmit",
+    "typecheck": "tsc -p backend/tsconfig.test.json",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
     "frontend:lint": "npm --prefix frontend run lint",
-    "check": "npm run typecheck && npm run frontend:lint && npm run frontend:build"
+    "check": "npm run typecheck && npm test && npm run frontend:lint && npm run frontend:build",
+    "test": "tsx --test backend/tests/*.test.ts"
   },
   "keywords": [],
   "author": "",

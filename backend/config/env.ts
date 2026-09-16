@@ -39,6 +39,11 @@ export const env = {
   seedOperatorId: process.env.SEED_OPERATOR_ID ?? 'EDP-042',
   seedOperatorName: process.env.SEED_OPERATOR_NAME ?? 'Eduardo Vicentini Levy',
   seedOperatorPassword: process.env.SEED_OPERATOR_PASSWORD ?? '123456',
+  seedOperatorRole: process.env.SEED_OPERATOR_ROLE ?? 'SUPERVISOR',
+  /** Janela de agregação da série histórica de telemetria, em segundos. */
+  telemetryBucketSeconds: toInt(process.env.TELEMETRY_BUCKET_SECONDS, 60),
+  /** Retenção da série histórica, em dias. */
+  telemetryRetentionDays: toInt(process.env.TELEMETRY_RETENTION_DAYS, 7),
   /** Tentativas de login permitidas por credencial dentro da janela. */
   loginMaxAttempts: toInt(process.env.LOGIN_MAX_ATTEMPTS, 8),
   loginWindowMs: toInt(process.env.LOGIN_WINDOW_MS, 60_000),
