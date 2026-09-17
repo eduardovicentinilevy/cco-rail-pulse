@@ -147,6 +147,11 @@ export const api = {
       body: { isActive },
     }),
 
+  // --- Passagem de turno ---------------------------------------------------
+
+  shiftReport: (token: string, since: string) =>
+    request<Record<string, unknown>>(`/api/shift/report?since=${encodeURIComponent(since)}`, { token }),
+
   // --- Série histórica -----------------------------------------------------
 
   telemetryHistory: (token: string, params: { hours: number; stations: string[] }) => {

@@ -642,3 +642,131 @@
 
 .rp-toast__icon { flex-shrink: 0; color: var(--rp-status); }
 .rp-toast__message { flex: 1; min-width: 0; line-height: 1.35; }
+
+/* --- Paleta de comandos ------------------------------------------------------ */
+.rp-overlay--top {
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+
+.rp-palette {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 34rem;
+  max-height: 60vh;
+  overflow: hidden;
+  background-color: var(--uni-bg-secondary);
+  background-image: var(--grad-surface);
+  border: 1px solid var(--uni-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg), var(--glow-orange);
+  animation: rp-fade-in var(--dur-base) var(--ease-out);
+}
+
+.rp-palette__search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-bottom: 1px solid var(--uni-border);
+  color: var(--uni-text-dim);
+}
+
+.rp-palette__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--uni-text-main);
+  font-size: var(--fs-lg);
+  outline: none;
+}
+
+.rp-palette__input::placeholder { color: var(--uni-text-dim); }
+
+.rp-palette__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-2);
+}
+
+.rp-palette__group {
+  padding: var(--sp-3) var(--sp-2) var(--sp-1);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--uni-text-dim);
+}
+
+.rp-palette__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.rp-palette__item[aria-selected='true'] {
+  background-color: var(--uni-orange-soft);
+  color: var(--uni-orange);
+}
+
+.rp-palette__icon {
+  display: grid;
+  place-items: center;
+  width: 1.3rem;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.rp-palette__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.rp-palette__hint {
+  flex-shrink: 0;
+  font-family: var(--uni-font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-dim);
+}
+
+.rp-palette__footer {
+  display: flex;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--uni-border);
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-dim);
+}
+
+.rp-kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.3rem;
+  padding: 0.05rem 0.3rem;
+  margin-inline: 1px;
+  background-color: var(--uni-bg-void);
+  border: 1px solid var(--uni-border-strong);
+  border-radius: 4px;
+  font-family: var(--uni-font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-muted);
+}
+
+/* --- Bloco de assinatura da passagem de turno -------------------------------- */
+.rp-signature {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--sp-8);
+}
+
+.rp-signature__line {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--uni-border-strong);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  min-height: 2.2rem;
+}

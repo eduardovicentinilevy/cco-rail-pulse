@@ -17,6 +17,7 @@ import type { ConnectionStatus } from './layout/Header';
 import { Sidebar } from './layout/Sidebar';
 import type { NavGroup } from './layout/Sidebar';
 import { TrackSchematic } from './dashboard/TrackSchematic';
+import { LineMap } from './dashboard/LineMap';
 import { StationsGrid } from './dashboard/StationsGrid';
 import { SelectedStationPanel } from './dashboard/SelectedStationPanel';
 import { AlarmFeed } from './dashboard/AlarmFeed';
@@ -29,10 +30,14 @@ import { TimetableDispatchView } from './views/TimetableDispatchView';
 import { IncidentsView } from './views/IncidentsView';
 import { TeamView } from './views/TeamView';
 import { HistoryView } from './views/HistoryView';
+import { ShiftHandoverView } from './views/ShiftHandoverView';
 import { ToastStack } from './common/ToastStack';
 import type { Toast, ToastType } from './common/ToastStack';
 import { ConfirmDialog } from './common/ConfirmDialog';
 import type { ConfirmRequest } from './common/ConfirmDialog';
+import { CommandPalette } from './common/CommandPalette';
+import type { PaletteAction } from './common/CommandPalette';
+import { useCriticalAlerts } from '../hooks/useCriticalAlerts';
 import type { VoltageSample } from './TSSChartWidget';
 import { formatTime } from '../lib/format';
 
@@ -52,6 +57,7 @@ type TabKey =
   | 'assets'
   | 'analytics'
   | 'timetable'
+  | 'handover'
   | 'team';
 
 /** Ordem da navegação — também define a ordem dos atalhos numéricos 1–9. */
@@ -64,6 +70,7 @@ const NAV_ORDER: readonly TabKey[] = [
   'assets',
   'analytics',
   'timetable',
+  'handover',
   'team',
 ];
 
@@ -89,6 +96,7 @@ const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
     items: [
       { key: 'analytics', label: 'Relatórios & KPIs', icon: '◧' },
       { key: 'timetable', label: 'Escala & partidas', icon: '◔' },
+      { key: 'handover', label: 'Passagem de turno', icon: '⇄' },
       { key: 'team', label: 'Equipe', icon: '⬡' },
     ],
   },
@@ -128,8 +136,12 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [atsView, setAtsView] = useState<'schematic' | 'map'>('schematic');
 
   const [shiftStartedAt] = useState(() => Date.now());
+  const alerts = useCriticalAlerts();
+  const { notify: notifyCritical } = alerts;
   const nextAlarmId = useRef(1);
   const toastTimers = useRef(new Map<string, number>());
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -260,15 +272,24 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
     const handleCriticalAlert = (alert: { message: string; severity?: AlarmLevel }) => {
       addAlarm('REDE', alert.message, alert.severity ?? 'INFO');
+      if (alert.severity === 'CRITICAL') notifyCritical('Alerta crítico na malha', alert.message);
     };
 
-    const handleIncidentChanged = (incident: { id: string; title: string; status: string }) => {
+    const handleIncidentChanged = (incident: {
+      id: string;
+      title: string;
+      status: string;
+      severity?: string;
+    }) => {
       setIncidentRefresh((value) => value + 1);
       addAlarm(
         'OCORR',
         `Ocorrência #${incident.id} (${incident.title}) → ${incident.status.replace('_', ' ').toLowerCase()}`,
         incident.status === 'RESOLVIDA' ? 'INFO' : 'WARNING',
       );
+      if (incident.severity === 'CRÍTICA' && incident.status !== 'RESOLVIDA') {
+        notifyCritical(`Ocorrência crítica #${incident.id}`, incident.title);
+      }
     };
 
     const handleCommandAck = (ack: { trainId: string; command: string; status: string; message?: string }) => {
@@ -301,7 +322,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       socket.off('incident:changed', handleIncidentChanged);
       socket.off('train:command:acknowledged', handleCommandAck);
     };
-  }, [session.token, addAlarm, addToast, onExpireSession]);
+  }, [session.token, addAlarm, addToast, notifyCritical, onExpireSession]);
 
   // Contador de ocorrências abertas exibido no cabeçalho; recarrega a cada mudança.
   useEffect(() => {
@@ -334,6 +355,12 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const isTyping = target?.matches('input, textarea, select') ?? false;
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setIsPaletteOpen((open) => !open);
+        return;
+      }
 
       if (event.key === '/' && !isTyping) {
         event.preventDefault();
@@ -406,6 +433,76 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
     [trains, selectedStation.code],
   );
 
+  // Seções, estações e composições viram alvos navegáveis pela paleta.
+  const paletteActions = useMemo<PaletteAction[]>(() => {
+    const sections = NAV_GROUPS.flatMap((group) =>
+      group.items.map((item) => ({
+        id: `nav-${item.key}`,
+        label: item.label,
+        group: 'Seções',
+        icon: item.icon,
+        hint: `${NAV_ORDER.indexOf(item.key) + 1}`,
+        keywords: group.label,
+        run: () => setActiveTab(item.key),
+      })),
+    );
+
+    const stationActions = stations.map((station) => ({
+      id: `station-${station.code}`,
+      label: `${station.code} — ${station.name}`,
+      group: 'Estações',
+      icon: '⌖',
+      hint: `${station.voltageKV.toFixed(2)} kV`,
+      keywords: `${station.substation} ${station.status}`,
+      run: () => {
+        setSelectedCode(station.code);
+        setActiveTab('ats');
+      },
+    }));
+
+    const trainActions = trains.map((train) => ({
+      id: `train-${train.trainId}`,
+      label: `${train.trainId} — ${train.speedKmH} km/h`,
+      group: 'Composições',
+      icon: '▭',
+      hint: train.currentStationCode,
+      keywords: train.status,
+      run: () => {
+        setSelectedCode(train.currentStationCode);
+        setActiveTab('ats');
+      },
+    }));
+
+    const commands: PaletteAction[] = [
+      {
+        id: 'action-audit',
+        label: 'Abrir trilha de auditoria',
+        group: 'Ações',
+        icon: '☰',
+        run: () => setIsAuditOpen(true),
+      },
+      {
+        id: 'action-sound',
+        label: alerts.preferences.sound ? 'Silenciar alertas sonoros' : 'Ativar alertas sonoros',
+        group: 'Ações',
+        icon: alerts.preferences.sound ? '🔇' : '🔔',
+        run: alerts.toggleSound,
+      },
+      {
+        id: 'action-print',
+        label: 'Imprimir passagem de turno',
+        group: 'Ações',
+        icon: '⎙',
+        run: () => {
+          setActiveTab('handover');
+          window.setTimeout(() => window.print(), 600);
+        },
+      },
+    ];
+
+    return [...sections, ...stationActions, ...trainActions, ...commands];
+  }, [stations, trains, alerts.preferences.sound, alerts.toggleSound]);
+
   // O contador de ocorrências aparece no item de navegação correspondente.
   const navGroups = useMemo<ReadonlyArray<NavGroup<TabKey>>>(
     () =>
@@ -439,6 +536,8 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         connectionStatus={connectionStatus}
         shiftStartedAt={shiftStartedAt}
         criticalAlarms={criticalAlarms}
+        alerts={alerts}
+        onOpenPalette={() => setIsPaletteOpen(true)}
         onUpdateAvatar={onUpdateAvatar}
         onOpenAuditLogs={() => setIsAuditOpen(true)}
         onReconnect={() => wsService.reconnect()}
@@ -459,12 +558,45 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
         {activeTab === 'ats' && (
           <div className="rp-stack rp-animate-in">
-            <TrackSchematic
-              stations={stations}
-              trains={trains}
-              selectedStation={selectedStation}
-              onSelectStation={handleSelectStation}
-            />
+            <div className="rp-row rp-row--between">
+              <h2 className="rp-section-title">Supervisão da malha tronco</h2>
+              <div className="rp-segmented" role="group" aria-label="Forma de visualização da malha">
+                <button
+                  type="button"
+                  className="rp-segmented__option"
+                  aria-pressed={atsView === 'schematic'}
+                  onClick={() => setAtsView('schematic')}
+                >
+                  Esquemático
+                </button>
+                <button
+                  type="button"
+                  className="rp-segmented__option"
+                  aria-pressed={atsView === 'map'}
+                  onClick={() => setAtsView('map')}
+                >
+                  Mapa da linha
+                </button>
+              </div>
+            </div>
+
+            {atsView === 'schematic' ? (
+              <TrackSchematic
+                stations={stations}
+                trains={trains}
+                selectedStation={selectedStation}
+                onSelectStation={handleSelectStation}
+              />
+            ) : (
+              <section className="rp-card">
+                <LineMap
+                  stations={stations}
+                  trains={trains}
+                  selectedStation={selectedStation}
+                  onSelectStation={handleSelectStation}
+                />
+              </section>
+            )}
 
             <div className="rp-row rp-row--between">
               <div className="rp-search">
@@ -548,6 +680,9 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         {activeTab === 'assets' && <AssetMaintenanceView stations={stations} />}
         {activeTab === 'analytics' && <AnalyticsReportsView stations={stations} trains={trains} alarms={alarms} />}
         {activeTab === 'timetable' && <TimetableDispatchView trains={trains} stations={stations} />}
+        {activeTab === 'handover' && (
+          <ShiftHandoverView session={session} shiftStartedAt={shiftStartedAt} onAuthError={onExpireSession} />
+        )}
         {activeTab === 'team' && (
           <TeamView
             session={session}
@@ -562,6 +697,8 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       {isAuditOpen && (
         <AuditLogsView token={session.token} onClose={() => setIsAuditOpen(false)} onAuthError={onExpireSession} />
       )}
+
+      {isPaletteOpen && <CommandPalette actions={paletteActions} onClose={() => setIsPaletteOpen(false)} />}
 
       {confirmRequest && <ConfirmDialog request={confirmRequest} onClose={() => setConfirmRequest(null)} />}
 

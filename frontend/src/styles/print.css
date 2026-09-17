@@ -1,0 +1,61 @@
+/* ==========================================================================
+   RailPulse CCO — Folha de impressão
+   Importada por último: precisa vencer as regras de layout do console.
+   ========================================================================== */
+@media print {
+  /* Só o relatório vai para o papel; o console em volta é descartado. */
+  .rp-sidebar,
+  .rp-header,
+  .rp-toast-stack,
+  .rp-no-print {
+    display: none !important;
+  }
+
+  .rp-shell,
+  .rp-shell[data-collapsed='true'] {
+    display: block;
+  }
+
+  .rp-main { padding: 0; }
+
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .rp-card,
+  .rp-metric {
+    background: #fff !important;
+    background-image: none !important;
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .rp-metric::before { display: none; }
+
+  .rp-card__title,
+  .rp-page-header__title,
+  .rp-metric__value,
+  .rp-feed__message,
+  .rp-table td {
+    color: #111 !important;
+  }
+
+  .rp-card__subtitle,
+  .rp-page-header__subtitle,
+  .rp-metric__label,
+  .rp-metric__hint,
+  .rp-table th {
+    color: #555 !important;
+  }
+
+  .rp-table-wrap { overflow: visible; border-color: #ccc !important; }
+  .rp-table { min-width: 0; }
+  .rp-table th { background: #f2f2f2 !important; }
+  .rp-badge { border: 1px solid #999 !important; background: #fff !important; color: #111 !important; }
+  .rp-feed { max-height: none; overflow: visible; }
+  .rp-feed__item { background: #fff !important; border-color: #ccc !important; }
+
+  @page { margin: 1.5cm; }
+}

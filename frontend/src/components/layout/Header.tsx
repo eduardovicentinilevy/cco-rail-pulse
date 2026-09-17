@@ -4,6 +4,7 @@ import type { OperatorSession } from '../../types';
 import { UserProfileModal } from '../modals/UserProfileModal';
 import { useClock, useElapsed } from '../../hooks/useClock';
 import { DEFAULT_AVATAR_URL } from '../../config/env';
+import type { CriticalAlerts } from '../../hooks/useCriticalAlerts';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
@@ -12,6 +13,8 @@ interface HeaderProps {
   connectionStatus: ConnectionStatus;
   shiftStartedAt: number;
   criticalAlarms: number;
+  alerts: CriticalAlerts;
+  onOpenPalette: () => void;
   onUpdateAvatar: (url: string) => Promise<void>;
   onOpenAuditLogs: () => void;
   onReconnect: () => void;
@@ -29,6 +32,8 @@ export const Header: React.FC<HeaderProps> = ({
   connectionStatus,
   shiftStartedAt,
   criticalAlarms,
+  alerts,
+  onOpenPalette,
   onUpdateAvatar,
   onOpenAuditLogs,
   onReconnect,
@@ -66,6 +71,28 @@ export const Header: React.FC<HeaderProps> = ({
               Reconectar
             </button>
           )}
+
+          <button
+            type="button"
+            className="rp-btn rp-btn--ghost rp-header__palette"
+            onClick={onOpenPalette}
+            title="Busca rápida de seções, estações e composições"
+          >
+            <span aria-hidden="true">⌕</span>
+            Buscar
+            <kbd className="rp-kbd">Ctrl</kbd>
+            <kbd className="rp-kbd">K</kbd>
+          </button>
+
+          <button
+            type="button"
+            className="rp-icon-btn"
+            onClick={alerts.toggleSound}
+            aria-pressed={alerts.preferences.sound}
+            title={alerts.preferences.sound ? 'Silenciar alertas sonoros' : 'Ativar alertas sonoros'}
+          >
+            {alerts.preferences.sound ? '🔔' : '🔇'}
+          </button>
 
           <button type="button" className="rp-btn" onClick={onOpenAuditLogs}>
             Auditoria

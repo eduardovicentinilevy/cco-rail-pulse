@@ -165,3 +165,46 @@ export interface HistorySummaryRow {
   maxKV: number;
   buckets: number;
 }
+
+// --- Passagem de turno ------------------------------------------------------
+
+export interface ShiftCommand {
+  action: string;
+  status: string;
+  count: number;
+}
+
+export interface ShiftIncident {
+  id: string;
+  title: string;
+  severity: string;
+  status: string;
+  stationCode: string | null;
+  openedBy: string;
+  openedAt: string;
+  resolvedAt: string | null;
+  resolutionMinutes: number | null;
+}
+
+export interface ShiftVoltageExtreme {
+  stationCode: string;
+  stationName: string;
+  minKV: number;
+  avgKV: number;
+  maxKV: number;
+  degradedBuckets: number;
+}
+
+export interface ShiftReport {
+  since: string;
+  until: string;
+  durationMinutes: number;
+  operators: string[];
+  commands: ShiftCommand[];
+  totalCommands: number;
+  incidentsOpened: ShiftIncident[];
+  incidentsResolved: ShiftIncident[];
+  incidentsPending: ShiftIncident[];
+  voltageExtremes: ShiftVoltageExtreme[];
+  degradedStations: number;
+}

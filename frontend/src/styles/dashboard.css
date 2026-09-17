@@ -367,3 +367,162 @@
   padding-bottom: var(--sp-3);
   border-bottom: 1px solid var(--uni-border);
 }
+
+/* --- Mapa da linha ---------------------------------------------------------- */
+.rp-map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.rp-map__canvas {
+  width: 100%;
+  height: auto;
+  /* O traçado corre na diagonal; este fundo dá profundidade sem competir. */
+  background:
+    radial-gradient(ellipse 60% 70% at 20% 10%, rgba(255, 102, 0, 0.07), transparent 65%),
+    var(--uni-bg-void);
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-md);
+}
+
+.rp-map__river {
+  stroke: rgba(120, 150, 180, 0.22);
+  stroke-width: 14;
+  stroke-linecap: round;
+}
+
+.rp-map__river-label {
+  fill: rgba(150, 175, 200, 0.45);
+  font-size: 13px;
+  font-style: italic;
+  font-family: var(--uni-font);
+}
+
+.rp-map__rail {
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rp-map__rail-glow {
+  stroke: var(--uni-orange);
+  stroke-width: 9;
+  stroke-linecap: round;
+  opacity: 0.28;
+}
+
+.rp-map__station { cursor: pointer; }
+
+.rp-map__node {
+  fill: var(--uni-bg-void);
+  stroke: var(--rp-status, var(--uni-success));
+  stroke-width: 3;
+  transition: r var(--dur-base) var(--ease-out), fill var(--dur-base) var(--ease);
+}
+
+.rp-map__station:hover .rp-map__node { fill: var(--rp-status); }
+
+.rp-map__station[data-selected='true'] .rp-map__node {
+  fill: var(--uni-orange);
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+
+.rp-map__alert-ring {
+  opacity: 0.22;
+  animation: rp-map-ping 2.4s var(--ease-out) infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+@keyframes rp-map-ping {
+  0% { transform: scale(0.65); opacity: 0.4; }
+  70% { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.rp-map__label {
+  fill: var(--uni-text-muted);
+  font-family: var(--uni-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.rp-map__station[data-selected='true'] .rp-map__label { fill: var(--uni-orange); }
+
+/* A composição desliza até a nova estação quando a posição muda. */
+.rp-map__train {
+  transition: transform 900ms var(--ease-out);
+}
+
+.rp-map__train-halo {
+  fill: var(--rp-status, var(--uni-orange));
+  opacity: 0.18;
+}
+
+.rp-map__train-tag {
+  fill: var(--uni-bg-card);
+  stroke: var(--rp-status, var(--uni-orange));
+  stroke-width: 1.5;
+}
+
+.rp-map__train-label {
+  fill: var(--uni-text-main);
+  font-family: var(--uni-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.rp-map__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-muted);
+}
+
+.rp-map__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.rp-map__legend-train {
+  width: 1.4rem;
+  height: 0.7rem;
+  border: 1.5px solid var(--uni-orange);
+  background-color: var(--uni-bg-card);
+  border-radius: 3px;
+}
+
+/* --- Alternador de visualização --------------------------------------------- */
+.rp-segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background-color: var(--uni-bg-void);
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-pill);
+}
+
+.rp-segmented__option {
+  padding: 0.35rem 0.85rem;
+  border: none;
+  background: transparent;
+  color: var(--uni-text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.rp-segmented__option:hover { color: var(--uni-text-main); }
+
+.rp-segmented__option[aria-pressed='true'] {
+  background: var(--grad-accent);
+  color: #fff;
+}

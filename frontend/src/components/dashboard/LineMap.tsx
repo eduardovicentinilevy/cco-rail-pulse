@@ -1,0 +1,205 @@
+// frontend/src/components/dashboard/LineMap.tsx
+import React, { useMemo } from 'react';
+import type { Station, Train } from '../../types';
+
+interface LineMapProps {
+  stations: Station[];
+  trains: Train[];
+  selectedStation: Station;
+  onSelectStation: (station: Station) => void;
+}
+
+const VIEW_WIDTH = 1000;
+const VIEW_HEIGHT = 440;
+
+/**
+ * Coordenadas aproximadas do traçado da Linha 6-Laranja no sentido
+ * noroeste → centro (Brasilândia a São Joaquim). Não é cartografia exata:
+ * preserva a forma e a proporção do eixo para leitura operacional.
+ */
+const ROUTE: Record<string, { x: number; y: number }> = {
+  BRA: { x: 70, y: 52 },
+  MAR: { x: 132, y: 84 },
+  ITA: { x: 194, y: 116 },
+  JPI: { x: 252, y: 152 },
+  FGO: { x: 312, y: 190 },
+  SMA: { x: 384, y: 218 },
+  AGB: { x: 456, y: 240 },
+  POM: { x: 528, y: 256 },
+  PDZ: { x: 600, y: 270 },
+  PUC: { x: 665, y: 284 },
+  FAA: { x: 726, y: 302 },
+  HGM: { x: 786, y: 322 },
+  '14B': { x: 844, y: 346 },
+  BLV: { x: 900, y: 370 },
+  SJQ: { x: 952, y: 396 },
+};
+
+const STATUS_COLOR: Record<Station['status'], string> = {
+  NORMAL: 'var(--uni-success)',
+  'ATENÇÃO': 'var(--uni-warning)',
+  'CRÍTICO': 'var(--uni-danger)',
+};
+
+/**
+ * Converte os pontos em uma curva suave (Catmull-Rom convertida para Bézier
+ * cúbica), para que o traçado não pareça uma sequência de segmentos retos.
+ */
+const smoothPath = (points: Array<{ x: number; y: number }>): string => {
+  if (points.length < 2) return '';
+
+  const commands = [`M ${points[0].x} ${points[0].y}`];
+
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const previous = points[i - 1] ?? points[i];
+    const current = points[i];
+    const next = points[i + 1];
+    const afterNext = points[i + 2] ?? next;
+
+    const control1 = {
+      x: current.x + (next.x - previous.x) / 6,
+      y: current.y + (next.y - previous.y) / 6,
+    };
+    const control2 = {
+      x: next.x - (afterNext.x - current.x) / 6,
+      y: next.y - (afterNext.y - current.y) / 6,
+    };
+
+    commands.push(`C ${control1.x} ${control1.y}, ${control2.x} ${control2.y}, ${next.x} ${next.y}`);
+  }
+
+  return commands.join(' ');
+};
+
+export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStation, onSelectStation }) => {
+  const points = useMemo(
+    () => stations.map((station) => ({ station, ...(ROUTE[station.code] ?? { x: 0, y: 0 }) })),
+    [stations],
+  );
+
+  const path = useMemo(() => smoothPath(points), [points]);
+
+  const trainMarkers = useMemo(
+    () =>
+      trains
+        .map((train) => ({ train, position: ROUTE[train.currentStationCode] }))
+        .filter((marker): marker is { train: Train; position: { x: number; y: number } } => marker.position != null),
+    [trains],
+  );
+
+  /** Onde há composição, a etiqueta do trem ocupa o espaço acima do nó. */
+  const occupiedAbove = useMemo(
+    () => new Set(trains.map((train) => train.currentStationCode)),
+    [trains],
+  );
+
+  return (
+    <div className="rp-map">
+      <svg
+        viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+        className="rp-map__canvas"
+        role="img"
+        aria-label="Mapa da Linha 6-Laranja com a posição das composições"
+      >
+        <defs>
+          <linearGradient id="rp-rail-gradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="var(--uni-orange-bright)" />
+            <stop offset="100%" stopColor="var(--uni-orange-deep)" />
+          </linearGradient>
+          <filter id="rp-rail-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* Referência geográfica: faixa do Rio Tietê, cruzado entre FGO e SMA. */}
+        <path
+          d="M 250 268 C 340 218, 430 176, 560 148 S 820 110, 990 96"
+          className="rp-map__river"
+          fill="none"
+        />
+        <text x="596" y="140" className="rp-map__river-label">
+          Rio Tietê
+        </text>
+
+        {/* Halo do trilho, depois o trilho sólido por cima. */}
+        <path d={path} className="rp-map__rail-glow" fill="none" filter="url(#rp-rail-glow)" />
+        <path d={path} className="rp-map__rail" fill="none" stroke="url(#rp-rail-gradient)" />
+
+        {trainMarkers.map(({ train, position }) => (
+          <g
+            key={train.trainId}
+            className="rp-map__train"
+            style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+          >
+            <circle r="13" className="rp-map__train-halo" data-status={train.status} />
+            <rect x="-20" y="-30" width="40" height="15" rx="4" className="rp-map__train-tag" data-status={train.status} />
+            <text y="-19" className="rp-map__train-label">
+              {train.trainId}
+            </text>
+          </g>
+        ))}
+
+        {points.map(({ station, x, y }, index) => {
+          const isSelected = station.code === selectedStation.code;
+          // Rótulos alternam acima e abaixo para não colidirem entre si; onde há
+          // composição, o rótulo desce para não ser coberto pela etiqueta do trem.
+          const labelAbove = index % 2 === 0 && !occupiedAbove.has(station.code);
+
+          return (
+            <g
+              key={station.code}
+              className="rp-map__station"
+              data-status={station.status}
+              data-selected={isSelected}
+              role="button"
+              tabIndex={0}
+              aria-label={`Estação ${station.name}, status ${station.status}, ${station.voltageKV.toFixed(2)} kV`}
+              aria-pressed={isSelected}
+              onClick={() => onSelectStation(station)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onSelectStation(station);
+                }
+              }}
+            >
+              {/* Alvo de clique generoso, invisível. */}
+              <circle cx={x} cy={y} r="22" fill="transparent" />
+              {station.status !== 'NORMAL' && (
+                <circle cx={x} cy={y} r="14" className="rp-map__alert-ring" fill={STATUS_COLOR[station.status]} />
+              )}
+              <circle cx={x} cy={y} r={isSelected ? 9 : 6.5} className="rp-map__node" />
+              <text
+                x={x}
+                y={labelAbove ? y - 16 : y + 26}
+                className="rp-map__label"
+                textAnchor={index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'}
+              >
+                {station.code}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="rp-map__legend">
+        <span className="rp-map__legend-item">
+          <span className="rp-dot" data-status="NORMAL" /> Nominal
+        </span>
+        <span className="rp-map__legend-item">
+          <span className="rp-dot" data-status="ATENÇÃO" /> Atenção
+        </span>
+        <span className="rp-map__legend-item">
+          <span className="rp-dot" data-status="CRÍTICO" /> Crítico
+        </span>
+        <span className="rp-map__legend-item">
+          <span className="rp-map__legend-train" aria-hidden="true" /> Composição em circulação
+        </span>
+      </div>
+    </div>
+  );
+};

@@ -35,6 +35,10 @@ O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo 
 * 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
 * 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador SOC, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
+* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG com as 15 estações posicionadas ao longo do eixo noroeste–centro, composições deslizando entre estações e realce pulsante das estações em alerta.
+* ⇄ **Passagem de Turno:** Relatório consolidado do turno — comandos emitidos, ocorrências abertas/resolvidas, pendências herdadas e comportamento da tensão — com folha de impressão que gera o documento assinável.
+* ⌘ **Paleta de Comandos (Ctrl+K):** Busca difusa por seções, estações, composições e ações rápidas, navegável inteiramente pelo teclado.
+* 🔔 **Alertas de Eventos Críticos:** Sinal sonoro sintetizado (Web Audio) e notificação do sistema para ocorrências críticas, com preferência persistida.
 * 📈 **Série Histórica de Telemetria:** Leituras agregadas por janela (mínima, média e máxima) e persistidas no PostgreSQL, com gráfico de faixa, seleção de período e poda automática por retenção.
 * 📋 **Trilha de Auditoria em Tempo Real:** Log contínuo de ações de operadores e eventos críticos de rede salvos no banco PostgreSQL.
 
@@ -111,7 +115,7 @@ cco-rail-pulse/
 │   │   ├── events/event-bus.ts             # Barramento de eventos de domínio (tipado)
 │   │   ├── services/TelemetrySimulator.ts  # Simulador SCADA (random walk ancorado)
 │   │   ├── services/TelemetryArchiver.ts   # Agregação por janela da série histórica
-│   │   └── use-cases/                      # Comando de trem com lock pessimista
+│   │   └── use-cases/                      # Comando de trem e relatório de turno
 │   ├── infrastructure/
 │   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding
 │   │   ├── database/repositories/          # Trens, ocorrências e telemetria
@@ -127,16 +131,16 @@ cco-rail-pulse/
 │
 └── frontend/
     └── src/
-        ├── styles/                         # Design system (tokens, base, componentes, layout)
+        ├── styles/                         # Design system (tokens, base, componentes, layout, impressão)
         ├── config/env.ts                   # URL da API e chaves de storage
         ├── lib/                            # Formatação, CSV e espelho das permissões
-        ├── hooks/                          # useResource, relógio, foco de modal, debounce
+        ├── hooks/                          # useResource, alertas críticos, relógio, foco de modal
         ├── services/                       # Cliente HTTP e Socket.IO autenticado
         ├── context/                        # Sessão do operador (validação + expiração)
         ├── components/
         │   ├── common/                     # Modal, ConfirmDialog, Toast, StatusPill…
         │   ├── layout/                     # Cabeçalho e navegação lateral
-        │   ├── dashboard/                  # Esquemático ATS, grade, terminal, feed
+        │   ├── dashboard/                  # Esquemático ATS, mapa da linha, grade, terminal
         │   ├── views/                      # As nove seções do console
         │   └── reports/AuditLogsView.tsx   # Trilha de auditoria paginada
         └── App.tsx
@@ -154,6 +158,7 @@ cco-rail-pulse/
 | **Saúde de ativos** | Carga estimada dos transformadores a partir do afundamento de tensão |
 | **Relatórios & KPIs** | Indicadores derivados do estado corrente e exportação CSV |
 | **Escala & partidas** | Aderência à tabela horária calculada pela marcha real |
+| **Passagem de turno** | Relatório consolidado do turno, pronto para impressão e assinatura |
 | **Equipe** | Cadastro de operadores, perfis de acesso e revogação de credenciais |
 
 ---
@@ -265,14 +270,15 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 50 testes unitários do domínio e da infraestrutura
+npm test          # 57 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
 
 A suíte cobre as regras que não podem regredir: ciclo de vida das ocorrências,
 comandos ferroviários, validação de código de estação, hierarquia de permissões,
-limitador de tentativas de login, deriva do simulador SCADA e verificação de JWT.
+limitador de tentativas de login, deriva do simulador SCADA, verificação de JWT,
+janela do relatório de turno e o contrato do catálogo da malha (que o mapa consome).
 
 O workflow do GitHub Actions (`.github/workflows/ci.yml`) roda três jobs em paralelo:
 tipos e testes do backend, lint e build do frontend, e um teste de integração que
@@ -285,6 +291,7 @@ recusa de rotas protegidas sem token.
 
 | Atalho | Ação |
 | --- | --- |
+| `Ctrl` / `⌘` + `K` | Abre a paleta de comandos |
 | `1` – `9` | Alterna entre as seções do console |
 | `↑` / `↓` | Navega entre seções (com foco na barra lateral) |
 | `/` | Abre a Malha ATS e foca a busca de estações |
@@ -315,6 +322,7 @@ recusa de rotas protegidas sem token.
 | `POST` | `/api/team` | Supervisor+ | Cadastra um operador |
 | `PATCH` | `/api/team/:id/role` | Supervisor+ | Altera o perfil de acesso |
 | `PATCH` | `/api/team/:id/active` | Supervisor+ | Revoga ou reativa a credencial |
+| `GET` | `/api/shift/report?since` | Bearer | Relatório consolidado de passagem de turno |
 | `GET` | `/api/audit-logs?limit&offset&search` | Bearer | Trilha de auditoria paginada |
 | `GET` | `/health` | — | Saúde da aplicação e do banco (`503` se degradado) |
 
