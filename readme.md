@@ -1,6 +1,6 @@
 # 🚆 RailPulse CCO — Centro de Controle Operacional (Linha 6-Laranja)
 
-> **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacionante em tempo real para a malha ferroviária da **Linha 6-Laranja (Linha Uni)**. A plataforma integra telemetria de subestações de tração (TSS), sinalização ATS ao longo das 15 estações do traçado e envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
+> **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacional em tempo real para a malha ferroviária da **Linha 6-Laranja (Linha Uni)**. A plataforma integra telemetria de subestações de tração (TSS), sinalização ATS ao longo das 15 estações do traçado e envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
 
 ---
 
@@ -15,6 +15,7 @@
 * [Qualidade: Testes e CI](#-qualidade-testes-e-ci)
 * [Variáveis de Ambiente](#-variáveis-de-ambiente)
 * [Credenciais de Teste](#-credenciais-de-teste)
+* [Atalhos de Teclado](#️-atalhos-de-teclado)
 * [Documentação do Barramento e APIs](#-documentação-do-barramento-e-apis)
 
 ---
@@ -29,9 +30,9 @@ O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo 
 
 ## 🚀 Principais Funcionalidades
 
-* 🗺️ **Supervisão ATS da Malha Tronco:** Acompanhamento interativo do progresso dos trens (`T-01`, `T-04`, `T-07`, `T-12`) ao longo das 15 estações da Linha 6.
+* 🚉 **Supervisão ATS da Malha Tronco:** Acompanhamento interativo do progresso dos trens (`T-01`, `T-04`, `T-07`, `T-12`) ao longo das 15 estações da Linha 6.
 * ⚡ **Telemetria SCADA em Tempo Real (TSS):** Leitura de tensão das Subestações de Tração (kV) via WebSocket com gráficos dinâmicos de alta performance (`Recharts`).
-* 🎮 **Painel de Comandos Operacionais:** Emissão de bloqueios de emergência (SIV), restrições de velocidade (20 km/h) e normalização de sinais com registro em log de auditoria.
+* 🎮 **Painel de Comandos Operacionais:** Frenagem de emergência, restrição de velocidade (20 km/h) e liberação de sinal, aplicados sob lock pessimista e registrados na trilha de auditoria.
 * 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
 * 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador de Controle, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
@@ -86,6 +87,8 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 * **Comunicação em Tempo Real:** Socket.IO
 * **Segurança:** JSON Web Token (JWT) e Bcrypt
 * **Banco de Dados:** PostgreSQL (Driver Nativo `pg`)
+* **Testes:** `node:test` nativo, executado via `tsx`
+* **CI:** GitHub Actions (tipos, testes, lint, build e integração com PostgreSQL)
 
 ### **Frontend**
 
@@ -124,10 +127,10 @@ cco-rail-pulse/
 │   ├── presentation/
 │   │   ├── http/app.ts                     # Composição do Express
 │   │   ├── http/middlewares/               # JWT, permissões, rate limit, erro e 404
-│   │   ├── http/routes/                    # auth, operator, team, incidents, network, audit
+│   │   ├── http/routes/                    # auth, operator, team, incidents, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 50 testes unitários (node:test)
+│   └── tests/                              # 57 testes unitários (node:test)
 │
 └── frontend/
     └── src/
@@ -138,10 +141,10 @@ cco-rail-pulse/
         ├── services/                       # Cliente HTTP e Socket.IO autenticado
         ├── context/                        # Sessão do operador (validação + expiração)
         ├── components/
-        │   ├── common/                     # Modal, ConfirmDialog, Toast, StatusPill…
+        │   ├── common/                     # Modal, ConfirmDialog, CommandPalette, Toast…
         │   ├── layout/                     # Cabeçalho e navegação lateral
         │   ├── dashboard/                  # Esquemático ATS, mapa da linha, grade, terminal
-        │   ├── views/                      # As nove seções do console
+        │   ├── views/                      # As dez seções do console
         │   └── reports/AuditLogsView.tsx   # Trilha de auditoria paginada
         └── App.tsx
 ```
@@ -315,6 +318,7 @@ recusa de rotas protegidas sem token.
 | `GET` | `/api/network/telemetry/history?hours&stations` | Bearer | Série histórica agregada de tensão |
 | `GET` | `/api/incidents?limit&offset&status&severity&search` | Bearer | Ocorrências paginadas e filtráveis |
 | `POST` | `/api/incidents` | Bearer | Registra uma ocorrência |
+| `GET` | `/api/incidents/meta` | Bearer | Categorias, severidades e status válidos |
 | `GET` | `/api/incidents/stats` | Bearer | Contadores e MTTR |
 | `GET` | `/api/incidents/:id` | Bearer | Detalhe da ocorrência |
 | `PATCH` | `/api/incidents/:id/status` | Bearer | Avança o ciclo de vida da ocorrência |
