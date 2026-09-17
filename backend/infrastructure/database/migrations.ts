@@ -11,7 +11,7 @@ const DDL = `
   CREATE TABLE IF NOT EXISTS operators (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'OPERATOR_SOC',
+    role VARCHAR(50) NOT NULL DEFAULT 'OPERADOR',
     password_hash VARCHAR(255) NOT NULL,
     avatar_url TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -85,13 +85,30 @@ const SEED_TRAINS: ReadonlyArray<[trainId: string, stationCode: string, speed: n
 
 /** Equipe de plantão semeada para demonstrar o cadastro e os perfis de acesso. */
 const SEED_TEAM: ReadonlyArray<[id: string, name: string, role: string]> = [
-  ['MAR-109', 'Marina Rezende', 'OPERATOR_SOC'],
-  ['SOU-012', 'Sousa Okamoto', 'OPERATOR_SOC'],
+  ['MAR-109', 'Marina Rezende', 'OPERADOR'],
+  ['SOU-012', 'Sousa Okamoto', 'OPERADOR'],
   ['LIV-551', 'Lívia Nakamura', 'SUPERVISOR'],
 ];
 
+/**
+ * Renomeia o perfil `OPERATOR_SOC` (jargão de centro de operações de segurança,
+ * herdado por engano) para `OPERADOR`. Idempotente: em bancos novos não há
+ * linhas a converter e o DEFAULT já nasce correto.
+ */
+const renameLegacyOperatorRole = async (): Promise<void> => {
+  const updated = await db.query(`UPDATE operators SET role = 'OPERADOR' WHERE role = 'OPERATOR_SOC'`);
+
+  // O DEFAULT do CREATE TABLE não alcança tabelas que já existem.
+  await db.query(`ALTER TABLE operators ALTER COLUMN role SET DEFAULT 'OPERADOR'`);
+
+  if (updated.rowCount && updated.rowCount > 0) {
+    logger.info(`Perfil OPERATOR_SOC migrado para OPERADOR em ${updated.rowCount} operador(es).`);
+  }
+};
+
 export const runMigrations = async (): Promise<void> => {
   await db.query(DDL);
+  await renameLegacyOperatorRole();
   logger.info('Schema verificado (self-healing DDL aplicado).');
 
   const passwordHash = await bcrypt.hash(env.seedOperatorPassword, env.bcryptRounds);

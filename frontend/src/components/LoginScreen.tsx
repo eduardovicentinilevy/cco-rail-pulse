@@ -131,7 +131,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, notice, onDis
         </form>
 
         <p className="rp-login__footer">
-          Acesso monitorado. Todas as tentativas de autenticação são registradas na trilha de auditoria.
+          Comandos e acessos ficam registrados na trilha de auditoria da operação.
         </p>
       </div>
     </main>

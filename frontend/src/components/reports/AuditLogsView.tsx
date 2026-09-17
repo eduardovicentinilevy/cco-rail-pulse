@@ -62,8 +62,8 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ token, onClose, on
 
   return (
     <Modal
-      title="Trilha de auditoria e compliance SOC"
-      subtitle="Registro imutável de comandos críticos e eventos operacionais"
+      title="Trilha de auditoria operacional"
+      subtitle="Registro de comandos críticos e eventos da operação, para rastreabilidade"
       wide
       onClose={onClose}
       footer={

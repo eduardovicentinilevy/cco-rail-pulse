@@ -17,7 +17,7 @@ export const verifyOperatorToken = (token: string | undefined | null): OperatorT
   try {
     const decoded = jwt.verify(token, env.jwtSecret);
     if (typeof decoded === 'string' || !decoded.operatorId) return null;
-    return { operatorId: String(decoded.operatorId), role: String(decoded.role ?? 'OPERATOR_SOC') };
+    return { operatorId: String(decoded.operatorId), role: String(decoded.role ?? 'OPERADOR') };
   } catch {
     return null;
   }

@@ -1,9 +1,9 @@
-// backend/infrastructure/security/AuditLogger.ts
+// backend/infrastructure/audit/AuditLogger.ts
 import fs from 'fs';
 import path from 'path';
 import { createLogger } from '../../shared/logger';
 
-const logger = createLogger('SOC-AUDIT');
+const logger = createLogger('AUDITORIA');
 
 export interface AuditEvent {
   timestamp: string;

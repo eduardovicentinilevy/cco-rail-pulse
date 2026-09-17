@@ -60,7 +60,7 @@ type TabKey =
   | 'handover'
   | 'team';
 
-/** Ordem da navegação — também define a ordem dos atalhos numéricos 1–9. */
+/** Ordem da navegação — também define a ordem dos atalhos numéricos (1–9 e 0). */
 const NAV_ORDER: readonly TabKey[] = [
   'overview',
   'ats',
@@ -371,8 +371,12 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
       if (isTyping || event.ctrlKey || event.metaKey || event.altKey) return;
 
-      const index = Number.parseInt(event.key, 10) - 1;
-      if (index >= 0 && index < NAV_ORDER.length) setActiveTab(NAV_ORDER[index]);
+      // 1–9 cobrem as nove primeiras seções; 0 alcança a décima.
+      const digit = Number.parseInt(event.key, 10);
+      if (Number.isNaN(digit)) return;
+
+      const index = digit === 0 ? 9 : digit - 1;
+      if (index < NAV_ORDER.length) setActiveTab(NAV_ORDER[index]);
     };
 
     window.addEventListener('keydown', handleKeyDown);

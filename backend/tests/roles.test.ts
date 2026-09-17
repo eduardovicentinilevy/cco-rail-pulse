@@ -5,7 +5,7 @@ import { can, isOperatorRole } from '../domain/roles';
 
 describe('Controle de acesso por perfil', () => {
   it('todo operador autenticado pode comandar e tratar ocorrências', () => {
-    for (const role of ['OPERATOR_SOC', 'SUPERVISOR', 'ADMIN']) {
+    for (const role of ['OPERADOR', 'SUPERVISOR', 'ADMIN']) {
       assert.equal(can(role, 'COMMAND_TRAIN'), true, role);
       assert.equal(can(role, 'MANAGE_INCIDENTS'), true, role);
       assert.equal(can(role, 'VIEW_OPERATORS'), true, role);
@@ -13,7 +13,7 @@ describe('Controle de acesso por perfil', () => {
   });
 
   it('gerir a equipe exige ao menos supervisor', () => {
-    assert.equal(can('OPERATOR_SOC', 'MANAGE_OPERATORS'), false);
+    assert.equal(can('OPERADOR', 'MANAGE_OPERATORS'), false);
     assert.equal(can('SUPERVISOR', 'MANAGE_OPERATORS'), true);
     assert.equal(can('ADMIN', 'MANAGE_OPERATORS'), true);
   });

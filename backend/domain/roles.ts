@@ -1,22 +1,22 @@
 // backend/domain/roles.ts
 
-export const OPERATOR_ROLES = ['OPERATOR_SOC', 'SUPERVISOR', 'ADMIN'] as const;
+export const OPERATOR_ROLES = ['OPERADOR', 'SUPERVISOR', 'ADMIN'] as const;
 export type OperatorRole = (typeof OPERATOR_ROLES)[number];
 
 /** Nível hierárquico: um perfil herda todas as permissões dos níveis abaixo. */
 const ROLE_LEVEL: Record<OperatorRole, number> = {
-  OPERATOR_SOC: 1,
+  OPERADOR: 1,
   SUPERVISOR: 2,
   ADMIN: 3,
 };
 
 export const PERMISSIONS = {
   /** Emitir comandos críticos de segurança na malha. */
-  COMMAND_TRAIN: 'OPERATOR_SOC',
+  COMMAND_TRAIN: 'OPERADOR',
   /** Registrar e tratar ocorrências. */
-  MANAGE_INCIDENTS: 'OPERATOR_SOC',
+  MANAGE_INCIDENTS: 'OPERADOR',
   /** Consultar o cadastro de operadores. */
-  VIEW_OPERATORS: 'OPERATOR_SOC',
+  VIEW_OPERATORS: 'OPERADOR',
   /** Criar operadores e alterar perfis/ativação. */
   MANAGE_OPERATORS: 'SUPERVISOR',
   /** Remover definitivamente registros do cadastro. */
@@ -35,7 +35,7 @@ export const can = (role: string | undefined, permission: Permission): boolean =
 };
 
 export const ROLE_LABELS: Record<OperatorRole, string> = {
-  OPERATOR_SOC: 'Operador SOC',
+  OPERADOR: 'Operador de Controle',
   SUPERVISOR: 'Supervisor de Operação',
   ADMIN: 'Administrador do Sistema',
 };

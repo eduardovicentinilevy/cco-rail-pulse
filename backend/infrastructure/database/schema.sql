@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS operators (
     id VARCHAR(50) PRIMARY KEY,                       -- Ex: 'EDP-042'
     name VARCHAR(100) NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'OPERATOR_SOC',
+    role VARCHAR(50) NOT NULL DEFAULT 'OPERADOR',   -- OPERADOR | SUPERVISOR | ADMIN
     password_hash VARCHAR(255) NOT NULL,              -- bcrypt
     avatar_url TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,

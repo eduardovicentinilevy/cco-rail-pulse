@@ -21,7 +21,7 @@
 
 ## 📌 Visão Geral
 
-O **RailPulse CCO** fornece aos operadores SOC uma interface de alta fidelidade visual para acompanhar os ativos críticos do traçado elétrico e metroferroviário entre **Brasilândia** e **São Joaquim**.
+O **RailPulse CCO** fornece aos operadores do Centro de Controle uma interface de alta fidelidade visual para acompanhar os ativos críticos do traçado elétrico e metroferroviário entre **Brasilândia** e **São Joaquim**.
 
 O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo **auto-inicialização de schema (Self-Healing DDL)** e **sincronização de carga inicial (Auto-Seeding)** sem dependência de scripts manuais.
 
@@ -34,7 +34,7 @@ O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo 
 * 🎮 **Painel de Comandos Operacionais:** Emissão de bloqueios de emergência (SIV), restrições de velocidade (20 km/h) e normalização de sinais com registro em log de auditoria.
 * 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
-* 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador SOC, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
+* 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador de Controle, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
 * 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG com as 15 estações posicionadas ao longo do eixo noroeste–centro, composições deslizando entre estações e realce pulsante das estações em alerta.
 * ⇄ **Passagem de Turno:** Relatório consolidado do turno — comandos emitidos, ocorrências abertas/resolvidas, pendências herdadas e comportamento da tensão — com folha de impressão que gera o documento assinável.
 * ⌘ **Paleta de Comandos (Ctrl+K):** Busca difusa por seções, estações, composições e ações rápidas, navegável inteiramente pelo teclado.
@@ -120,7 +120,7 @@ cco-rail-pulse/
 │   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding
 │   │   ├── database/repositories/          # Trens, ocorrências e telemetria
 │   │   ├── repositories/                   # Operadores e trilha de auditoria
-│   │   └── security/AuditLogger.ts         # Trilha append-only em disco
+│   │   └── audit/AuditLogger.ts            # Trilha append-only em disco
 │   ├── presentation/
 │   │   ├── http/app.ts                     # Composição do Express
 │   │   ├── http/middlewares/               # JWT, permissões, rate limit, erro e 404
@@ -257,7 +257,7 @@ cadastro e os perfis de acesso:
 
 | Perfil | Comandos na malha | Ocorrências | Consultar equipe | Gerir equipe |
 | --- | :---: | :---: | :---: | :---: |
-| `OPERATOR_SOC` | ✅ | ✅ | ✅ | — |
+| `OPERADOR` | ✅ | ✅ | ✅ | — |
 | `SUPERVISOR` | ✅ | ✅ | ✅ | ✅ |
 | `ADMIN` | ✅ | ✅ | ✅ | ✅ |
 
@@ -292,7 +292,7 @@ recusa de rotas protegidas sem token.
 | Atalho | Ação |
 | --- | --- |
 | `Ctrl` / `⌘` + `K` | Abre a paleta de comandos |
-| `1` – `9` | Alterna entre as seções do console |
+| `1` – `9`, `0` | Alterna entre as dez seções do console |
 | `↑` / `↓` | Navega entre seções (com foco na barra lateral) |
 | `/` | Abre a Malha ATS e foca a busca de estações |
 | `Esc` | Fecha o diálogo aberto |

@@ -4,15 +4,15 @@
 import type { OperatorRole } from '../types';
 
 const ROLE_LEVEL: Record<OperatorRole, number> = {
-  OPERATOR_SOC: 1,
+  OPERADOR: 1,
   SUPERVISOR: 2,
   ADMIN: 3,
 };
 
 const PERMISSIONS = {
-  COMMAND_TRAIN: 'OPERATOR_SOC',
-  MANAGE_INCIDENTS: 'OPERATOR_SOC',
-  VIEW_OPERATORS: 'OPERATOR_SOC',
+  COMMAND_TRAIN: 'OPERADOR',
+  MANAGE_INCIDENTS: 'OPERADOR',
+  VIEW_OPERATORS: 'OPERADOR',
   MANAGE_OPERATORS: 'SUPERVISOR',
   ADMINISTER_SYSTEM: 'ADMIN',
 } as const satisfies Record<string, OperatorRole>;
@@ -20,7 +20,7 @@ const PERMISSIONS = {
 export type Permission = keyof typeof PERMISSIONS;
 
 export const ROLE_LABELS: Record<OperatorRole, string> = {
-  OPERATOR_SOC: 'Operador SOC',
+  OPERADOR: 'Operador de Controle',
   SUPERVISOR: 'Supervisor de Operação',
   ADMIN: 'Administrador do Sistema',
 };

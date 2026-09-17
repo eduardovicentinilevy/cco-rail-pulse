@@ -38,7 +38,7 @@ export interface AlarmEvent {
 export interface OperatorSession {
   operatorId: string;
   name?: string;
-  role: 'OPERATOR_SOC' | 'SUPERVISOR' | 'ADMIN';
+  role: 'OPERADOR' | 'SUPERVISOR' | 'ADMIN';
   token: string;
   avatarUrl?: string;
 }
@@ -130,7 +130,7 @@ export interface IncidentStats {
 
 // --- Equipe ----------------------------------------------------------------
 
-export const OPERATOR_ROLES = ['OPERATOR_SOC', 'SUPERVISOR', 'ADMIN'] as const;
+export const OPERATOR_ROLES = ['OPERADOR', 'SUPERVISOR', 'ADMIN'] as const;
 export type OperatorRole = (typeof OPERATOR_ROLES)[number];
 
 export interface OperatorProfile {

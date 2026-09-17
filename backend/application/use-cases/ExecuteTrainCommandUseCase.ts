@@ -1,7 +1,7 @@
 // backend/application/use-cases/ExecuteTrainCommandUseCase.ts
 import { withTransaction } from '../../infrastructure/database/postgres';
 import { TrainRepository } from '../../infrastructure/database/repositories/TrainRepository';
-import { AuditLogger } from '../../infrastructure/security/AuditLogger';
+import { AuditLogger } from '../../infrastructure/audit/AuditLogger';
 import { NotFoundError } from '../../shared/errors';
 import type { TrainCommand, TrainSnapshot } from '../../domain/entities/TrainSession';
 

@@ -85,7 +85,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ session, onU
             <strong>{session.name ?? session.operatorId}</strong>
             <span className="rp-badge" data-status="NORMAL" role="status">
               <span className="rp-dot rp-dot--pulse" aria-hidden="true" />
-              Sessão ativa e segura
+              Turno em curso
             </span>
           </div>
         </div>

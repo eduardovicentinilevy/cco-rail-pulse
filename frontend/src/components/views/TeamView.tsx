@@ -22,7 +22,7 @@ interface TeamViewProps {
 const ROLE_TONE: Record<string, string> = {
   ADMIN: 'CRÍTICO',
   SUPERVISOR: 'ATENÇÃO',
-  OPERATOR_SOC: 'INFO',
+  OPERADOR: 'INFO',
 };
 
 export const TeamView: React.FC<TeamViewProps> = ({ session, onNotify, onRequestConfirm, onAuthError }) => {
@@ -45,7 +45,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ session, onNotify, onRequest
     return {
       total: operators.length,
       active: active.length,
-      supervisors: active.filter((operator) => operator.role !== 'OPERATOR_SOC').length,
+      supervisors: active.filter((operator) => operator.role !== 'OPERADOR').length,
       neverLogged: operators.filter((operator) => operator.lastLoginAt === null).length,
     };
   }, [operators]);
@@ -299,7 +299,7 @@ const CreateOperatorModal: React.FC<CreateOperatorModalProps> = ({
 }) => {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState('OPERATOR_SOC');
+  const [role, setRole] = useState('OPERADOR');
   const [password, setPassword] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
