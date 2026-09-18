@@ -118,6 +118,7 @@ cco-rail-pulse/
 │   │   ├── events/event-bus.ts             # Barramento de eventos de domínio (tipado)
 │   │   ├── services/TelemetrySimulator.ts  # Simulador SCADA (random walk ancorado)
 │   │   ├── services/TelemetryArchiver.ts   # Agregação por janela da série histórica
+│   │   ├── services/TrainMotionSimulator.ts # Vaivém das composições entre os terminais
 │   │   └── use-cases/                      # Comando de trem e relatório de turno
 │   ├── infrastructure/
 │   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding
@@ -130,7 +131,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 57 testes unitários (node:test)
+│   └── tests/                              # 63 testes unitários (node:test)
 │
 └── frontend/
     └── src/
@@ -144,7 +145,7 @@ cco-rail-pulse/
         │   ├── common/                     # Modal, ConfirmDialog, CommandPalette, Toast…
         │   ├── layout/                     # Cabeçalho e navegação lateral
         │   ├── dashboard/                  # Esquemático ATS, mapa da linha, grade, terminal
-        │   ├── views/                      # As dez seções do console
+        │   ├── views/                      # As doze seções do console
         │   └── reports/AuditLogsView.tsx   # Trilha de auditoria paginada
         └── App.tsx
 ```
@@ -163,6 +164,8 @@ cco-rail-pulse/
 | **Escala & partidas** | Aderência à tabela horária calculada pela marcha real |
 | **Passagem de turno** | Relatório consolidado do turno, pronto para impressão e assinatura |
 | **Equipe** | Cadastro de operadores, perfis de acesso e revogação de credenciais |
+| **Status do sistema** | Saúde da API, do banco e do barramento em tempo real, sondada a cada 15s |
+| **Configurações** | Preferências de alerta do operador e referência de atalhos de teclado |
 
 ---
 
@@ -234,6 +237,7 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `LOGIN_MAX_ATTEMPTS` | `8` | Tentativas de login por janela |
 | `LOGIN_WINDOW_MS` | `60000` | Janela do limitador de tentativas |
 | `TELEMETRY_INTERVAL_MS` | `3000` | Período de emissão da telemetria SCADA |
+| `TRAIN_MOTION_INTERVAL_MS` | `4000` | Intervalo base entre avanços de uma estação por composição (±35% de variação aleatória, para não sincronizar todos os trens) |
 | `TELEMETRY_BUCKET_SECONDS` | `60` | Janela de agregação da série histórica |
 | `TELEMETRY_RETENTION_DAYS` | `7` | Retenção da série histórica |
 | `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
@@ -273,7 +277,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 57 testes unitários do domínio e da infraestrutura
+npm test          # 63 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
@@ -295,7 +299,7 @@ recusa de rotas protegidas sem token.
 | Atalho | Ação |
 | --- | --- |
 | `Ctrl` / `⌘` + `K` | Abre a paleta de comandos |
-| `1` – `9`, `0` | Alterna entre as dez seções do console |
+| `1` – `9`, `0` | Alterna entre as dez primeiras seções do console (as demais ficam na paleta) |
 | `↑` / `↓` | Navega entre seções (com foco na barra lateral) |
 | `/` | Abre a Malha ATS e foca a busca de estações |
 | `Esc` | Fecha o diálogo aberto |

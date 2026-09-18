@@ -8,6 +8,7 @@ import { createApp } from './app';
 import { registerCcoGateway } from '../websocket/cco.gateway';
 import { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 import { TelemetryArchiver } from '../../application/services/TelemetryArchiver';
+import { TrainMotionSimulator } from '../../application/services/TrainMotionSimulator';
 import { runMigrations } from '../../infrastructure/database/migrations';
 import { closeDatabase, db } from '../../infrastructure/database/postgres';
 import { domainEventBus } from '../../application/events/event-bus';
@@ -16,6 +17,7 @@ const logger = createLogger('BOOT');
 
 const simulator = new TelemetrySimulator(env.telemetryIntervalMs);
 const archiver = new TelemetryArchiver(env.telemetryBucketSeconds, env.telemetryRetentionDays);
+const trainMotion = new TrainMotionSimulator(env.trainMotionIntervalMs);
 const app = createApp(simulator);
 const server = http.createServer(app);
 
@@ -47,6 +49,7 @@ const shutdown = async (signal: string): Promise<void> => {
   logger.info(`Sinal ${signal} recebido — iniciando encerramento gracioso.`);
 
   simulator.stop();
+  trainMotion.stop();
   // Descarrega a janela pendente antes de derrubar o barramento.
   await archiver.stop().catch((error) => logger.error('Falha ao encerrar o arquivamento.', error));
   domainEventBus.removeAllListeners();
@@ -68,10 +71,12 @@ const bootstrap = async (): Promise<void> => {
     await runMigrations();
     archiver.start();
     simulator.start();
+    trainMotion.start();
 
     server.listen(env.port, () => {
       logger.info(`RailPulse CCO (${env.nodeEnv}) ativo em http://localhost:${env.port}`);
       logger.info(`Telemetria SCADA emitindo a cada ${env.telemetryIntervalMs}ms.`);
+      logger.info(`Composições avançando uma estação a cada ${env.trainMotionIntervalMs}ms.`);
     });
   } catch (error) {
     logger.error('Falha crítica de inicialização. Servidor abortado.', error);

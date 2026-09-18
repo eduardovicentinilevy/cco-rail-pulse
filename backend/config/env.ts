@@ -36,6 +36,8 @@ export const env = {
   corsOrigin: corsOrigins.length > 0 ? corsOrigins : '*',
   bcryptRounds: toInt(process.env.BCRYPT_ROUNDS, 10),
   telemetryIntervalMs: toInt(process.env.TELEMETRY_INTERVAL_MS, 3000),
+  /** Intervalo entre avanços de uma estação na simulação de deslocamento das composições. */
+  trainMotionIntervalMs: toInt(process.env.TRAIN_MOTION_INTERVAL_MS, 4000),
   seedOperatorId: process.env.SEED_OPERATOR_ID ?? 'EDP-042',
   seedOperatorName: process.env.SEED_OPERATOR_NAME ?? 'Eduardo Vicentini Levy',
   seedOperatorPassword: process.env.SEED_OPERATOR_PASSWORD ?? '123456',

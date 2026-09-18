@@ -452,9 +452,10 @@
 
 .rp-map__station[data-selected='true'] .rp-map__label { fill: var(--uni-orange); }
 
-/* A composição desliza até a nova estação quando a posição muda. */
+/* O deslocamento entre estações é interpolado quadro a quadro em JS (useTrainMotion) —
+   uma transição CSS aqui competiria com esse cálculo e produziria um movimento "borrado". */
 .rp-map__train {
-  transition: transform 900ms var(--ease-out);
+  will-change: transform;
 }
 
 .rp-map__train-halo {

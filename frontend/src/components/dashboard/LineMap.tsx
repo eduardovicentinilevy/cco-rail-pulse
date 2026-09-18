@@ -1,6 +1,9 @@
 // frontend/src/components/dashboard/LineMap.tsx
 import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
+import { buildCurveSegments, curveToPath } from '../../lib/curve';
+import type { Point } from '../../lib/curve';
+import { useTrainMotion } from '../../hooks/useTrainMotion';
 
 interface LineMapProps {
   stations: Station[];
@@ -41,50 +44,28 @@ const STATUS_COLOR: Record<Station['status'], string> = {
   'CRÍTICO': 'var(--uni-danger)',
 };
 
-/**
- * Converte os pontos em uma curva suave (Catmull-Rom convertida para Bézier
- * cúbica), para que o traçado não pareça uma sequência de segmentos retos.
- */
-const smoothPath = (points: Array<{ x: number; y: number }>): string => {
-  if (points.length < 2) return '';
-
-  const commands = [`M ${points[0].x} ${points[0].y}`];
-
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const previous = points[i - 1] ?? points[i];
-    const current = points[i];
-    const next = points[i + 1];
-    const afterNext = points[i + 2] ?? next;
-
-    const control1 = {
-      x: current.x + (next.x - previous.x) / 6,
-      y: current.y + (next.y - previous.y) / 6,
-    };
-    const control2 = {
-      x: next.x - (afterNext.x - current.x) / 6,
-      y: next.y - (afterNext.y - current.y) / 6,
-    };
-
-    commands.push(`C ${control1.x} ${control1.y}, ${control2.x} ${control2.y}, ${next.x} ${next.y}`);
-  }
-
-  return commands.join(' ');
-};
-
 export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStation, onSelectStation }) => {
   const points = useMemo(
     () => stations.map((station) => ({ station, ...(ROUTE[station.code] ?? { x: 0, y: 0 }) })),
     [stations],
   );
 
-  const path = useMemo(() => smoothPath(points), [points]);
+  // Curva Catmull-Rom (convertida para Bézier cúbica) compartilhada entre o
+  // desenho do trilho e a animação do trem — os dois precisam da mesma curva.
+  const segments = useMemo(() => buildCurveSegments(points), [points]);
+  const path = useMemo(() => curveToPath(points, segments), [points, segments]);
+  const stationIndex = useMemo(() => new Map(points.map((point, index) => [point.station.code, index])), [points]);
+
+  // A posição real do trem entre duas atualizações de telemetria é interpolada
+  // sobre a curva do trilho, simulando o deslocamento estação a estação.
+  const animatedPositions = useTrainMotion(trains, stationIndex, points, segments);
 
   const trainMarkers = useMemo(
     () =>
       trains
-        .map((train) => ({ train, position: ROUTE[train.currentStationCode] }))
-        .filter((marker): marker is { train: Train; position: { x: number; y: number } } => marker.position != null),
-    [trains],
+        .map((train) => ({ train, position: animatedPositions.get(train.trainId) }))
+        .filter((marker): marker is { train: Train; position: Point } => marker.position != null),
+    [trains, animatedPositions],
   );
 
   /** Onde há composição, a etiqueta do trem ocupa o espaço acima do nó. */
