@@ -1,6 +1,9 @@
 # Desenho: primeiro passo de multi-tenant
 
-Status: **proposta, aguardando confirmação.** Nada de schema foi alterado ainda.
+Status: **implementado.** As duas decisões da seção 7 foram confirmadas (banco
+compartilhado com `tenant_id`; id interno do operador com credencial única por
+cliente) e o PR 1 da seção 8 está entregue. Dois pontos saíram diferentes do que
+este documento propunha; estão anotados na seção 9.
 
 ## 1. O problema hoje
 
@@ -61,8 +64,8 @@ CREATE TABLE stations (
   substation          VARCHAR(20) NOT NULL,
   nominal_voltage_kv  NUMERIC(5,2) NOT NULL,
   headway_seconds     INTEGER,
-  latitude            NUMERIC(9,6),          -- hoje presa no LineMap.tsx
-  longitude           NUMERIC(9,6),
+  map_x               NUMERIC(6,5),          -- ver seção 9
+  map_y               NUMERIC(6,5),
   UNIQUE (line_id, code),
   UNIQUE (line_id, position)
 );
@@ -122,8 +125,8 @@ aplica `NOT NULL`. Banco em produção sobe sem intervenção manual.
 - Nome da linha e do cliente vêm de um `LineContext` alimentado pela API. Some
   toda string literal "Linha 6-Laranja" da interface, inclusive `document.title`
   e o `<title>` do `index.html`.
-- `LineMap.tsx` passa a desenhar a partir de `latitude`/`longitude` das
-  estações, e cai no esquemático linear quando a linha não tem coordenadas
+- `LineMap.tsx` passa a desenhar a partir de `map_x`/`map_y` das estações, e
+  distribui as estações num eixo reto quando a linha não tem coordenadas
   cadastradas.
 
 ## 6. O que este passo não faz
@@ -153,3 +156,28 @@ Se nenhuma for contestada, sigo com elas:
 
 Depois do PR 1 o sistema continua rodando com um cliente só, mas o segundo
 passa a ser cadastro, não fork.
+
+## 9. O que saiu diferente do proposto
+
+Dois pontos mudaram durante a implementação, ambos por honestidade de schema:
+
+- **`map_x`/`map_y` no lugar de `latitude`/`longitude`.** O que estava preso no
+  `LineMap.tsx` não era cartografia: eram coordenadas do `viewBox` do SVG. Gravá-las
+  numa coluna chamada `latitude` seria mentir sobre o dado. As colunas guardam a
+  posição normalizada (0–1) no traçado esquemático, que é exatamente o que o mapa
+  precisa e o que um cliente novo consegue preencher sem levantamento topográfico.
+  Latitude e longitude de verdade continuam cabendo depois, como colunas à parte.
+
+- **`audit_logs.operator_id` e `incidents.opened_by` seguem guardando o crachá,
+  não a chave interna.** O operador ganhou id interno (UUID) e `UNIQUE (tenant_id,
+  login_id)`, como decidido. As tabelas que o referenciam continuam gravando a
+  credencial, agora desambiguada pelo `tenant_id`/`line_id` da própria linha. Numa
+  trilha de auditoria, registrar o crachá vigente no momento do evento é o
+  comportamento correto, e evita uma conversão de FK arriscada no mesmo PR. A
+  consequência a observar: se um dia a credencial puder ser renomeada, a trilha
+  antiga apontará para o nome antigo. Hoje não há como renomear.
+
+- **A decoração do Rio Tietê saiu do `LineMap.tsx`.** Era cartografia da Linha 6
+  dentro de um componente compartilhado: mantida, desenharia o Tietê sobre a linha
+  de qualquer cliente. Decoração de mapa por linha entra no PR 2, junto com a
+  identidade visual.

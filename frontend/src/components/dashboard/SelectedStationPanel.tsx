@@ -1,6 +1,7 @@
 // frontend/src/components/dashboard/SelectedStationPanel.tsx
 import React, { useState } from 'react';
 import type { OperationalCommand, Station, Train } from '../../types';
+import { formatHeadway } from '../../data/stations';
 import { StatusPill } from '../common/StatusPill';
 import type { ConfirmRequest } from '../common/ConfirmDialog';
 
@@ -83,7 +84,7 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
         </div>
         <div className="rp-metric-row">
           <span>Headway operacional</span>
-          <strong className="mono">{station.headway}</strong>
+          <strong className="mono">{formatHeadway(station.headwaySeconds)}</strong>
         </div>
       </div>
 

@@ -10,12 +10,24 @@ export interface SystemAlert {
   timestamp: string;
 }
 
+/**
+ * Evento carimbado com a linha de origem.
+ *
+ * O barramento é um só para o processo inteiro, mas cada evento pertence a uma
+ * linha. Sem o carimbo, o gateway não teria como entregar a telemetria de um
+ * cliente apenas aos painéis daquele cliente.
+ */
+export interface LineEvent<T> {
+  lineId: string;
+  payload: T;
+}
+
 /** Contrato dos eventos de domínio publicados no barramento. */
 export interface DomainEvents {
-  'telemetry:updated': [StationTelemetryDTO[]];
-  'train:updated': [TrainSnapshot];
-  'incident:changed': [IncidentSnapshot];
-  'system:alert': [SystemAlert];
+  'telemetry:updated': [LineEvent<StationTelemetryDTO[]>];
+  'train:updated': [LineEvent<TrainSnapshot>];
+  'incident:changed': [LineEvent<IncidentSnapshot>];
+  'system:alert': [LineEvent<SystemAlert>];
 }
 
 type EventName = keyof DomainEvents;

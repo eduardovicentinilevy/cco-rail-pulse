@@ -102,6 +102,13 @@ jobs:
             -d '{"operatorId":"EDP-042","password":"123456"}' | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
           test -n "$TOKEN"
           curl -sf http://localhost:3333/api/network/trains -H "Authorization: Bearer $TOKEN" | grep -q 'T-01'
+          # A malha vem do banco, não de constante: a sessão nomeia a sua linha.
+          curl -sf http://localhost:3333/api/network/stations -H "Authorization: Bearer $TOKEN" | grep -q '"code":"L6"'
           # Rota protegida sem token precisa ser recusada.
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3333/api/network/trains)" = "401"
           kill $SERVER_PID
+
+      - name: Isolamento entre clientes
+        env:
+          PGPASSWORD: postgres
+        run: bash scripts/check-tenant-isolation.sh

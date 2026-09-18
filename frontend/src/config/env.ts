@@ -14,6 +14,14 @@ export const apiUrl = (path: string): string => `${API_URL}${path.startsWith('/'
 /** Origem usada pelo Socket.IO (string vazia = mesma origem servida pelo Vite). */
 export const SOCKET_URL: string = API_URL;
 
+/**
+ * Exibe o campo de cliente na tela de acesso.
+ *
+ * Em produção o cliente vem do subdomínio e o campo é ruído; em desenvolvimento,
+ * onde não há subdomínio, é a única forma de entrar como outro cliente.
+ */
+export const TENANT_PROMPT: boolean = String(import.meta.env.VITE_TENANT_PROMPT ?? '').toLowerCase() === 'true';
+
 export const STORAGE_KEYS = {
   session: '@RailPulse:session',
   preferences: '@RailPulse:preferences',

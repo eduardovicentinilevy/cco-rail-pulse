@@ -12,7 +12,7 @@ import { teamRouter } from './routes/team.routes';
 import { shiftRouter } from './routes/shift.routes';
 import { healthRouter } from './routes/health.routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
-import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
+import type { SimulationRegistry } from '../../application/services/SimulationRegistry';
 
 /** Cabeçalhos de segurança básicos, sem adicionar dependências ao bundle. */
 const securityHeaders: express.RequestHandler = (_req, res, next) => {
@@ -23,7 +23,7 @@ const securityHeaders: express.RequestHandler = (_req, res, next) => {
   next();
 };
 
-export const createApp = (simulator: TelemetrySimulator): Express => {
+export const createApp = (registry: SimulationRegistry): Express => {
   const app = express();
 
   app.disable('x-powered-by');
@@ -36,7 +36,7 @@ export const createApp = (simulator: TelemetrySimulator): Express => {
   app.use('/api/auth', authRouter);
   app.use('/api/operator', operatorRouter);
   app.use('/api/audit-logs', auditRouter);
-  app.use('/api/network', createNetworkRouter(simulator));
+  app.use('/api/network', createNetworkRouter(registry));
   app.use('/api/incidents', incidentRouter);
   app.use('/api/team', teamRouter);
   app.use('/api/shift', shiftRouter);

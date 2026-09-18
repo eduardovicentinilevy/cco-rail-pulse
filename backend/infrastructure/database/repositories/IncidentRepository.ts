@@ -43,6 +43,7 @@ const toEntity = (row: IncidentRow): Incident =>
   );
 
 export interface CreateIncidentInput {
+  lineId: string;
   title: string;
   description: string;
   stationCode: string | null;
@@ -54,6 +55,7 @@ export interface CreateIncidentInput {
 }
 
 export interface IncidentQuery {
+  lineId: string;
   limit: number;
   offset: number;
   status?: IncidentStatus;
@@ -82,14 +84,22 @@ const SELECT_COLUMNS = `
   opened_by, assigned_to, resolution_note, opened_at, updated_at, resolved_at
 `;
 
+/**
+ * Ocorrências de uma linha.
+ *
+ * `lineId` é obrigatório em todo método porque a ocorrência é da linha, e a
+ * numeração sequencial do id é compartilhada entre clientes — sem o filtro, um
+ * id adivinhado alcançaria a ocorrência de outro cliente.
+ */
 export class IncidentRepository {
   public static async create(input: CreateIncidentInput): Promise<Incident> {
     const result = await db.query<IncidentRow>(
       `INSERT INTO incidents
-         (title, description, station_code, train_id, category, severity, status, opened_by, assigned_to)
-       VALUES ($1, $2, $3, $4, $5, $6, 'ABERTA', $7, $8)
+         (line_id, title, description, station_code, train_id, category, severity, status, opened_by, assigned_to)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ABERTA', $8, $9)
        RETURNING ${SELECT_COLUMNS}`,
       [
+        input.lineId,
         input.title,
         input.description,
         input.stationCode,
@@ -103,21 +113,25 @@ export class IncidentRepository {
     return toEntity(result.rows[0]);
   }
 
-  public static async findById(id: string): Promise<Incident | null> {
+  public static async findById(lineId: string, id: string): Promise<Incident | null> {
     // O id é SERIAL: uma entrada não numérica nunca casa e não deve chegar ao banco.
     const numericId = Number.parseInt(id, 10);
     if (!Number.isFinite(numericId)) return null;
 
-    const result = await db.query<IncidentRow>(`SELECT ${SELECT_COLUMNS} FROM incidents WHERE id = $1`, [numericId]);
+    const result = await db.query<IncidentRow>(
+      `SELECT ${SELECT_COLUMNS} FROM incidents WHERE line_id = $1 AND id = $2`,
+      [lineId, numericId],
+    );
     return result.rows[0] ? toEntity(result.rows[0]) : null;
   }
 
-  public static async list({ limit, offset, status, severity, search }: IncidentQuery): Promise<IncidentPage> {
+  public static async list({ lineId, limit, offset, status, severity, search }: IncidentQuery): Promise<IncidentPage> {
     const filter = search?.trim() ? `%${search.trim()}%` : null;
 
     /** Monta o filtro com os índices de parâmetro que cada consulta usa. */
-    const whereClause = (statusParam: number, severityParam: number, searchParam: number) => `
-      ($${statusParam}::text IS NULL OR status = $${statusParam})
+    const whereClause = (lineParam: number, statusParam: number, severityParam: number, searchParam: number) => `
+      line_id = $${lineParam}
+      AND ($${statusParam}::text IS NULL OR status = $${statusParam})
       AND ($${severityParam}::text IS NULL OR severity = $${severityParam})
       AND (
         $${searchParam}::text IS NULL
@@ -131,17 +145,17 @@ export class IncidentRepository {
     const [page, count] = await Promise.all([
       db.query<IncidentRow>(
         `SELECT ${SELECT_COLUMNS} FROM incidents
-         WHERE ${whereClause(3, 4, 5)}
+         WHERE ${whereClause(3, 4, 5, 6)}
          ORDER BY
            CASE status WHEN 'ABERTA' THEN 0 WHEN 'EM_ANDAMENTO' THEN 1 ELSE 2 END,
            CASE severity WHEN 'CRÍTICA' THEN 0 WHEN 'ALTA' THEN 1 WHEN 'MÉDIA' THEN 2 ELSE 3 END,
            opened_at DESC
          LIMIT $1 OFFSET $2`,
-        [limit, offset, status ?? null, severity ?? null, filter],
+        [limit, offset, lineId, status ?? null, severity ?? null, filter],
       ),
       db.query<{ total: string }>(
-        `SELECT COUNT(*)::text AS total FROM incidents WHERE ${whereClause(1, 2, 3)}`,
-        [status ?? null, severity ?? null, filter],
+        `SELECT COUNT(*)::text AS total FROM incidents WHERE ${whereClause(1, 2, 3, 4)}`,
+        [lineId, status ?? null, severity ?? null, filter],
       ),
     ]);
 
@@ -153,12 +167,13 @@ export class IncidentRepository {
     };
   }
 
-  public static async save(incident: Incident): Promise<void> {
+  public static async save(lineId: string, incident: Incident): Promise<void> {
     await db.query(
       `UPDATE incidents
-       SET status = $2, severity = $3, assigned_to = $4, resolution_note = $5, updated_at = $6, resolved_at = $7
-       WHERE id = $1`,
+       SET status = $3, severity = $4, assigned_to = $5, resolution_note = $6, updated_at = $7, resolved_at = $8
+       WHERE line_id = $1 AND id = $2`,
       [
+        lineId,
         Number(incident.id),
         incident.status,
         incident.severity,
@@ -170,7 +185,7 @@ export class IncidentRepository {
     );
   }
 
-  public static async stats(): Promise<IncidentStats> {
+  public static async stats(lineId: string): Promise<IncidentStats> {
     const result = await db.query<{
       open: string;
       in_progress: string;
@@ -185,7 +200,9 @@ export class IncidentRepository {
          COUNT(*) FILTER (WHERE severity = 'CRÍTICA' AND status <> 'RESOLVIDA')::text AS critical,
          AVG(EXTRACT(EPOCH FROM (resolved_at - opened_at)) / 60)
            FILTER (WHERE resolved_at IS NOT NULL)::text AS avg_minutes
-       FROM incidents`,
+       FROM incidents
+       WHERE line_id = $1`,
+      [lineId],
     );
 
     const row = result.rows[0];
