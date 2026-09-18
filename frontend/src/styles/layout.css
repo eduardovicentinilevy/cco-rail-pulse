@@ -63,7 +63,8 @@
   font-weight: 900;
   font-size: var(--fs-xs);
   letter-spacing: 0.02em;
-  border-radius: var(--radius-md);
+  /* Circular, ecoando o emblema redondo do "6" no logotipo institucional. */
+  border-radius: 50%;
   box-shadow: 0 0 20px var(--uni-orange-glow);
 }
 

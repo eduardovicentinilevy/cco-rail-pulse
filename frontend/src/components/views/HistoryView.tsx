@@ -202,14 +202,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
                     type="monotone"
                     dataKey="band"
                     stroke="none"
-                    fill="#ff6600"
+                    fill="#f2871a"
                     fillOpacity={0.16}
                     isAnimationActive={false}
                   />
                   <Line
                     type="monotone"
                     dataKey="avg"
-                    stroke="#ff6600"
+                    stroke="#f2871a"
                     strokeWidth={2.5}
                     dot={false}
                     isAnimationActive={false}

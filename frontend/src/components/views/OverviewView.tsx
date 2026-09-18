@@ -109,7 +109,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   <span className="rp-feed__source">{station.code}</span>
                   <span className="rp-feed__message truncate">{station.name}</span>
                   <span className="mono text-muted">{station.voltageKV.toFixed(2)} kV</span>
-                  <StatusPill status={station.status} />
+                  <StatusPill status={station.status} solid />
                   <button
                     type="button"
                     className="rp-btn rp-btn--link"

@@ -98,6 +98,9 @@
 }
 
 .rp-btn--primary {
+  /* Botões primários totalmente arredondados, como os CTAs do site institucional. */
+  border-radius: var(--radius-pill);
+  padding-inline: 1.3rem;
   background: var(--grad-accent);
   border-color: var(--uni-orange);
   color: #fff;
@@ -307,6 +310,16 @@
 .rp-badge--outline {
   background-color: transparent;
   border: 1px solid var(--rp-status, var(--uni-border));
+}
+
+/* Pílula sólida — o padrão do quadro de status de linhas do site institucional
+   (fundo saturado + texto branco), reservada para destaques de maior peso. */
+.rp-badge--solid {
+  padding: 0.3rem 0.7rem;
+  font-size: var(--fs-2xs);
+  border-radius: var(--radius-pill);
+  background-color: var(--rp-status, var(--uni-text-muted));
+  color: #fff;
 }
 
 .rp-badge--code {

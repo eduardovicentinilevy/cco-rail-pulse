@@ -16,12 +16,23 @@
   --uni-border-strong: #3d3835;
 
   /* --- Marca ------------------------------------------------------------ */
-  --uni-orange: #ff6600;        /* Laranja oficial Linha 6 */
-  --uni-orange-bright: #ff8c26; /* Realce / hover */
-  --uni-orange-deep: #c24800;   /* Sombras e gradientes */
-  --uni-orange-soft: rgba(255, 102, 0, 0.13);
-  --uni-orange-softer: rgba(255, 102, 0, 0.055);
-  --uni-orange-glow: rgba(255, 102, 0, 0.32);
+  /* Tom ajustado a partir do site institucional (linhauni.com.br): mais âmbar,
+     menos avermelhado do que o laranja genérico usado antes. */
+  --uni-orange: #f2871a;
+  --uni-orange-bright: #ff9f3d; /* Realce / hover */
+  --uni-orange-deep: #c2650a;   /* Sombras e gradientes */
+  --uni-orange-soft: rgba(242, 135, 26, 0.13);
+  --uni-orange-softer: rgba(242, 135, 26, 0.055);
+  --uni-orange-glow: rgba(242, 135, 26, 0.32);
+
+  /* Azul-marinho institucional — a marca real da Linha Uni não é só laranja:
+     o logotipo, a navegação e o texto do site usam este azul como par do
+     laranja. Usado aqui como neutro de marca (documentos impressos, ícones
+     secundários) e como base do tom "informativo" abaixo. */
+  --uni-navy: #1c2b4a;
+  --uni-navy-bright: #2f4a7c;
+  --uni-navy-soft: rgba(28, 43, 74, 0.14);
+  --uni-navy-softer: rgba(28, 43, 74, 0.06);
 
   /* --- Status ----------------------------------------------------------- */
   --uni-success: #2fd67f;
@@ -30,8 +41,10 @@
   --uni-warning-soft: rgba(255, 176, 46, 0.14);
   --uni-danger: #ff4d4d;
   --uni-danger-soft: rgba(255, 77, 77, 0.14);
-  --uni-info: #ff8c3a;
-  --uni-info-soft: rgba(255, 140, 58, 0.12);
+  /* Antes um laranja quase idêntico à marca — agora o azul institucional,
+     que também distingue "informativo" de "atenção/crítico" à primeira vista. */
+  --uni-info: #5b8def;
+  --uni-info-soft: rgba(91, 141, 239, 0.14);
 
   /* --- Texto ------------------------------------------------------------ */
   --uni-text-main: #f7f5f3;

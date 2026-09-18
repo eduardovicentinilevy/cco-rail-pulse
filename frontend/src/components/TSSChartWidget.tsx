@@ -17,7 +17,7 @@ interface TSSChartWidgetProps {
 }
 
 /** Paleta derivada do laranja oficial, mantendo contraste entre séries no tema escuro. */
-const SERIES_COLORS = ['#ff6600', '#ffab2e', '#22e07a', '#ff4747'];
+const SERIES_COLORS = ['#f2871a', '#ffab2e', '#22e07a', '#ff4747'];
 
 export const TSSChartWidget: React.FC<TSSChartWidgetProps> = ({ history, seriesCodes, stations }) => {
   const nameByCode = useMemo(
