@@ -67,8 +67,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      NODE_ENV: production
-      LOG_FORMAT: json
       DB_HOST: localhost
       DB_PORT: 5432
       DB_USER: postgres
@@ -96,6 +94,11 @@ jobs:
           npm run migrate
 
       - name: Sobe o backend compilado e valida o bootstrap
+        # Só aqui: NODE_ENV=production no job inteiro faria o `npm ci` pular as
+        # devDependencies de que o build depende.
+        env:
+          NODE_ENV: production
+          LOG_FORMAT: json
         run: |
           node backend/dist/presentation/http/server.js &
           SERVER_PID=$!
