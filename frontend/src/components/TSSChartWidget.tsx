@@ -16,7 +16,7 @@ interface TSSChartWidgetProps {
   stations: Station[];
 }
 
-/** Paleta derivada do laranja oficial, mantendo contraste entre séries no tema escuro. */
+/** Paleta derivada do laranja oficial, mantendo contraste entre séries sobre o fundo claro do gráfico. */
 const SERIES_COLORS = ['#f2871a', '#ffab2e', '#22e07a', '#ff4747'];
 
 export const TSSChartWidget: React.FC<TSSChartWidgetProps> = ({ history, seriesCodes, stations }) => {

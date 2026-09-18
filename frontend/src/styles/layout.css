@@ -34,20 +34,31 @@
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-3);
   background-color: var(--uni-bg-void);
   border-right: 1px solid var(--uni-border);
   overflow-y: auto;
   overflow-x: hidden;
   transition: padding var(--dur-base) var(--ease);
+  /* Doze seções podem ultrapassar a altura da janela — quando isso rolar,
+     que a barra seja discreta e combine com o tema do console, não o padrão do SO. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--uni-border-strong) transparent;
+}
+
+.rp-sidebar::-webkit-scrollbar { width: 6px; }
+.rp-sidebar::-webkit-scrollbar-track { background: transparent; }
+.rp-sidebar::-webkit-scrollbar-thumb {
+  background-color: var(--uni-border-strong);
+  border-radius: var(--radius-pill);
 }
 
 .rp-sidebar__brand {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-2) var(--sp-4);
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--uni-border);
   min-width: 0;
 }
@@ -98,7 +109,7 @@
 }
 
 .rp-sidebar__group-label {
-  padding: var(--sp-3) var(--sp-3) var(--sp-1);
+  padding: var(--sp-2) var(--sp-3) var(--sp-1);
   font-size: var(--fs-2xs);
   font-weight: 700;
   text-transform: uppercase;

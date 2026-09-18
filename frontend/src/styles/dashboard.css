@@ -53,7 +53,7 @@
   background-color: var(--uni-danger-soft);
   border: 1px solid var(--uni-danger);
   border-radius: var(--radius-md);
-  color: #ffb4b4;
+  color: var(--uni-danger);
   font-size: var(--fs-xs);
 }
 
@@ -196,8 +196,8 @@
 .rp-station-node[aria-pressed='true'] .rp-station-node__name {
   color: #fff;
   font-weight: 700;
-  background-color: var(--uni-orange-soft);
-  border-color: rgba(255, 102, 0, 0.4);
+  background-color: var(--uni-orange);
+  border-color: var(--uni-orange);
 }
 
 /* --- Cartões de estação ----------------------------------------------------- */
@@ -380,20 +380,20 @@
   height: auto;
   /* O traçado corre na diagonal; este fundo dá profundidade sem competir. */
   background:
-    radial-gradient(ellipse 60% 70% at 20% 10%, rgba(255, 102, 0, 0.07), transparent 65%),
+    radial-gradient(ellipse 60% 70% at 20% 10%, rgba(242, 135, 26, 0.06), transparent 65%),
     var(--uni-bg-void);
   border: 1px solid var(--uni-border);
   border-radius: var(--radius-md);
 }
 
 .rp-map__river {
-  stroke: rgba(120, 150, 180, 0.22);
+  stroke: rgba(90, 112, 145, 0.32);
   stroke-width: 14;
   stroke-linecap: round;
 }
 
 .rp-map__river-label {
-  fill: rgba(150, 175, 200, 0.45);
+  fill: rgba(70, 92, 125, 0.65);
   font-size: 13px;
   font-style: italic;
   font-family: var(--uni-font);

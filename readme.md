@@ -95,7 +95,7 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 * **Biblioteca:** React 19 com TypeScript (modo `strict`)
 * **Visualização de Dados:** Recharts
-* **Estilização:** Design system em CSS puro (tokens, componentes e breakpoints) — Montserrat + JetBrains Mono. Paleta alinhada à identidade real da Linha Uni: laranja âmbar + azul-marinho institucional, botões e pílulas de status arredondados
+* **Estilização:** Design system em CSS puro (tokens, componentes e breakpoints) — Montserrat + JetBrains Mono. Tema claro alinhado à identidade real da Linha Uni: fundo branco, azul-marinho institucional e laranja âmbar, botões e pílulas de status arredondados
 * **Build Tool:** Vite
 
 ---

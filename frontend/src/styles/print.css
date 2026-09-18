@@ -20,9 +20,9 @@
 
   /*
    * O papel segue a identidade real do site institucional da Linha Uni:
-   * fundo claro, azul-marinho como cor de texto/título e o laranja como
-   * régua de destaque — não o tema escuro do console operacional, que
-   * existe por razão oposta (sala de controle 24h, não documento oficial).
+   * fundo branco, azul-marinho como cor de texto/título e o laranja como
+   * régua de destaque. Os valores são fixos (não os tokens do tema),
+   * porque um documento impresso não deve variar com o tema do console.
    */
   body {
     background: #fff !important;

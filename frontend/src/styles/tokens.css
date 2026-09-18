@@ -1,19 +1,19 @@
 /* ==========================================================================
    RailPulse CCO — Design tokens
-   Identidade visual oficial da Linha 6-Laranja (Linha Uni): laranja sobre preto.
+   Identidade visual oficial da Linha Uni (linhauni.com.br): azul-marinho e
+   laranja sobre branco — não mais o tema escuro usado antes desta versão.
    ========================================================================== */
 
 :root {
   /* --- Superfícies ------------------------------------------------------ */
-  /* Escala de pretos com leve viés quente, para não brigar com o laranja. */
-  --uni-bg-void: #050505;      /* Fundo absoluto / trilhos da navegação */
-  --uni-bg-primary: #0b0a09;   /* Fundo do painel */
-  --uni-bg-secondary: #121110;  /* Cards e barras */
-  --uni-bg-card: #1a1817;      /* Elementos internos de card */
-  --uni-bg-elevated: #232020;  /* Hover / estados elevados */
+  --uni-bg-void: #eef1f6;      /* Fundo mais externo do console */
+  --uni-bg-primary: #f6f7fa;   /* Fundo do painel */
+  --uni-bg-secondary: #ffffff; /* Cards e barras */
+  --uni-bg-card: #ffffff;      /* Elementos internos de card */
+  --uni-bg-elevated: #eef1f6;  /* Hover / estados elevados */
 
-  --uni-border: #2b2825;
-  --uni-border-strong: #3d3835;
+  --uni-border: #dde1e9;
+  --uni-border-strong: #c5cbd6;
 
   /* --- Marca ------------------------------------------------------------ */
   /* Tom ajustado a partir do site institucional (linhauni.com.br): mais âmbar,
@@ -22,35 +22,35 @@
   --uni-orange-bright: #ff9f3d; /* Realce / hover */
   --uni-orange-deep: #c2650a;   /* Sombras e gradientes */
   --uni-orange-soft: rgba(242, 135, 26, 0.13);
-  --uni-orange-softer: rgba(242, 135, 26, 0.055);
-  --uni-orange-glow: rgba(242, 135, 26, 0.32);
+  --uni-orange-softer: rgba(242, 135, 26, 0.07);
+  --uni-orange-glow: rgba(242, 135, 26, 0.28);
 
-  /* Azul-marinho institucional — a marca real da Linha Uni não é só laranja:
-     o logotipo, a navegação e o texto do site usam este azul como par do
-     laranja. Usado aqui como neutro de marca (documentos impressos, ícones
-     secundários) e como base do tom "informativo" abaixo. */
+  /* Azul-marinho institucional — o outro pilar da marca real: o logotipo,
+     a navegação e o texto do site usam este azul como par do laranja. */
   --uni-navy: #1c2b4a;
   --uni-navy-bright: #2f4a7c;
-  --uni-navy-soft: rgba(28, 43, 74, 0.14);
-  --uni-navy-softer: rgba(28, 43, 74, 0.06);
+  --uni-navy-soft: rgba(28, 43, 74, 0.10);
+  --uni-navy-softer: rgba(28, 43, 74, 0.05);
 
-  /* --- Status ----------------------------------------------------------- */
-  --uni-success: #2fd67f;
-  --uni-success-soft: rgba(47, 214, 127, 0.13);
-  --uni-warning: #ffb02e;
-  --uni-warning-soft: rgba(255, 176, 46, 0.14);
-  --uni-danger: #ff4d4d;
-  --uni-danger-soft: rgba(255, 77, 77, 0.14);
-  /* Antes um laranja quase idêntico à marca — agora o azul institucional,
-     que também distingue "informativo" de "atenção/crítico" à primeira vista. */
-  --uni-info: #5b8def;
-  --uni-info-soft: rgba(91, 141, 239, 0.14);
+  /* --- Status ------------------------------------------------------------ */
+  /* Mais saturados/escuros que a versão para tema escuro — sobre fundo
+     branco, um tom "neon" perde contraste e falha critérios de acessibilidade. */
+  --uni-success: #1a9d5c;
+  --uni-success-soft: rgba(26, 157, 92, 0.12);
+  --uni-warning: #c97a0a;
+  --uni-warning-soft: rgba(201, 122, 10, 0.13);
+  --uni-danger: #d63a3a;
+  --uni-danger-soft: rgba(214, 58, 58, 0.12);
+  /* O azul institucional também resolve o "informativo": antes um laranja
+     quase idêntico à marca, agora nitidamente distinto. */
+  --uni-info: #3662c2;
+  --uni-info-soft: rgba(54, 98, 194, 0.12);
 
   /* --- Texto ------------------------------------------------------------ */
-  --uni-text-main: #f7f5f3;
-  --uni-text-muted: #a09a94;
-  --uni-text-dim: #706b66;
-  --uni-text-on-accent: #150a00;
+  --uni-text-main: #16213e;
+  --uni-text-muted: #5a6072;
+  --uni-text-dim: #868c9c;
+  --uni-text-on-accent: #ffffff;
 
   /* --- Tipografia ------------------------------------------------------- */
   --uni-font: 'Montserrat', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -85,15 +85,16 @@
   --radius-xl: 18px;
   --radius-pill: 999px;
 
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.45);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.65);
-  /* Fio de luz no topo dos cards — dá relevo sem clarear o fundo. */
-  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --glow-orange: 0 0 0 1px var(--uni-orange-soft), 0 8px 28px -12px var(--uni-orange-glow);
+  /* Sombras escuras e suaves — a profundidade num tema claro vem de baixo,
+     não de um realce claro no topo como no tema escuro anterior. */
+  --shadow-sm: 0 2px 8px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 8px 24px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 24px 56px rgba(16, 24, 40, 0.14);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --glow-orange: 0 0 0 1px var(--uni-orange-soft), 0 8px 24px -10px var(--uni-orange-glow);
 
   /* --- Gradientes da marca ---------------------------------------------- */
-  --grad-surface: linear-gradient(160deg, rgba(255, 255, 255, 0.022), transparent 62%);
+  --grad-surface: linear-gradient(160deg, rgba(16, 24, 40, 0.02), transparent 62%);
   --grad-accent: linear-gradient(135deg, var(--uni-orange) 0%, var(--uni-orange-deep) 100%);
   --grad-rail: linear-gradient(90deg, transparent, var(--uni-orange), transparent);
 

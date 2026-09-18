@@ -9,7 +9,7 @@
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -18,8 +18,8 @@ body {
   min-height: 100dvh;
   background-color: var(--uni-bg-primary);
   background-image:
-    radial-gradient(ellipse 900px 500px at 8% -12%, rgba(255, 102, 0, 0.08), transparent 60%),
-    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(255, 102, 0, 0.05), transparent 55%);
+    radial-gradient(ellipse 900px 500px at 8% -12%, rgba(242, 135, 26, 0.06), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(28, 43, 74, 0.04), transparent 55%);
   background-attachment: fixed;
   color: var(--uni-text-main);
   font-family: var(--uni-font);

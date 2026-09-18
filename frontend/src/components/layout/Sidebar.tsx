@@ -1,5 +1,5 @@
 // frontend/src/components/layout/Sidebar.tsx
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 export interface NavItem<T extends string> {
   key: T;
@@ -39,6 +39,13 @@ export const Sidebar = <T extends string>({
   onToggleCollapse,
 }: SidebarProps<T>) => {
   const flatItems = groups.flatMap((group) => group.items);
+  const activeItemRef = useRef<HTMLButtonElement | null>(null);
+
+  // Com doze seções, a barra lateral pode ultrapassar a altura da janela e
+  // precisar rolar — sem isto, o item ativo pode ficar fora da vista.
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [activeKey]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     const offset = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
@@ -70,6 +77,7 @@ export const Sidebar = <T extends string>({
             return (
               <button
                 key={item.key}
+                ref={isActive ? activeItemRef : undefined}
                 type="button"
                 className="rp-nav-item"
                 aria-current={isActive ? 'page' : undefined}
