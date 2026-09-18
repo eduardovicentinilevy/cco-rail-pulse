@@ -11,6 +11,8 @@ export interface OperatorEntity {
   password_hash: string;
   avatar_url: string | null;
   is_active: boolean;
+  mfa_secret: string | null;
+  mfa_enabled: boolean;
 }
 
 /** Projeção pública do operador — nunca carrega o hash da senha. */
@@ -58,7 +60,7 @@ export interface AuditPage {
 export class PgOperatorRepository {
   public async findById(operatorId: string): Promise<OperatorEntity | null> {
     const result = await db.query<OperatorEntity>(
-      `SELECT id, name, role, password_hash, avatar_url, is_active
+      `SELECT id, name, role, password_hash, avatar_url, is_active, mfa_secret, mfa_enabled
        FROM operators
        WHERE id = $1 AND is_active = TRUE`,
       [operatorId.trim().toUpperCase()],
@@ -68,6 +70,21 @@ export class PgOperatorRepository {
 
   public async updateAvatar(operatorId: string, avatarUrl: string): Promise<void> {
     await db.query(`UPDATE operators SET avatar_url = $2 WHERE id = $1`, [operatorId, avatarUrl]);
+  }
+
+  // --- Autenticação em duas etapas (2FA/TOTP) -------------------------------
+
+  /** Grava um segredo pendente de confirmação — o 2FA só passa a ser exigido após `confirmMfa`. */
+  public async setPendingMfaSecret(operatorId: string, secret: string): Promise<void> {
+    await db.query(`UPDATE operators SET mfa_secret = $2, mfa_enabled = FALSE WHERE id = $1`, [operatorId, secret]);
+  }
+
+  public async confirmMfa(operatorId: string): Promise<void> {
+    await db.query(`UPDATE operators SET mfa_enabled = TRUE WHERE id = $1`, [operatorId]);
+  }
+
+  public async disableMfa(operatorId: string): Promise<void> {
+    await db.query(`UPDATE operators SET mfa_enabled = FALSE, mfa_secret = NULL WHERE id = $1`, [operatorId]);
   }
 
   /**

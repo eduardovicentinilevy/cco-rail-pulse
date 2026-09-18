@@ -6,7 +6,17 @@ import { LoginScreen } from './components/LoginScreen';
 import { CCODashboard } from './components/CCODashboard';
 
 const AppContent: React.FC = () => {
-  const { session, isRestoring, sessionNotice, login, logout, expireSession, updateAvatar, dismissNotice } = useAuth();
+  const {
+    session,
+    isRestoring,
+    sessionNotice,
+    login,
+    completeMfaLogin,
+    logout,
+    expireSession,
+    updateAvatar,
+    dismissNotice,
+  } = useAuth();
 
   // Enquanto a sessão restaurada é validada, evita piscar a tela de login.
   if (isRestoring) {
@@ -21,7 +31,14 @@ const AppContent: React.FC = () => {
   }
 
   if (!session) {
-    return <LoginScreen onLogin={login} notice={sessionNotice} onDismissNotice={dismissNotice} />;
+    return (
+      <LoginScreen
+        onLogin={login}
+        onSubmitMfaCode={completeMfaLogin}
+        notice={sessionNotice}
+        onDismissNotice={dismissNotice}
+      />
+    );
   }
 
   return (

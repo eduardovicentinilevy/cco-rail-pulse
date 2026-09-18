@@ -15,8 +15,14 @@ const DDL = `
     password_hash VARCHAR(255) NOT NULL,
     avatar_url TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    mfa_secret TEXT,
+    mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE
   );
+
+  -- Self-healing: bancos criados antes do 2FA não têm essas colunas.
+  ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_secret TEXT;
+  ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 
   CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,

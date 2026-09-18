@@ -3,10 +3,12 @@ import React from 'react';
 import type { OperatorSession } from '../../types';
 import type { CriticalAlerts } from '../../hooks/useCriticalAlerts';
 import { roleLabel } from '../../lib/permissions';
+import { MfaSettingsCard } from './MfaSettingsCard';
 
 interface SettingsViewProps {
   session: OperatorSession;
   alerts: CriticalAlerts;
+  onAuthError: (message: string) => void;
 }
 
 const SHORTCUTS: ReadonlyArray<{ keys: string[]; description: string }> = [
@@ -32,7 +34,7 @@ const DESKTOP_PERMISSION_HINT: Record<CriticalAlerts['notificationPermission'], 
  * soam, o que cada atalho faz — em um lugar consultável, em vez de exigir
  * que o próximo operador do turno redescubra tudo sozinho.
  */
-export const SettingsView: React.FC<SettingsViewProps> = ({ session, alerts }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ session, alerts, onAuthError }) => {
   const desktopHint = DESKTOP_PERMISSION_HINT[alerts.notificationPermission];
   const desktopDisabled = alerts.notificationPermission === 'unsupported' || alerts.notificationPermission === 'denied';
 
@@ -105,6 +107,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ session, alerts }) =
             />
           </div>
         </section>
+
+        <MfaSettingsCard token={session.token} onAuthError={onAuthError} />
       </div>
 
       <section className="rp-card rp-card--flush">

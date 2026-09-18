@@ -716,7 +716,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           />
         )}
         {activeTab === 'status' && <SystemStatusView connectionStatus={connectionStatus} />}
-        {activeTab === 'settings' && <SettingsView session={session} alerts={alerts} />}
+        {activeTab === 'settings' && <SettingsView session={session} alerts={alerts} onAuthError={onExpireSession} />}
         </main>
       </div>
 

@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react';
 import type { OperatorSession } from '../types';
 import { AuthContext } from './auth-context';
-import { api, ApiError } from '../services/api';
+import { api, ApiError, isMfaRequired } from '../services/api';
+import type { LoginSession } from '../services/api';
 import { wsService } from '../services/websocket.service';
 import { DEFAULT_AVATAR_URL, STORAGE_KEYS } from '../config/env';
 
@@ -77,9 +78,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [clearSession]);
 
-  const login = useCallback(
-    async (operatorId: string, password: string) => {
-      const data = await api.login(operatorId, password);
+  const finalizeLogin = useCallback(
+    (data: LoginSession) => {
       setSessionNotice(null);
       persist({
         operatorId: data.operatorId,
@@ -90,6 +90,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     },
     [persist],
+  );
+
+  const login = useCallback(
+    async (operatorId: string, password: string) => {
+      const result = await api.login(operatorId, password);
+      if (isMfaRequired(result)) return { mfaRequired: true, challengeToken: result.challengeToken };
+
+      finalizeLogin(result);
+      return { mfaRequired: false };
+    },
+    [finalizeLogin],
+  );
+
+  const completeMfaLogin = useCallback(
+    async (challengeToken: string, code: string) => {
+      const data = await api.loginMfa(challengeToken, code);
+      finalizeLogin(data);
+    },
+    [finalizeLogin],
   );
 
   const logout = useCallback(() => {
@@ -116,12 +135,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isRestoring,
       sessionNotice,
       login,
+      completeMfaLogin,
       logout,
       expireSession,
       updateAvatar,
       dismissNotice: () => setSessionNotice(null),
     }),
-    [session, isRestoring, sessionNotice, login, logout, expireSession, updateAvatar],
+    [session, isRestoring, sessionNotice, login, completeMfaLogin, logout, expireSession, updateAvatar],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

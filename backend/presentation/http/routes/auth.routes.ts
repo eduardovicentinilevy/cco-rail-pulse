@@ -1,9 +1,12 @@
 // backend/presentation/http/routes/auth.routes.ts
 import { Router } from 'express';
+import type { Response } from 'express';
 import bcrypt from 'bcrypt';
 import { env } from '../../../config/env';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
-import { signOperatorToken } from '../../../shared/jwt';
+import type { OperatorEntity } from '../../../infrastructure/repositories/pg-operator.repository';
+import { signMfaChallengeToken, signOperatorToken, verifyMfaChallengeToken } from '../../../shared/jwt';
+import { verifyTotp } from '../../../shared/totp';
 import { ValidationError } from '../../../shared/errors';
 import { RateLimiter } from '../middlewares/rate-limit.middleware';
 import { verifyJwt } from '../middlewares/auth.middleware';
@@ -11,7 +14,21 @@ import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
 export const authRouter: Router = Router();
 
+/** Resposta de sessão emitida tanto pelo login direto quanto pela conclusão do 2FA. */
+const issueSession = (res: Response, operator: OperatorEntity): void => {
+  res.status(200).json({
+    token: signOperatorToken({ operatorId: operator.id, role: operator.role }),
+    operatorId: operator.id,
+    name: operator.name,
+    role: operator.role,
+    avatarUrl: operator.avatar_url,
+  });
+};
+
 const loginLimiter = new RateLimiter(env.loginMaxAttempts, env.loginWindowMs);
+// Um código de 6 dígitos tem 1.000.000 de combinações — mesmo um limite folgado
+// torna a força bruta impraticável dentro da validade do desafio (5 minutos).
+const mfaLimiter = new RateLimiter(8, 60_000);
 
 /**
  * Hash descartável usado quando a credencial não existe.
@@ -47,15 +64,44 @@ authRouter.post('/login', async (req, res) => {
   }
 
   loginLimiter.reset(rateKey);
-  await operatorRepository.logAudit(operator.id, 'LOGIN_SUCCESS', 'AUTH_SYSTEM', 'SUCCESS');
 
-  return res.status(200).json({
-    token: signOperatorToken({ operatorId: operator.id, role: operator.role }),
-    operatorId: operator.id,
-    name: operator.name,
-    role: operator.role,
-    avatarUrl: operator.avatar_url,
-  });
+  // Segundo fator ativo: a senha só abre um desafio de 5 minutos, nunca a sessão em si.
+  if (operator.mfa_enabled) {
+    await operatorRepository.logAudit(operator.id, 'LOGIN_MFA_CHALLENGE', 'AUTH_SYSTEM', 'PENDING');
+    return res.status(200).json({ mfaRequired: true, challengeToken: signMfaChallengeToken(operator.id) });
+  }
+
+  await operatorRepository.logAudit(operator.id, 'LOGIN_SUCCESS', 'AUTH_SYSTEM', 'SUCCESS');
+  return issueSession(res, operator);
+});
+
+/** Segunda etapa do login: troca o desafio de senha por uma sessão, mediante o código do autenticador. */
+authRouter.post('/login/mfa', async (req, res) => {
+  const challengeToken = typeof req.body?.challengeToken === 'string' ? req.body.challengeToken : '';
+  const code = typeof req.body?.code === 'string' ? req.body.code : '';
+
+  const operatorId = verifyMfaChallengeToken(challengeToken);
+  const invalidChallenge = { error: 'Desafio de autenticação inválido ou expirado. Faça login novamente.', code: 'INVALID_CHALLENGE' };
+
+  if (!operatorId) {
+    return res.status(401).json(invalidChallenge);
+  }
+
+  mfaLimiter.consume(operatorId);
+
+  const operator = await operatorRepository.findById(operatorId);
+  if (!operator || !operator.mfa_enabled || !operator.mfa_secret) {
+    return res.status(401).json(invalidChallenge);
+  }
+
+  if (!verifyTotp(operator.mfa_secret, code)) {
+    await operatorRepository.logAudit(operator.id, 'LOGIN_MFA_FAILED', 'AUTH_SYSTEM', 'UNAUTHORIZED');
+    return res.status(401).json({ error: 'Código de verificação inválido.', code: 'INVALID_MFA_CODE' });
+  }
+
+  mfaLimiter.reset(operatorId);
+  await operatorRepository.logAudit(operator.id, 'LOGIN_SUCCESS', 'AUTH_SYSTEM', 'SUCCESS');
+  return issueSession(res, operator);
 });
 
 /** Permite ao frontend validar a sessão restaurada do localStorage. */

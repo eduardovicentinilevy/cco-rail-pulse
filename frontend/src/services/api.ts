@@ -62,14 +62,44 @@ export const request = async <T>(path: string, { token, body, headers, ...init }
   return payload as T;
 };
 
+export interface LoginSession {
+  token: string;
+  operatorId: string;
+  name: string;
+  role: string;
+  avatarUrl: string | null;
+}
+
+export interface LoginMfaRequired {
+  mfaRequired: true;
+  challengeToken: string;
+}
+
+export type LoginResult = LoginSession | LoginMfaRequired;
+
+export const isMfaRequired = (result: LoginResult): result is LoginMfaRequired => 'mfaRequired' in result;
+
 export const api = {
   login: (operatorId: string, password: string) =>
-    request<{ token: string; operatorId: string; name: string; role: string; avatarUrl: string | null }>(
-      '/api/auth/login',
-      { method: 'POST', body: { operatorId, password } },
-    ),
+    request<LoginResult>('/api/auth/login', { method: 'POST', body: { operatorId, password } }),
+
+  loginMfa: (challengeToken: string, code: string) =>
+    request<LoginSession>('/api/auth/login/mfa', { method: 'POST', body: { challengeToken, code } }),
 
   validateSession: (token: string) => request<{ valid: boolean }>('/api/auth/session', { token }),
+
+  // --- Autenticação em duas etapas (2FA) ------------------------------------
+
+  mfaStatus: (token: string) => request<{ enabled: boolean }>('/api/operator/mfa', { token }),
+
+  mfaEnroll: (token: string) =>
+    request<{ secret: string; otpauthUrl: string }>('/api/operator/mfa/enroll', { method: 'POST', token }),
+
+  mfaConfirm: (token: string, code: string) =>
+    request<{ enabled: true }>('/api/operator/mfa/confirm', { method: 'POST', token, body: { code } }),
+
+  mfaDisable: (token: string, password: string) =>
+    request<{ enabled: false }>('/api/operator/mfa/disable', { method: 'POST', token, body: { password } }),
 
   health: () =>
     request<{

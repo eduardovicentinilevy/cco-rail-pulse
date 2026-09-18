@@ -1,7 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { extractBearerToken, signOperatorToken, verifyOperatorToken } from '../shared/jwt';
+import {
+  extractBearerToken,
+  signMfaChallengeToken,
+  signOperatorToken,
+  verifyMfaChallengeToken,
+  verifyOperatorToken,
+} from '../shared/jwt';
 
 describe('Tokens de sessão', () => {
   it('assina e verifica o payload do operador', () => {
@@ -30,6 +36,28 @@ describe('Tokens de sessão', () => {
     ].join('.');
 
     assert.equal(verifyOperatorToken(forged), null);
+  });
+});
+
+describe('Token de desafio do 2FA', () => {
+  it('assina e verifica, devolvendo apenas o operatorId', () => {
+    const token = signMfaChallengeToken('EDP-042');
+    assert.equal(verifyMfaChallengeToken(token), 'EDP-042');
+  });
+
+  it('rejeita um token de sessão comum como se fosse um desafio', () => {
+    // Um token de sessão normal não carrega `purpose: 'mfa_challenge'` — não deve
+    // servir de atalho para concluir o segundo fator sem ter passado pelo primeiro.
+    const sessionToken = signOperatorToken({ operatorId: 'EDP-042', role: 'ADMIN' });
+    assert.equal(verifyMfaChallengeToken(sessionToken), null);
+  });
+
+  it('rejeita um desafio ausente, vazio ou adulterado', () => {
+    assert.equal(verifyMfaChallengeToken(null), null);
+    assert.equal(verifyMfaChallengeToken(''), null);
+
+    const token = signMfaChallengeToken('EDP-042');
+    assert.equal(verifyMfaChallengeToken(`${token}x`), null);
   });
 });
 

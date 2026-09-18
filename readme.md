@@ -34,6 +34,7 @@ O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo 
 * ⚡ **Telemetria SCADA em Tempo Real (TSS):** Leitura de tensão das Subestações de Tração (kV) via WebSocket com gráficos dinâmicos de alta performance (`Recharts`).
 * 🎮 **Painel de Comandos Operacionais:** Frenagem de emergência, restrição de velocidade (20 km/h) e liberação de sinal, aplicados sob lock pessimista e registrados na trilha de auditoria.
 * 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
+* 🔐 **Autenticação em Duas Etapas (2FA/TOTP):** Segundo fator compatível com Google Authenticator, Authy e afins — implementação própria de HOTP/TOTP (RFC 4226/6238), sem dependências externas, validada contra os vetores de teste oficiais do RFC.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
 * 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador de Controle, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
 * 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG com as 15 estações posicionadas ao longo do eixo noroeste–centro, composições deslizando entre estações e realce pulsante das estações em alerta.
@@ -107,7 +108,7 @@ cco-rail-pulse/
 ├── docker-compose.yml                      # PostgreSQL para desenvolvimento
 ├── backend/
 │   ├── config/env.ts                       # Configuração validada e centralizada (fail-fast)
-│   ├── shared/                             # Erros, JWT, logger e helpers de HTTP
+│   ├── shared/                             # Erros, JWT, TOTP (2FA), logger e helpers de HTTP
 │   ├── domain/
 │   │   ├── line.ts                         # Catálogo oficial das 15 estações (fonte única)
 │   │   ├── roles.ts                        # Perfis hierárquicos e permissões
@@ -131,7 +132,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 63 testes unitários (node:test)
+│   └── tests/                              # 76 testes unitários (node:test)
 │
 └── frontend/
     └── src/
@@ -277,7 +278,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 63 testes unitários do domínio e da infraestrutura
+npm test          # 76 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
@@ -312,11 +313,16 @@ recusa de rotas protegidas sem token.
 
 | Método | Rota | Autenticação | Descrição |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/login` | — | Autentica o operador e retorna o JWT |
+| `POST` | `/api/auth/login` | — | Autentica o operador; retorna o JWT ou um desafio de 2FA |
+| `POST` | `/api/auth/login/mfa` | — (desafio) | Troca o código do autenticador pela sessão |
 | `GET` | `/api/auth/session` | Bearer | Valida a sessão restaurada pelo painel |
 | `POST` | `/api/auth/logout` | Bearer | Registra o encerramento do turno |
 | `GET` | `/api/operator/profile` | Bearer | Perfil do operador autenticado |
 | `PATCH` | `/api/operator/profile/avatar` | Bearer | Persiste o avatar no cadastro |
+| `GET` | `/api/operator/mfa` | Bearer | Indica se o 2FA está ativo |
+| `POST` | `/api/operator/mfa/enroll` | Bearer | Gera um novo segredo TOTP pendente |
+| `POST` | `/api/operator/mfa/confirm` | Bearer | Confirma o segredo e ativa o 2FA |
+| `POST` | `/api/operator/mfa/disable` | Bearer + senha | Desativa o 2FA |
 | `GET` | `/api/network/stations` | Bearer | Catálogo da malha + telemetria corrente |
 | `GET` | `/api/network/trains` | Bearer | Estado persistido das composições |
 | `GET` | `/api/network/telemetry/history?hours&stations` | Bearer | Série histórica agregada de tensão |
