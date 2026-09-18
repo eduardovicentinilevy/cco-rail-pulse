@@ -71,6 +71,20 @@ export const api = {
 
   validateSession: (token: string) => request<{ valid: boolean }>('/api/auth/session', { token }),
 
+  health: () =>
+    request<{
+      service: string;
+      line: string;
+      environment: string;
+      architecture: string;
+      status: string;
+      database: string;
+      databaseTime?: string;
+      uptimeSeconds: number;
+      telemetryIntervalMs: number;
+      timestamp: string;
+    }>('/health'),
+
   logout: (token: string) => request<null>('/api/auth/logout', { method: 'POST', token }),
 
   profile: (token: string) =>

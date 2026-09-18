@@ -31,6 +31,8 @@ import { IncidentsView } from './views/IncidentsView';
 import { TeamView } from './views/TeamView';
 import { HistoryView } from './views/HistoryView';
 import { ShiftHandoverView } from './views/ShiftHandoverView';
+import { SystemStatusView } from './views/SystemStatusView';
+import { SettingsView } from './views/SettingsView';
 import { ToastStack } from './common/ToastStack';
 import type { Toast, ToastType } from './common/ToastStack';
 import { ConfirmDialog } from './common/ConfirmDialog';
@@ -58,9 +60,11 @@ type TabKey =
   | 'analytics'
   | 'timetable'
   | 'handover'
-  | 'team';
+  | 'team'
+  | 'status'
+  | 'settings';
 
-/** Ordem da navegação — também define a ordem dos atalhos numéricos (1–9 e 0). */
+/** Ordem da navegação — também define a ordem dos atalhos numéricos (1–9 e 0, até a décima seção). */
 const NAV_ORDER: readonly TabKey[] = [
   'overview',
   'ats',
@@ -72,6 +76,8 @@ const NAV_ORDER: readonly TabKey[] = [
   'timetable',
   'handover',
   'team',
+  'status',
+  'settings',
 ];
 
 const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
@@ -98,6 +104,13 @@ const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
       { key: 'timetable', label: 'Escala & partidas', icon: '◔' },
       { key: 'handover', label: 'Passagem de turno', icon: '⇄' },
       { key: 'team', label: 'Equipe', icon: '⬡' },
+    ],
+  },
+  {
+    label: 'Sistema',
+    items: [
+      { key: 'status', label: 'Status do sistema', icon: '◈' },
+      { key: 'settings', label: 'Configurações', icon: '⚑' },
     ],
   },
 ];
@@ -440,15 +453,22 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   // Seções, estações e composições viram alvos navegáveis pela paleta.
   const paletteActions = useMemo<PaletteAction[]>(() => {
     const sections = NAV_GROUPS.flatMap((group) =>
-      group.items.map((item) => ({
-        id: `nav-${item.key}`,
-        label: item.label,
-        group: 'Seções',
-        icon: item.icon,
-        hint: `${NAV_ORDER.indexOf(item.key) + 1}`,
-        keywords: group.label,
-        run: () => setActiveTab(item.key),
-      })),
+      group.items.map((item) => {
+        // Só as dez primeiras seções têm atalho numérico (1–9 e 0); as demais
+        // só são alcançáveis pela paleta ou pela barra lateral.
+        const index = NAV_ORDER.indexOf(item.key);
+        const digitHint = index < 9 ? `${index + 1}` : index === 9 ? '0' : undefined;
+
+        return {
+          id: `nav-${item.key}`,
+          label: item.label,
+          group: 'Seções',
+          icon: item.icon,
+          hint: digitHint,
+          keywords: group.label,
+          run: () => setActiveTab(item.key),
+        };
+      }),
     );
 
     const stationActions = stations.map((station) => ({
@@ -695,6 +715,8 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
             onAuthError={onExpireSession}
           />
         )}
+        {activeTab === 'status' && <SystemStatusView connectionStatus={connectionStatus} />}
+        {activeTab === 'settings' && <SettingsView session={session} alerts={alerts} />}
         </main>
       </div>
 

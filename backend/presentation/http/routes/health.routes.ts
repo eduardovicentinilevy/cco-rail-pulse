@@ -10,9 +10,11 @@ const startedAt = Date.now();
 healthRouter.get('/health', async (_req, res) => {
   const base = {
     service: 'railpulse-cco',
+    line: 'Linha 6-Laranja (Linha Uni)',
     environment: env.nodeEnv,
     architecture: 'Event-Driven (EDA)',
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+    telemetryIntervalMs: env.telemetryIntervalMs,
     timestamp: new Date().toISOString(),
   };
 
