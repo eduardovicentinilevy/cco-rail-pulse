@@ -12,6 +12,8 @@ import { teamRouter } from './routes/team.routes';
 import { shiftRouter } from './routes/shift.routes';
 import { healthRouter } from './routes/health.routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import { RateLimiter, rateLimit } from './middlewares/rate-limit.middleware';
+import { rateLimitStore } from '../../infrastructure/rate-limit/pg-rate-limit.store';
 import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 
 /** Cabeçalhos de segurança básicos, sem adicionar dependências ao bundle. */
@@ -23,6 +25,12 @@ const securityHeaders: express.RequestHandler = (_req, res, next) => {
   next();
 };
 
+/**
+ * Teto global por origem, acima dos limites específicos de login e de renovação.
+ * Usa o mesmo contador compartilhado, então vale para o conjunto das instâncias.
+ */
+const apiLimiter = new RateLimiter(env.apiMaxRequests, env.apiWindowMs, rateLimitStore);
+
 export const createApp = (simulator: TelemetrySimulator): Express => {
   const app = express();
 
@@ -33,6 +41,7 @@ export const createApp = (simulator: TelemetrySimulator): Express => {
   app.use(express.json({ limit: '64kb' }));
 
   app.use(healthRouter);
+  app.use('/api', rateLimit(apiLimiter, (req) => `api:${req.ip ?? 'unknown'}`));
   app.use('/api/auth', authRouter);
   app.use('/api/operator', operatorRouter);
   app.use('/api/audit-logs', auditRouter);

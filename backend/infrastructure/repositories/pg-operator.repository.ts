@@ -13,6 +13,8 @@ export interface OperatorEntity {
   is_active: boolean;
   mfa_secret: string | null;
   mfa_enabled: boolean;
+  /** Primeiro acesso ou senha redefinida por um supervisor: exige troca antes de abrir sessão. */
+  must_change_password: boolean;
 }
 
 /** Projeção pública do operador — nunca carrega o hash da senha. */
@@ -32,6 +34,8 @@ export interface CreateOperatorInput {
   name: string;
   role: string;
   passwordHash: string;
+  /** Senha provisória definida por outra pessoa: o dono precisa trocá-la no primeiro acesso. */
+  mustChangePassword?: boolean;
 }
 
 export interface AuditLogRecord {
@@ -60,12 +64,41 @@ export interface AuditPage {
 export class PgOperatorRepository {
   public async findById(operatorId: string): Promise<OperatorEntity | null> {
     const result = await db.query<OperatorEntity>(
-      `SELECT id, name, role, password_hash, avatar_url, is_active, mfa_secret, mfa_enabled
+      `SELECT id, name, role, password_hash, avatar_url, is_active, mfa_secret, mfa_enabled, must_change_password
        FROM operators
        WHERE id = $1 AND is_active = TRUE`,
       [operatorId.trim().toUpperCase()],
     );
     return result.rows[0] ?? null;
+  }
+
+  /**
+   * Grava a nova senha e encerra a exigência de troca.
+   * `password_changed_at` alimenta a trilha de auditoria e futuras políticas de expiração.
+   */
+  public async updatePassword(operatorId: string, passwordHash: string): Promise<void> {
+    await db.query(
+      `UPDATE operators
+          SET password_hash = $2, must_change_password = FALSE, password_changed_at = NOW()
+        WHERE id = $1`,
+      [operatorId, passwordHash],
+    );
+  }
+
+  public async requirePasswordChange(operatorId: string): Promise<void> {
+    await db.query(`UPDATE operators SET must_change_password = TRUE WHERE id = $1`, [operatorId]);
+  }
+
+  /** Hashes de todos os operadores — usado no boot para varrer senhas de demonstração herdadas. */
+  public async listPasswordHashes(): Promise<Array<{ id: string; passwordHash: string; mustChange: boolean }>> {
+    const result = await db.query<{ id: string; password_hash: string; must_change_password: boolean }>(
+      `SELECT id, password_hash, must_change_password FROM operators`,
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      passwordHash: row.password_hash,
+      mustChange: row.must_change_password,
+    }));
   }
 
   public async updateAvatar(operatorId: string, avatarUrl: string): Promise<void> {
@@ -131,8 +164,9 @@ export class PgOperatorRepository {
 
   public async create(input: CreateOperatorInput): Promise<void> {
     await db.query(
-      `INSERT INTO operators (id, name, role, password_hash, is_active) VALUES ($1, $2, $3, $4, TRUE)`,
-      [input.id, input.name, input.role, input.passwordHash],
+      `INSERT INTO operators (id, name, role, password_hash, is_active, must_change_password)
+       VALUES ($1, $2, $3, $4, TRUE, $5)`,
+      [input.id, input.name, input.role, input.passwordHash, input.mustChangePassword ?? true],
     );
   }
 

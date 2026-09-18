@@ -1,7 +1,8 @@
 // backend/presentation/http/middlewares/auth.middleware.ts
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { extractBearerToken, verifyOperatorToken } from '../../../shared/jwt';
 import type { OperatorTokenPayload } from '../../../shared/jwt';
+import { authSessionService } from '../../../infrastructure/auth/session-service';
 import { can } from '../../../domain/roles';
 import type { Permission } from '../../../domain/roles';
 
@@ -9,7 +10,13 @@ export interface AuthenticatedRequest extends Request {
   operator?: OperatorTokenPayload;
 }
 
-export const verifyJwt = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+/**
+ * Autentica pelo access token e confere se a sessão continua viva.
+ *
+ * A assinatura sozinha não basta: um logout, uma troca de senha ou a desativação
+ * do operador precisam invalidar o token imediatamente, e não só quando ele vencer.
+ */
+export const verifyJwt: RequestHandler = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const token = extractBearerToken(req.headers.authorization);
 
   if (!token) {
@@ -24,8 +31,17 @@ export const verifyJwt = (req: AuthenticatedRequest, res: Response, next: NextFu
     return;
   }
 
-  req.operator = operator;
-  next();
+  authSessionService
+    .isActive(operator.sessionId)
+    .then((isActive) => {
+      if (!isActive) {
+        res.status(401).json({ error: 'Sessão encerrada. Autentique-se novamente.', code: 'SESSION_REVOKED' });
+        return;
+      }
+      req.operator = operator;
+      next();
+    })
+    .catch(next);
 };
 
 /** Restringe uma rota a perfis específicos de operador. */

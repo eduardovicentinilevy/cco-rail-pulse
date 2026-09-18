@@ -7,6 +7,7 @@ import { operatorRepository } from '../../infrastructure/repositories/pg-operato
 import { isTrainCommand } from '../../domain/entities/TrainSession';
 import type { TrainCommand } from '../../domain/entities/TrainSession';
 import { verifyOperatorToken, extractBearerToken } from '../../shared/jwt';
+import { authSessionService } from '../../infrastructure/auth/session-service';
 import { createLogger } from '../../shared/logger';
 import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 import type { OperatorTokenPayload } from '../../shared/jwt';
@@ -50,8 +51,19 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
       return;
     }
 
-    socket.operator = operator;
-    next();
+    // A sessão pode ter sido revogada depois da emissão do token: o socket fica
+    // aberto por horas, então conferir só a assinatura deixaria o canal vivo.
+    authSessionService
+      .isActive(operator.sessionId)
+      .then((isActive) => {
+        if (!isActive) {
+          next(new Error('UNAUTHORIZED'));
+          return;
+        }
+        socket.operator = operator;
+        next();
+      })
+      .catch(() => next(new Error('UNAUTHORIZED')));
   });
 
   io.on('connection', (socket: AuthenticatedSocket) => {
