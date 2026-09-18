@@ -1,7 +1,7 @@
 // backend/presentation/http/middlewares/error.middleware.ts
 import type { NextFunction, Request, Response } from 'express';
 import { AppError } from '../../../shared/errors';
-import { createLogger } from '../../../shared/logger';
+import { createLogger, currentLogContext } from '../../../shared/logger';
 
 const logger = createLogger('HTTP');
 
@@ -16,6 +16,8 @@ export const errorHandler = (error: unknown, req: Request, res: Response, _next:
     return;
   }
 
+  const { requestId } = currentLogContext();
   logger.error(`Falha não tratada em ${req.method} ${req.originalUrl}`, error);
-  res.status(500).json({ error: 'Erro interno no servidor.', code: 'INTERNAL_ERROR' });
+  // Devolve o id de correlação: o operador cita esse id e a falha é achada no log.
+  res.status(500).json({ error: 'Erro interno no servidor.', code: 'INTERNAL_ERROR', requestId });
 };

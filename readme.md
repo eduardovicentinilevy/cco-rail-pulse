@@ -12,6 +12,9 @@
 * [Tech Stack](#️-tech-stack)
 * [Estrutura do Projeto](#-estrutura-do-projeto)
 * [Como Executar o Projeto](#️-como-executar-o-projeto)
+* [Implantação em Produção](#-implantação-em-produção)
+* [Migrações de Banco](#-migrações-de-banco)
+* [Observabilidade: Logs e Health Checks](#-observabilidade-logs-e-health-checks)
 * [Qualidade: Testes e CI](#-qualidade-testes-e-ci)
 * [Variáveis de Ambiente](#-variáveis-de-ambiente)
 * [Credenciais de Teste](#-credenciais-de-teste)
@@ -24,7 +27,10 @@
 
 O **RailPulse CCO** fornece aos operadores do Centro de Controle uma interface de alta fidelidade visual para acompanhar os ativos críticos do traçado elétrico e metroferroviário entre **Brasilândia** e **São Joaquim**.
 
-O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo **auto-inicialização de schema (Self-Healing DDL)** e **sincronização de carga inicial (Auto-Seeding)** sem dependência de scripts manuais.
+O sistema foi desenhado para operar de forma resiliente e autônoma: o schema evolui por
+**migrações versionadas e idempotentes**, aplicadas em transação e registradas no próprio
+banco, e a carga inicial de demonstração é sincronizada sem scripts manuais. A publicação é
+containerizada — `docker compose up -d` sobe banco, API e console web.
 
 ---
 
@@ -74,7 +80,7 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 ```
 
 1. **Desacoplamento de Eventos (Event Bus):** O gateway de WebSocket assina eventos globais em um barramento de domínio (`domainEventBus`), permitindo escalar os emissores de telemetria de forma isolada.
-2. **Fail-Fast & Resiliência:** A aplicação valida a integridade do banco de dados na inicialização (`bootstrap`), executando as *DDLs* (`CREATE TABLE IF NOT EXISTS`) e o *seed* do operador padrão antes de abrir a porta HTTP.
+2. **Fail-Fast & Resiliência:** A aplicação valida a conexão com o banco na inicialização (`bootstrap`), aplica as **migrações pendentes** sob *advisory lock* — para que réplicas subindo em paralelo não disputem o schema — e só então abre a porta HTTP.
 3. **Clean Architecture:** Separação rígida entre as camadas de **Apresentação** (`presentation`), **Aplicação** (`application`), **Domínio** (`domain`) e **Infraestrutura** (`infrastructure`).
 
 ---
@@ -89,7 +95,10 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 * **Segurança:** JSON Web Token (JWT) e Bcrypt
 * **Banco de Dados:** PostgreSQL (Driver Nativo `pg`)
 * **Testes:** `node:test` nativo, executado via `tsx`
-* **CI:** GitHub Actions (tipos, testes, lint, build e integração com PostgreSQL)
+* **Migrações:** SQL versionado (`NNN_nome.sql`) com runner próprio, checksum e ledger em `schema_migrations`
+* **Observabilidade:** logs estruturados em JSON com id de correlação por requisição
+* **Empacotamento:** Docker multi-estágio (backend) e nginx (console), orquestrados por Docker Compose
+* **CI:** GitHub Actions (tipos, testes, lint, build, integração com PostgreSQL e build da stack Docker)
 
 ### **Frontend**
 
@@ -104,8 +113,10 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 ```text
 cco-rail-pulse/
-├── .github/workflows/ci.yml                # Tipos, testes, lint, build e integração
-├── docker-compose.yml                      # PostgreSQL para desenvolvimento
+├── .github/workflows/ci.yml                # Tipos, testes, lint, build, integração e Docker
+├── Dockerfile                              # Imagem de produção do backend (multi-estágio)
+├── docker-compose.yml                      # Stack completa: PostgreSQL + backend + console
+├── scripts/copy-sql.mjs                    # Leva os .sql das migrações para o build
 ├── backend/
 │   ├── config/env.ts                       # Configuração validada e centralizada (fail-fast)
 │   ├── shared/                             # Erros, JWT, TOTP (2FA), logger e helpers de HTTP
@@ -122,19 +133,25 @@ cco-rail-pulse/
 │   │   ├── services/TrainMotionSimulator.ts # Vaivém das composições entre os terminais
 │   │   └── use-cases/                      # Comando de trem e relatório de turno
 │   ├── infrastructure/
-│   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding
+│   │   ├── database/migrations/            # SQL versionado (fonte única do schema)
+│   │   ├── database/migrator.ts            # Runner: ledger, checksum e advisory lock
+│   │   ├── database/migrate.cli.ts         # `npm run migrate` / `migrate:status` / `seed`
+│   │   ├── database/bootstrap.ts           # Migração + carga inicial no boot
+│   │   ├── database/seed.ts                # Operador padrão, equipe e composições
 │   │   ├── database/repositories/          # Trens, ocorrências e telemetria
 │   │   ├── repositories/                   # Operadores e trilha de auditoria
 │   │   └── audit/AuditLogger.ts            # Trilha append-only em disco
 │   ├── presentation/
 │   │   ├── http/app.ts                     # Composição do Express
-│   │   ├── http/middlewares/               # JWT, permissões, rate limit, erro e 404
+│   │   ├── http/middlewares/               # Log de acesso, JWT, permissões, rate limit e erro
 │   │   ├── http/routes/                    # auth, operator, team, incidents, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 76 testes unitários (node:test)
+│   └── tests/                              # 81 testes unitários (node:test)
 │
 └── frontend/
+    ├── Dockerfile                          # Build do Vite publicado por nginx
+    ├── nginx.conf.template                 # Proxy de /api, /health e /socket.io + SPA
     └── src/
         ├── styles/                         # Design system (tokens, base, componentes, layout, impressão)
         ├── config/env.ts                   # URL da API e chaves de storage
@@ -191,8 +208,9 @@ Ou com um PostgreSQL local:
 createdb railpulse_cco
 ```
 
-O schema e a carga inicial são aplicados automaticamente no boot (self-healing DDL
-e auto-seeding) — não há script de migração manual a rodar.
+As migrações pendentes e a carga inicial são aplicadas no boot da API. Para rodá-las
+fora do boot (deploy em etapas, por exemplo), use `npm run migrate` — veja
+[Migrações de Banco](#-migrações-de-banco).
 
 ### 2. Backend
 
@@ -224,6 +242,136 @@ para o backend, de modo que **nenhuma URL fica hardcoded no código do frontend*
 
 ---
 
+## 🚢 Implantação em Produção
+
+A stack completa — PostgreSQL, API e console web — sobe em contêineres:
+
+```bash
+cp .env.example .env
+
+# Obrigatório: o boot em produção falha sem um segredo próprio.
+node -e "console.log('JWT_SECRET=' + require('crypto').randomBytes(48).toString('hex'))" >> .env
+
+docker compose up -d --build
+```
+
+| Serviço | Imagem | Publicado em | O que faz |
+| --- | --- | --- | --- |
+| `postgres` | `postgres:16-alpine` | `5432` | Banco, em volume nomeado (`railpulse-pgdata`) |
+| `backend` | `Dockerfile` (multi-estágio) | `3333` | API REST e gateway WebSocket |
+| `frontend` | `frontend/Dockerfile` (nginx) | `8080` | Console web e proxy de `/api`, `/health` e `/socket.io` |
+| `migrate` | mesma imagem do backend | — | Passo de deploy sob demanda (perfil `tools`) |
+
+Acesse o console em `http://localhost:8080`. O bundle publicado usa caminhos relativos e o
+nginx os encaminha ao backend, então **a mesma imagem serve qualquer ambiente** — não há URL
+de API compilada no JavaScript.
+
+### Decisões das imagens
+
+* **Backend em multi-estágio:** o estágio de build carrega as `devDependencies` e o
+  TypeScript; a imagem final leva apenas `backend/dist`, as dependências de produção e o
+  usuário sem privilégios `node`. O `CMD` chama o Node diretamente, sem `npm` no meio, para
+  que o `SIGTERM` do orquestrador chegue ao processo e o [encerramento gracioso](#-observabilidade-logs-e-health-checks) aconteça.
+* **`HEALTHCHECK` na sonda de liveness:** uma queda do PostgreSQL não faz o Docker reiniciar
+  um processo que está saudável — quem reflete a dependência é o `/health/ready`.
+* **Console atrás do nginx:** ativos com hash recebem cache de um ano, as demais rotas caem
+  no `index.html` (SPA) e o `/socket.io/` mantém o *upgrade* de WebSocket aberto.
+* **Apenas migrações no deploy:** para várias réplicas, rode o schema uma vez e suba a
+  aplicação com o boot desimpedido:
+
+  ```bash
+  docker compose run --rm migrate          # aplica as migrações e sai
+  DB_MIGRATE_ON_BOOT=false docker compose up -d backend frontend
+  ```
+
+> ⚠️ Em produção real, defina `DB_SEED_ON_BOOT=false`: as credenciais de demonstração deste
+> repositório são públicas.
+
+### Somente o banco, para desenvolver
+
+```bash
+docker compose up -d postgres   # backend e frontend seguem em npm run dev, com hot reload
+```
+
+---
+
+## 🗄️ Migrações de Banco
+
+O schema é versionado em `backend/infrastructure/database/migrations/`, um arquivo por
+migração no padrão `NNN_nome_em_snake_case.sql`. A fonte única da verdade é esse diretório.
+
+```bash
+npm run migrate          # aplica as pendentes, em ordem
+npm run migrate:status   # o que já foi aplicado, e quando
+npm run seed             # carga de demonstração (operador, equipe e composições)
+```
+
+Como funciona:
+
+* Cada migração roda **em sua própria transação** e é registrada na tabela
+  `schema_migrations` com nome, checksum e data.
+* Toda a execução acontece sob um **advisory lock** do PostgreSQL: réplicas subindo ao mesmo
+  tempo em um deploy gradual serializam a migração em vez de disputá-la.
+* Migrações aplicadas são **imutáveis**. Editar um arquivo já aplicado muda seu checksum e o
+  boot falha com a divergência apontada — o caminho correto é criar uma nova migração.
+* A linha de base (`001_baseline.sql`) reproduz o schema que o DDL auto-aplicado anterior
+  gerava e é idempotente, de modo que **bancos já em operação a adotam sem recriar nada**.
+  A `002_legacy_alignment.sql` converte o que só existe nesses bancos (colunas de 2FA
+  ausentes e o perfil `OPERATOR_SOC`).
+
+Para criar uma migração, adicione o próximo número ao diretório:
+
+```bash
+cat > backend/infrastructure/database/migrations/003_minha_mudanca.sql <<'SQL'
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS root_cause TEXT;
+SQL
+npm run migrate
+```
+
+Os `.sql` não são compilados pelo `tsc`: o `npm run build` os copia para `backend/dist`
+(`scripts/copy-sql.mjs`), de modo que a imagem de produção — que roda só o build — os encontre.
+
+---
+
+## 📈 Observabilidade: Logs e Health Checks
+
+### Logs estruturados
+
+Em produção o backend emite **uma linha JSON por evento**, pronta para ser coletada por
+Docker, Loki, CloudWatch e afins sem parser customizado. Em desenvolvimento a saída
+continua legível no terminal (`LOG_FORMAT=pretty`).
+
+```json
+{"timestamp":"2026-02-14T12:03:11.027Z","level":"info","service":"railpulse-cco","version":"1.4.0","environment":"production","scope":"HTTP","message":"GET /api/network/trains 200","requestId":"cf157320-a85a-453b-8329-bf81fceab26d","operatorId":"EDP-042","method":"GET","path":"/api/network/trains","status":200,"durationMs":3.4,"ip":"10.0.4.18"}
+```
+
+* **`requestId`** nasce em toda requisição (ou é herdado do cabeçalho `X-Request-Id` que o
+  proxy já tenha emitido), volta na resposta e acompanha **todos** os logs daquela
+  requisição — inclusive os de camadas mais fundas, via `AsyncLocalStorage`.
+* **`operatorId`** entra no contexto assim que o JWT é validado, ligando cada linha ao
+  operador que a provocou.
+* Uma resposta `500` devolve o `requestId` no corpo: o operador cita o id e a falha é
+  localizada no agregador.
+* O nível segue o desfecho: `5xx` em `error`, `4xx` em `warn`, sondas de saúde em `debug`
+  (elas batem a cada poucos segundos e só fariam ruído).
+
+Ajuste com `LOG_LEVEL` (`debug` | `info` | `warn` | `error`) e `LOG_FORMAT` (`json` | `pretty`).
+
+### Health checks
+
+| Rota | Para quem | Comportamento |
+| --- | --- | --- |
+| `GET /health/live` | `HEALTHCHECK` do contêiner, *liveness probe* | `200` enquanto o processo estiver de pé. **Não toca no banco**: uma indisponibilidade do PostgreSQL não deve fazer o supervisor matar um processo saudável |
+| `GET /health/ready` | Balanceador, *readiness probe* | `200` só quando o banco responde **e** a instância está em rotação; `503` caso contrário |
+| `GET /health` | Painel "Status do sistema" do console | Diagnóstico completo (versão, ambiente, uptime, banco); `503` quando degradado |
+
+No encerramento gracioso o serviço **sai de rotação antes de derrubar qualquer coisa**: ao
+receber `SIGTERM`, o `/health/ready` passa a responder `503` e só então a telemetria, os
+sockets, o HTTP e o pool são fechados — o balanceador para de encaminhar tráfego enquanto as
+requisições em andamento terminam.
+
+---
+
 ## 🔧 Variáveis de Ambiente
 
 Referência completa em [`.env.example`](.env.example). Principais:
@@ -231,6 +379,12 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | Variável | Padrão | Descrição |
 | --- | --- | --- |
 | `PORT` | `3333` | Porta HTTP do backend |
+| `WEB_PORT` | `8080` | Porta em que o console (nginx) é publicado pelo Compose |
+| `APP_VERSION` | `dev` | Versão publicada; aparece no `/health` e em cada linha de log |
+| `LOG_LEVEL` | `info` (prod) / `debug` | Piso de severidade dos logs |
+| `LOG_FORMAT` | `json` (prod) / `pretty` | Formato da saída de log |
+| `DB_MIGRATE_ON_BOOT` | `true` | Aplica as migrações pendentes no boot |
+| `DB_SEED_ON_BOOT` | `true` | Semeia a carga de demonstração; **desligue em produção real** |
 | `DATABASE_URL` | — | Alternativa às variáveis `DB_*` |
 | `JWT_SECRET` | *(dev-only)* | **Obrigatório** quando `NODE_ENV=production` — o boot falha sem ele |
 | `JWT_EXPIRES_IN` | `8h` | Validade do token de sessão |
@@ -278,7 +432,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 76 testes unitários do domínio e da infraestrutura
+npm test          # 81 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
@@ -286,12 +440,15 @@ npm run check     # typecheck + testes + lint e build do frontend
 A suíte cobre as regras que não podem regredir: ciclo de vida das ocorrências,
 comandos ferroviários, validação de código de estação, hierarquia de permissões,
 limitador de tentativas de login, deriva do simulador SCADA, verificação de JWT,
-janela do relatório de turno e o contrato do catálogo da malha (que o mapa consome).
+janela do relatório de turno, o contrato do catálogo da malha (que o mapa consome) e o
+carregamento das migrações versionadas (ordem, unicidade de versão e checksum).
 
-O workflow do GitHub Actions (`.github/workflows/ci.yml`) roda três jobs em paralelo:
-tipos e testes do backend, lint e build do frontend, e um teste de integração que
-sobe a API contra um PostgreSQL real para validar bootstrap, autenticação e a
-recusa de rotas protegidas sem token.
+O workflow do GitHub Actions (`.github/workflows/ci.yml`) roda quatro jobs em paralelo:
+tipos e testes do backend; lint e build do frontend; um teste de integração que aplica as
+migrações e sobe a **API compilada** contra um PostgreSQL real, validando bootstrap,
+autenticação, as sondas de saúde e a recusa de rotas protegidas sem token; e um job que
+constrói as duas imagens Docker, sobe a stack completa e exercita o login e uma rota
+protegida **através do nginx**.
 
 ---
 
@@ -339,6 +496,8 @@ recusa de rotas protegidas sem token.
 | `GET` | `/api/shift/report?since` | Bearer | Relatório consolidado de passagem de turno |
 | `GET` | `/api/audit-logs?limit&offset&search` | Bearer | Trilha de auditoria paginada |
 | `GET` | `/health` | — | Saúde da aplicação e do banco (`503` se degradado) |
+| `GET` | `/health/live` | — | Liveness: `200` enquanto o processo estiver de pé |
+| `GET` | `/health/ready` | — | Readiness: `200` só com banco acessível e instância em rotação |
 
 ### Eventos WebSocket (`Socket.IO`)
 

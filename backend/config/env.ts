@@ -5,9 +5,20 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), quiet: true });
 
 const DEV_JWT_SECRET = 'railpulse_cco_dev_only_secret_change_me';
 
+const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
+type LogLevel = (typeof LOG_LEVELS)[number];
+
+const LOG_FORMATS = ['json', 'pretty'] as const;
+type LogFormat = (typeof LOG_FORMATS)[number];
+
 const toInt = (value: string | undefined, fallback: number): number => {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const toBool = (value: string | undefined, fallback: boolean): boolean => {
+  if (value === undefined || value.trim() === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 };
 
 const toList = (value: string | undefined): string[] =>
@@ -15,6 +26,11 @@ const toList = (value: string | undefined): string[] =>
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+
+const toEnum = <T extends string>(value: string | undefined, allowed: readonly T[], fallback: T): T => {
+  const normalized = (value ?? '').trim().toLowerCase() as T;
+  return allowed.includes(normalized) ? normalized : fallback;
+};
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProduction = nodeEnv === 'production';
@@ -30,11 +46,23 @@ const corsOrigins = toList(process.env.CORS_ORIGIN);
 export const env = {
   nodeEnv,
   isProduction,
+  /** Nome do serviço carregado em toda linha de log estruturado. */
+  serviceName: process.env.SERVICE_NAME ?? 'railpulse-cco',
+  /** Versão publicada, injetada no build da imagem — aparece no log e no /health. */
+  appVersion: process.env.APP_VERSION ?? 'dev',
   port: toInt(process.env.PORT, 3333),
   jwtSecret: process.env.JWT_SECRET ?? DEV_JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '8h',
   corsOrigin: corsOrigins.length > 0 ? corsOrigins : '*',
   bcryptRounds: toInt(process.env.BCRYPT_ROUNDS, 10),
+  /** Piso de severidade dos logs emitidos. */
+  logLevel: toEnum<LogLevel>(process.env.LOG_LEVEL, LOG_LEVELS, isProduction ? 'info' : 'debug'),
+  /** `json` para coleta por agregador; `pretty` para leitura humana no terminal. */
+  logFormat: toEnum<LogFormat>(process.env.LOG_FORMAT, LOG_FORMATS, isProduction ? 'json' : 'pretty'),
+  /** Aplica as migrações pendentes durante o boot. Desligue quando o deploy as roda em um passo próprio. */
+  migrateOnBoot: toBool(process.env.DB_MIGRATE_ON_BOOT, true),
+  /** Semeia o operador de demonstração e a malha. Desligue em produção real. */
+  seedOnBoot: toBool(process.env.DB_SEED_ON_BOOT, true),
   telemetryIntervalMs: toInt(process.env.TELEMETRY_INTERVAL_MS, 3000),
   /** Intervalo entre avanços de uma estação na simulação de deslocamento das composições. */
   trainMotionIntervalMs: toInt(process.env.TRAIN_MOTION_INTERVAL_MS, 4000),

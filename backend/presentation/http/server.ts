@@ -6,10 +6,11 @@ import { env } from '../../config/env';
 import { createLogger } from '../../shared/logger';
 import { createApp } from './app';
 import { registerCcoGateway } from '../websocket/cco.gateway';
+import { setAcceptingTraffic } from './routes/health.routes';
 import { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 import { TelemetryArchiver } from '../../application/services/TelemetryArchiver';
 import { TrainMotionSimulator } from '../../application/services/TrainMotionSimulator';
-import { runMigrations } from '../../infrastructure/database/migrations';
+import { prepareDatabase } from '../../infrastructure/database/bootstrap';
 import { closeDatabase, db } from '../../infrastructure/database/postgres';
 import { domainEventBus } from '../../application/events/event-bus';
 
@@ -48,6 +49,10 @@ const shutdown = async (signal: string): Promise<void> => {
   shuttingDown = true;
   logger.info(`Sinal ${signal} recebido — iniciando encerramento gracioso.`);
 
+  // Sai de rotação antes de derrubar qualquer coisa: o balanceador para de
+  // encaminhar tráfego enquanto as requisições em andamento terminam.
+  setAcceptingTraffic(false);
+
   simulator.stop();
   trainMotion.stop();
   // Descarrega a janela pendente antes de derrubar o barramento.
@@ -68,13 +73,17 @@ const bootstrap = async (): Promise<void> => {
     await db.query('SELECT 1');
     logger.info('Conexão com PostgreSQL estabelecida.');
 
-    await runMigrations();
+    await prepareDatabase();
     archiver.start();
     simulator.start();
     trainMotion.start();
 
     server.listen(env.port, () => {
-      logger.info(`RailPulse CCO (${env.nodeEnv}) ativo em http://localhost:${env.port}`);
+      logger.info(`RailPulse CCO ativo na porta ${env.port}.`, {
+        environment: env.nodeEnv,
+        version: env.appVersion,
+        port: env.port,
+      });
       logger.info(`Telemetria SCADA emitindo a cada ${env.telemetryIntervalMs}ms.`);
       logger.info(`Composições avançando uma estação a cada ${env.trainMotionIntervalMs}ms.`);
     });

@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { extractBearerToken, verifyOperatorToken } from '../../../shared/jwt';
 import type { OperatorTokenPayload } from '../../../shared/jwt';
 import { can } from '../../../domain/roles';
+import { assignLogContext } from '../../../shared/logger';
 import type { Permission } from '../../../domain/roles';
 
 export interface AuthenticatedRequest extends Request {
@@ -25,6 +26,8 @@ export const verifyJwt = (req: AuthenticatedRequest, res: Response, next: NextFu
   }
 
   req.operator = operator;
+  // Correlaciona os logs da requisição ao operador autenticado.
+  assignLogContext({ operatorId: operator.operatorId });
   next();
 };
 
