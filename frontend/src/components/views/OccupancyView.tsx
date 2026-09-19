@@ -4,6 +4,7 @@ import type { Station } from '../../types';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
 import { formatNumber } from '../../lib/format';
+import { hashString } from '../../lib/hash';
 
 interface OccupancyViewProps {
   stations: Station[];
@@ -12,15 +13,6 @@ interface OccupancyViewProps {
 const TICK_MS = 4000;
 const SUPERLOTACAO_THRESHOLD = 85;
 const ELEVADA_THRESHOLD = 60;
-
-/** Hash determinístico e estável (djb2) — cada estação sempre recebe a mesma fase/peso. */
-const hashString = (value: string): number => {
-  let hash = 5381;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 33) ^ value.charCodeAt(index);
-  }
-  return Math.abs(hash);
-};
 
 /** Curva com dois picos (pico da manhã às 8h, pico da tarde às 18h), em [0, 1]. */
 const peakFactor = (hour: number, minute: number): number => {
