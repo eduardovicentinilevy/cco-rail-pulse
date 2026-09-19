@@ -6,6 +6,8 @@ interface TrackSchematicProps {
   stations: Station[];
   trains: Train[];
   selectedStation: Station;
+  /** Linha em operação — o título e os terminais saem daqui, não de texto fixo. */
+  lineName: string;
   onSelectStation: (station: Station) => void;
 }
 
@@ -19,8 +21,17 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
   stations,
   trains,
   selectedStation,
+  lineName,
   onSelectStation,
 }) => {
+  // Os terminais são a primeira e a última estação da malha recebida, quaisquer
+  // que sejam — antes estavam escritos no componente.
+  const terminals = useMemo(() => {
+    const first = stations[0]?.name;
+    const last = stations.at(-1)?.name;
+    return first && last && first !== last ? `${first} ➔ ${last}` : (first ?? '');
+  }, [stations]);
+
   const trainsByStation = useMemo(() => {
     const grouped = new Map<string, Train[]>();
     for (const train of trains) {
@@ -35,13 +46,15 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
     <section className="rp-track" aria-label="Esquemático ATS da malha tronco">
       <div className="rp-row rp-row--between" style={{ marginBottom: 'var(--sp-4)' }}>
         <div className="rp-row">
-          <h2 className="rp-section-title">ATS / Malha Tronco — Linha 6-Laranja</h2>
+          <h2 className="rp-section-title">ATS / Malha Tronco — {lineName}</h2>
           <span className="rp-badge" data-status={trains.length > 0 ? 'NORMAL' : 'WARNING'}>
             <span className="rp-dot rp-dot--pulse" aria-hidden="true" />
             {trains.length} composições
           </span>
         </div>
-        <span className="rp-card__subtitle">Brasilândia ➔ São Joaquim • role horizontalmente para inspecionar a via</span>
+        <span className="rp-card__subtitle">
+          {terminals} • role horizontalmente para inspecionar a via
+        </span>
       </div>
 
       <div className="rp-track__scroll">
@@ -77,7 +90,7 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
                 </span>
 
                 <span className="rp-station-node__rail">
-                  <span className="rp-station-node__dot">{station.order}</span>
+                  <span className="rp-station-node__dot">{station.position}</span>
                 </span>
 
                 <span className="rp-station-node__name">{station.name}</span>

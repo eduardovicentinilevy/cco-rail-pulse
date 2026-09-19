@@ -1,100 +1,344 @@
 // backend/infrastructure/database/migrations.ts
 import bcrypt from 'bcrypt';
-import { db } from './postgres';
+import type { PoolClient } from 'pg';
+import { db, withTransaction } from './postgres';
 import { env } from '../../config/env';
-import { LINE_STATIONS } from '../../domain/line';
+import { LINHA_UNI_SEED, SEED_TEAM, SEED_TRAINS } from './seeds/linha-uni';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('DB-MIGRATE');
 
-const DDL = `
-  CREATE TABLE IF NOT EXISTS operators (
-    id VARCHAR(50) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'OPERADOR',
-    password_hash VARCHAR(255) NOT NULL,
-    avatar_url TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    mfa_secret TEXT,
-    mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE
+/**
+ * Tabelas de cliente e malha.
+ *
+ * `tenants` → `lines` → `stations` é a hierarquia que substitui a constante
+ * `LINE_STATIONS`: a malha passa a ser dado, e um cliente pode ter mais de uma
+ * linha. `position` em vez de `order` porque ORDER é palavra reservada em SQL.
+ */
+const TENANCY_DDL = `
+  CREATE TABLE IF NOT EXISTS tenants (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug        VARCHAR(40) UNIQUE NOT NULL,
+    name        VARCHAR(120) NOT NULL,
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
-  -- Self-healing: bancos criados antes do 2FA não têm essas colunas.
-  ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_secret TEXT;
-  ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+  CREATE TABLE IF NOT EXISTS lines (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    code        VARCHAR(20) NOT NULL,
+    name        VARCHAR(120) NOT NULL,
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (tenant_id, code)
+  );
+
+  CREATE TABLE IF NOT EXISTS stations (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    line_id             UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    code                VARCHAR(10) NOT NULL,
+    name                VARCHAR(120) NOT NULL,
+    position            INTEGER NOT NULL,
+    substation          VARCHAR(20) NOT NULL,
+    nominal_voltage_kv  NUMERIC(5, 2) NOT NULL,
+    headway_seconds     INTEGER,
+    map_x               NUMERIC(6, 5),
+    map_y               NUMERIC(6, 5),
+    UNIQUE (line_id, code),
+    UNIQUE (line_id, position)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_lines_tenant ON lines (tenant_id);
+  CREATE INDEX IF NOT EXISTS idx_stations_line ON stations (line_id, position);
+`;
+
+/**
+ * Tabelas operacionais no formato multi-tenant.
+ *
+ * Só têm efeito em banco novo: onde elas já existem no formato antigo, quem
+ * converte é `upgradeLegacySchema`. Dados da linha (`trains`, `incidents`,
+ * `telemetry_samples`) pendem de `line_id`; dados de pessoas (`operators`,
+ * `audit_logs`) pendem de `tenant_id`, porque um supervisor pode responder por
+ * mais de uma linha do mesmo cliente.
+ */
+const OPERATIONAL_DDL = `
+  CREATE TABLE IF NOT EXISTS operators (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id      UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    login_id       VARCHAR(50) NOT NULL,
+    name           VARCHAR(100) NOT NULL,
+    role           VARCHAR(50) NOT NULL DEFAULT 'OPERADOR',
+    password_hash  VARCHAR(255) NOT NULL,
+    avatar_url     TEXT,
+    is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    mfa_secret     TEXT,
+    mfa_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (tenant_id, login_id)
+  );
 
   CREATE TABLE IF NOT EXISTS audit_logs (
-    id SERIAL PRIMARY KEY,
-    operator_id VARCHAR(50),
-    action VARCHAR(100) NOT NULL,
-    target VARCHAR(100) NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id           SERIAL PRIMARY KEY,
+    tenant_id    UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    operator_id  VARCHAR(50),
+    action       VARCHAR(100) NOT NULL,
+    target       VARCHAR(100) NOT NULL,
+    status       VARCHAR(50) NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
-  CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_audit_logs_operator ON audit_logs (operator_id);
-
   CREATE TABLE IF NOT EXISTS trains (
-    train_id VARCHAR(20) PRIMARY KEY,
-    current_station_code VARCHAR(10) NOT NULL,
-    speed_kmh NUMERIC(5, 1) NOT NULL,
-    voltage_kv NUMERIC(5, 2) NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    line_id               UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    train_id              VARCHAR(20) NOT NULL,
+    current_station_code  VARCHAR(10) NOT NULL,
+    speed_kmh             NUMERIC(5, 1) NOT NULL,
+    voltage_kv            NUMERIC(5, 2) NOT NULL,
+    status                VARCHAR(20) NOT NULL,
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (line_id, train_id)
   );
 
   CREATE TABLE IF NOT EXISTS incidents (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(120) NOT NULL,
-    description TEXT NOT NULL,
-    station_code VARCHAR(10),
-    train_id VARCHAR(20),
-    category VARCHAR(30) NOT NULL,
-    severity VARCHAR(20) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'ABERTA',
-    opened_by VARCHAR(50) NOT NULL,
-    assigned_to VARCHAR(50),
-    resolution_note TEXT,
-    opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    resolved_at TIMESTAMPTZ
+    id               SERIAL PRIMARY KEY,
+    line_id          UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    title            VARCHAR(120) NOT NULL,
+    description      TEXT NOT NULL,
+    station_code     VARCHAR(10),
+    train_id         VARCHAR(20),
+    category         VARCHAR(30) NOT NULL,
+    severity         VARCHAR(20) NOT NULL,
+    status           VARCHAR(20) NOT NULL DEFAULT 'ABERTA',
+    opened_by        VARCHAR(50) NOT NULL,
+    assigned_to      VARCHAR(50),
+    resolution_note  TEXT,
+    opened_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at      TIMESTAMPTZ
   );
-
-  CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents (status, opened_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_incidents_station ON incidents (station_code);
 
   -- Série histórica agregada por janela: uma linha por estação por janela,
   -- em vez de uma linha por leitura (que geraria 5 escritas por segundo).
   CREATE TABLE IF NOT EXISTS telemetry_samples (
-    id BIGSERIAL PRIMARY KEY,
-    station_code VARCHAR(10) NOT NULL,
-    bucket_at TIMESTAMPTZ NOT NULL,
-    min_kv NUMERIC(5, 2) NOT NULL,
-    avg_kv NUMERIC(5, 2) NOT NULL,
-    max_kv NUMERIC(5, 2) NOT NULL,
-    readings INTEGER NOT NULL,
-    UNIQUE (station_code, bucket_at)
+    id          BIGSERIAL PRIMARY KEY,
+    station_id  UUID NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+    bucket_at   TIMESTAMPTZ NOT NULL,
+    min_kv      NUMERIC(5, 2) NOT NULL,
+    avg_kv      NUMERIC(5, 2) NOT NULL,
+    max_kv      NUMERIC(5, 2) NOT NULL,
+    readings    INTEGER NOT NULL,
+    UNIQUE (station_id, bucket_at)
   );
-
-  CREATE INDEX IF NOT EXISTS idx_telemetry_bucket ON telemetry_samples (bucket_at DESC);
 `;
 
-/** Composições semeadas na malha, posicionadas em estações reais do traçado. */
-const SEED_TRAINS: ReadonlyArray<[trainId: string, stationCode: string, speed: number, voltage: number, status: string]> = [
-  ['T-01', 'BRA', 45, 24.6, 'NORMAL'],
-  ['T-04', 'FGO', 30, 23.2, 'ATENÇÃO'],
-  ['T-07', 'PDZ', 50, 24.5, 'NORMAL'],
-  ['T-12', '14B', 48, 24.6, 'NORMAL'],
-];
+/** Índices das tabelas operacionais — sempre com o discriminador de cliente à frente. */
+const INDEX_DDL = `
+  CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created ON audit_logs (tenant_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_logs_operator ON audit_logs (tenant_id, operator_id);
+  CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents (line_id, status, opened_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_incidents_station ON incidents (line_id, station_code);
+  CREATE INDEX IF NOT EXISTS idx_telemetry_bucket ON telemetry_samples (station_id, bucket_at DESC);
+`;
 
-/** Equipe de plantão semeada para demonstrar o cadastro e os perfis de acesso. */
-const SEED_TEAM: ReadonlyArray<[id: string, name: string, role: string]> = [
-  ['MAR-109', 'Marina Rezende', 'OPERADOR'],
-  ['SOU-012', 'Sousa Okamoto', 'OPERADOR'],
-  ['LIV-551', 'Lívia Nakamura', 'SUPERVISOR'],
-];
+const hasColumn = async (table: string, column: string): Promise<boolean> => {
+  const result = await db.query(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_schema = current_schema() AND table_name = $1 AND column_name = $2`,
+    [table, column],
+  );
+  return (result.rowCount ?? 0) > 0;
+};
+
+/** Nomes das constraints de um tipo (`p` = primária, `u` = única) — os gerados pelo Postgres variam. */
+const constraintNames = async (table: string, type: 'p' | 'u'): Promise<string[]> => {
+  const result = await db.query<{ conname: string }>(
+    `SELECT c.conname
+     FROM pg_constraint c
+     JOIN pg_class t ON t.oid = c.conrelid
+     JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE t.relname = $1 AND n.nspname = current_schema() AND c.contype = $2`,
+    [table, type],
+  );
+  return result.rows.map((row) => row.conname);
+};
+
+const dropConstraints = async (client: PoolClient, table: string, names: string[]): Promise<void> => {
+  for (const name of names) {
+    await client.query(`ALTER TABLE ${table} DROP CONSTRAINT "${name}"`);
+  }
+};
+
+export const runMigrations = async (): Promise<void> => {
+  await db.query(TENANCY_DDL);
+
+  const { tenantId, lineId } = await seedTenancy();
+
+  await db.query(OPERATIONAL_DDL);
+  await upgradeLegacySchema(tenantId, lineId);
+  await db.query(INDEX_DDL);
+  await renameLegacyOperatorRole();
+
+  logger.info('Schema verificado (self-healing DDL aplicado).');
+
+  await seedOperators(tenantId);
+  await seedTrains(lineId);
+
+  logger.info('Carga inicial (auto-seeding) sincronizada.');
+};
+
+/** Cria o cliente de demonstração e a sua malha, se ainda não existirem. */
+const seedTenancy = async (): Promise<{ tenantId: string; lineId: string }> => {
+  const seed = LINHA_UNI_SEED;
+
+  const tenant = await db.query<{ id: string }>(
+    `INSERT INTO tenants (slug, name) VALUES ($1, $2)
+     ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug
+     RETURNING id`,
+    [seed.slug, seed.name],
+  );
+  const tenantId = tenant.rows[0].id;
+
+  const [lineSeed] = seed.lines;
+  const line = await db.query<{ id: string }>(
+    `INSERT INTO lines (tenant_id, code, name) VALUES ($1, $2, $3)
+     ON CONFLICT (tenant_id, code) DO UPDATE SET code = EXCLUDED.code
+     RETURNING id`,
+    [tenantId, lineSeed.code, lineSeed.name],
+  );
+  const lineId = line.rows[0].id;
+
+  // DO NOTHING e não DO UPDATE: a semeadura é ponto de partida, não fonte de
+  // verdade. Uma estação ajustada pelo cliente não pode ser revertida no boot.
+  for (const station of lineSeed.stations) {
+    await db.query(
+      `INSERT INTO stations
+         (line_id, code, name, position, substation, nominal_voltage_kv, headway_seconds, map_x, map_y)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (line_id, code) DO NOTHING`,
+      [
+        lineId,
+        station.code,
+        station.name,
+        station.position,
+        station.substation,
+        station.nominalVoltageKV,
+        station.headwaySeconds,
+        station.mapX,
+        station.mapY,
+      ],
+    );
+  }
+
+  return { tenantId, lineId };
+};
+
+/**
+ * Converte um banco criado antes do multi-tenant.
+ *
+ * Cada passo é guardado pela ausência da coluna nova, então rodar duas vezes não
+ * faz nada na segunda. O backfill aponta tudo que já existia para o cliente de
+ * demonstração, que é de onde esses dados vieram.
+ */
+const upgradeLegacySchema = async (tenantId: string, lineId: string): Promise<void> => {
+  if (!(await hasColumn('operators', 'login_id'))) {
+    const primaryKeys = await constraintNames('operators', 'p');
+    await withTransaction(async (client) => {
+      await client.query(`ALTER TABLE operators RENAME COLUMN id TO login_id`);
+      await client.query(`ALTER TABLE operators ADD COLUMN id UUID NOT NULL DEFAULT gen_random_uuid()`);
+      await client.query(`ALTER TABLE operators ADD COLUMN tenant_id UUID`);
+      await client.query(`UPDATE operators SET tenant_id = $1 WHERE tenant_id IS NULL`, [tenantId]);
+      await client.query(`ALTER TABLE operators ALTER COLUMN tenant_id SET NOT NULL`);
+      await dropConstraints(client, 'operators', primaryKeys);
+      await client.query(`ALTER TABLE operators ADD PRIMARY KEY (id)`);
+      await client.query(`ALTER TABLE operators ADD CONSTRAINT operators_tenant_login_key UNIQUE (tenant_id, login_id)`);
+      await client.query(
+        `ALTER TABLE operators ADD CONSTRAINT operators_tenant_fkey
+         FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE`,
+      );
+    });
+    logger.info('operators migrada: id interno (UUID) e credencial única por cliente.');
+  }
+
+  // Colunas do 2FA em bancos anteriores à autenticação em duas etapas.
+  await db.query(`ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_secret TEXT`);
+  await db.query(`ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+
+  if (!(await hasColumn('audit_logs', 'tenant_id'))) {
+    await withTransaction(async (client) => {
+      await client.query(`ALTER TABLE audit_logs ADD COLUMN tenant_id UUID`);
+      await client.query(`UPDATE audit_logs SET tenant_id = $1 WHERE tenant_id IS NULL`, [tenantId]);
+      await client.query(`ALTER TABLE audit_logs ALTER COLUMN tenant_id SET NOT NULL`);
+      await client.query(
+        `ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_tenant_fkey
+         FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE`,
+      );
+    });
+    logger.info('audit_logs migrada: trilha amarrada ao cliente.');
+  }
+
+  if (!(await hasColumn('trains', 'line_id'))) {
+    const primaryKeys = await constraintNames('trains', 'p');
+    await withTransaction(async (client) => {
+      await client.query(`ALTER TABLE trains ADD COLUMN id UUID NOT NULL DEFAULT gen_random_uuid()`);
+      await client.query(`ALTER TABLE trains ADD COLUMN line_id UUID`);
+      await client.query(`UPDATE trains SET line_id = $1 WHERE line_id IS NULL`, [lineId]);
+      await client.query(`ALTER TABLE trains ALTER COLUMN line_id SET NOT NULL`);
+      await dropConstraints(client, 'trains', primaryKeys);
+      await client.query(`ALTER TABLE trains ADD PRIMARY KEY (id)`);
+      await client.query(`ALTER TABLE trains ADD CONSTRAINT trains_line_train_key UNIQUE (line_id, train_id)`);
+      await client.query(
+        `ALTER TABLE trains ADD CONSTRAINT trains_line_fkey
+         FOREIGN KEY (line_id) REFERENCES lines(id) ON DELETE CASCADE`,
+      );
+    });
+    logger.info('trains migrada: numeração de composição única por linha.');
+  }
+
+  if (!(await hasColumn('incidents', 'line_id'))) {
+    await withTransaction(async (client) => {
+      await client.query(`ALTER TABLE incidents ADD COLUMN line_id UUID`);
+      await client.query(`UPDATE incidents SET line_id = $1 WHERE line_id IS NULL`, [lineId]);
+      await client.query(`ALTER TABLE incidents ALTER COLUMN line_id SET NOT NULL`);
+      await client.query(
+        `ALTER TABLE incidents ADD CONSTRAINT incidents_line_fkey
+         FOREIGN KEY (line_id) REFERENCES lines(id) ON DELETE CASCADE`,
+      );
+    });
+    logger.info('incidents migrada: ocorrências amarradas à linha.');
+  }
+
+  if (!(await hasColumn('telemetry_samples', 'station_id'))) {
+    const uniques = await constraintNames('telemetry_samples', 'u');
+    await withTransaction(async (client) => {
+      await client.query(`ALTER TABLE telemetry_samples ADD COLUMN station_id UUID`);
+      await client.query(
+        `UPDATE telemetry_samples t SET station_id = s.id
+         FROM stations s
+         WHERE s.line_id = $1 AND s.code = t.station_code AND t.station_id IS NULL`,
+        [lineId],
+      );
+      // Janelas de estações que não existem mais na malha não têm para onde ir.
+      // A série tem 7 dias de retenção, então a perda é de histórico recente órfão.
+      const orphans = await client.query(`DELETE FROM telemetry_samples WHERE station_id IS NULL`);
+      if (orphans.rowCount) {
+        logger.info(`Série histórica: ${orphans.rowCount} janela(s) sem estação correspondente descartada(s).`);
+      }
+      await client.query(`ALTER TABLE telemetry_samples ALTER COLUMN station_id SET NOT NULL`);
+      await dropConstraints(client, 'telemetry_samples', uniques);
+      await client.query(`ALTER TABLE telemetry_samples DROP COLUMN station_code`);
+      await client.query(
+        `ALTER TABLE telemetry_samples ADD CONSTRAINT telemetry_samples_station_bucket_key
+         UNIQUE (station_id, bucket_at)`,
+      );
+      await client.query(
+        `ALTER TABLE telemetry_samples ADD CONSTRAINT telemetry_samples_station_fkey
+         FOREIGN KEY (station_id) REFERENCES stations(id) ON DELETE CASCADE`,
+      );
+    });
+    logger.info('telemetry_samples migrada: série amarrada à estação da linha.');
+  }
+};
 
 /**
  * Renomeia o perfil `OPERATOR_SOC` (jargão de centro de operações de segurança,
@@ -112,18 +356,15 @@ const renameLegacyOperatorRole = async (): Promise<void> => {
   }
 };
 
-export const runMigrations = async (): Promise<void> => {
-  await db.query(DDL);
-  await renameLegacyOperatorRole();
-  logger.info('Schema verificado (self-healing DDL aplicado).');
-
+const seedOperators = async (tenantId: string): Promise<void> => {
   const passwordHash = await bcrypt.hash(env.seedOperatorPassword, env.bcryptRounds);
+
   const seeded = await db.query(
-    `INSERT INTO operators (id, name, role, password_hash, avatar_url, is_active)
-     VALUES ($1, $2, $3, $4, NULL, TRUE)
-     ON CONFLICT (id) DO NOTHING
+    `INSERT INTO operators (tenant_id, login_id, name, role, password_hash, avatar_url, is_active)
+     VALUES ($1, $2, $3, $4, $5, NULL, TRUE)
+     ON CONFLICT (tenant_id, login_id) DO NOTHING
      RETURNING id`,
-    [env.seedOperatorId, env.seedOperatorName, env.seedOperatorRole, passwordHash],
+    [tenantId, env.seedOperatorId, env.seedOperatorName, env.seedOperatorRole, passwordHash],
   );
 
   if (seeded.rowCount && seeded.rowCount > 0) {
@@ -131,32 +372,34 @@ export const runMigrations = async (): Promise<void> => {
   } else {
     // Mantém o perfil do operador de demonstração alinhado à configuração,
     // sem jamais sobrescrever a senha de uma conta já existente.
-    await db.query(`UPDATE operators SET role = $2 WHERE id = $1 AND role <> $2`, [
-      env.seedOperatorId,
-      env.seedOperatorRole,
-    ]);
+    await db.query(
+      `UPDATE operators SET role = $3 WHERE tenant_id = $1 AND login_id = $2 AND role <> $3`,
+      [tenantId, env.seedOperatorId, env.seedOperatorRole],
+    );
   }
 
   // A equipe de plantão compartilha a senha padrão apenas em ambiente de demonstração.
-  for (const [id, name, role] of SEED_TEAM) {
+  for (const [credential, name, role] of SEED_TEAM) {
     await db.query(
-      `INSERT INTO operators (id, name, role, password_hash, is_active)
-       VALUES ($1, $2, $3, $4, TRUE)
-       ON CONFLICT (id) DO NOTHING`,
-      [id, name, role, passwordHash],
+      `INSERT INTO operators (tenant_id, login_id, name, role, password_hash, is_active)
+       VALUES ($1, $2, $3, $4, $5, TRUE)
+       ON CONFLICT (tenant_id, login_id) DO NOTHING`,
+      [tenantId, credential, name, role, passwordHash],
     );
   }
+};
 
-  const knownCodes = new Set(LINE_STATIONS.map((station) => station.code));
+const seedTrains = async (lineId: string): Promise<void> => {
+  const known = await db.query<{ code: string }>(`SELECT code FROM stations WHERE line_id = $1`, [lineId]);
+  const knownCodes = new Set(known.rows.map((row) => row.code));
+
   for (const [trainId, stationCode, speed, voltage, status] of SEED_TRAINS) {
     if (!knownCodes.has(stationCode)) continue;
     await db.query(
-      `INSERT INTO trains (train_id, current_station_code, speed_kmh, voltage_kv, status)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (train_id) DO NOTHING`,
-      [trainId, stationCode, speed, voltage, status],
+      `INSERT INTO trains (line_id, train_id, current_station_code, speed_kmh, voltage_kv, status)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (line_id, train_id) DO NOTHING`,
+      [lineId, trainId, stationCode, speed, voltage, status],
     );
   }
-
-  logger.info('Carga inicial (auto-seeding) sincronizada.');
 };

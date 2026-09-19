@@ -9,6 +9,8 @@ interface LineMapProps {
   stations: Station[];
   trains: Train[];
   selectedStation: Station;
+  /** Nome da linha desenhada, usado na descrição acessível do mapa. */
+  lineName: string;
   onSelectStation: (station: Station) => void;
 }
 
@@ -16,26 +18,21 @@ const VIEW_WIDTH = 1000;
 const VIEW_HEIGHT = 440;
 
 /**
- * Coordenadas aproximadas do traçado da Linha 6-Laranja no sentido
- * noroeste → centro (Brasilândia a São Joaquim). Não é cartografia exata:
- * preserva a forma e a proporção do eixo para leitura operacional.
+ * Posição de uma estação na tela.
+ *
+ * Vem de `mapX`/`mapY` do catálogo — coordenadas normalizadas (0–1) cadastradas
+ * por linha. Antes o traçado da Linha 6-Laranja estava escrito neste arquivo, o
+ * que desenhava a mesma linha para qualquer cliente. Sem coordenada cadastrada,
+ * a estação é distribuída uniformemente ao longo de um eixo reto, para que uma
+ * linha recém-cadastrada ainda apareça no mapa.
  */
-const ROUTE: Record<string, { x: number; y: number }> = {
-  BRA: { x: 70, y: 52 },
-  MAR: { x: 132, y: 84 },
-  ITA: { x: 194, y: 116 },
-  JPI: { x: 252, y: 152 },
-  FGO: { x: 312, y: 190 },
-  SMA: { x: 384, y: 218 },
-  AGB: { x: 456, y: 240 },
-  POM: { x: 528, y: 256 },
-  PDZ: { x: 600, y: 270 },
-  PUC: { x: 665, y: 284 },
-  FAA: { x: 726, y: 302 },
-  HGM: { x: 786, y: 322 },
-  '14B': { x: 844, y: 346 },
-  BLV: { x: 900, y: 370 },
-  SJQ: { x: 952, y: 396 },
+const positionOf = (station: Station, index: number, total: number): { x: number; y: number } => {
+  if (station.mapX != null && station.mapY != null) {
+    return { x: station.mapX * VIEW_WIDTH, y: station.mapY * VIEW_HEIGHT };
+  }
+
+  const progress = total > 1 ? index / (total - 1) : 0.5;
+  return { x: 70 + progress * (VIEW_WIDTH - 140), y: VIEW_HEIGHT / 2 };
 };
 
 const STATUS_COLOR: Record<Station['status'], string> = {
@@ -44,9 +41,15 @@ const STATUS_COLOR: Record<Station['status'], string> = {
   'CRÍTICO': 'var(--uni-danger)',
 };
 
-export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStation, onSelectStation }) => {
+export const LineMap: React.FC<LineMapProps> = ({
+  stations,
+  trains,
+  selectedStation,
+  lineName,
+  onSelectStation,
+}) => {
   const points = useMemo(
-    () => stations.map((station) => ({ station, ...(ROUTE[station.code] ?? { x: 0, y: 0 }) })),
+    () => stations.map((station, index) => ({ station, ...positionOf(station, index, stations.length) })),
     [stations],
   );
 
@@ -80,7 +83,7 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
         viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
         className="rp-map__canvas"
         role="img"
-        aria-label="Mapa da Linha 6-Laranja com a posição das composições"
+        aria-label={`Mapa da ${lineName} com a posição das composições`}
       >
         <defs>
           <linearGradient id="rp-rail-gradient" x1="0" y1="0" x2="1" y2="1">
@@ -95,16 +98,6 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
             </feMerge>
           </filter>
         </defs>
-
-        {/* Referência geográfica: faixa do Rio Tietê, cruzado entre FGO e SMA. */}
-        <path
-          d="M 250 268 C 340 218, 430 176, 560 148 S 820 110, 990 96"
-          className="rp-map__river"
-          fill="none"
-        />
-        <text x="596" y="140" className="rp-map__river-label">
-          Rio Tietê
-        </text>
 
         {/* Halo do trilho, depois o trilho sólido por cima. */}
         <path d={path} className="rp-map__rail-glow" fill="none" filter="url(#rp-rail-glow)" />

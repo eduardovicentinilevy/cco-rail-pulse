@@ -6,7 +6,10 @@ import { NotFoundError } from '../../shared/errors';
 import type { TrainCommand, TrainSnapshot } from '../../domain/entities/TrainSession';
 
 export interface ExecuteCommandRequest {
-  operatorId: string;
+  /** Linha em que a composição circula — a numeração só é única dentro dela. */
+  lineId: string;
+  /** Crachá do operador: é o que a trilha de auditoria registra. */
+  operatorCredential: string;
   trainId: string;
   command: TrainCommand;
   /** Bloco/estação de referência informado pelo operador — usado apenas na auditoria. */
@@ -27,22 +30,28 @@ const SEVERITY: Record<TrainCommand, 'INFO' | 'WARNING' | 'CRITICAL'> = {
  * trem sejam serializados — requisito de segurança ferroviária.
  */
 export class ExecuteTrainCommandUseCase {
-  public async execute({ operatorId, trainId, command, targetBlock }: ExecuteCommandRequest): Promise<TrainSnapshot> {
+  public async execute({
+    lineId,
+    operatorCredential,
+    trainId,
+    command,
+    targetBlock,
+  }: ExecuteCommandRequest): Promise<TrainSnapshot> {
     const snapshot = await withTransaction(async (client) => {
-      const train = await TrainRepository.findByIdWithLock(trainId, client);
+      const train = await TrainRepository.findByIdWithLock(lineId, trainId, client);
 
       if (!train) {
         throw new NotFoundError(`Composição ${trainId} não encontrada na malha ferroviária.`);
       }
 
       train.applyCommand(command);
-      await TrainRepository.save(train, client);
+      await TrainRepository.save(lineId, train, client);
 
       return train.toSnapshot();
     });
 
     AuditLogger.record({
-      operatorId,
+      operatorId: operatorCredential,
       action: `COMMAND_${command}`,
       targetResource: `TRAIN_${trainId}_BLOCK_${targetBlock ?? snapshot.currentStationCode}`,
       severity: SEVERITY[command],

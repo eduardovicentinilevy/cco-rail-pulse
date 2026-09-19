@@ -1,6 +1,8 @@
-# 🚆 RailPulse CCO — Centro de Controle Operacional (Linha 6-Laranja)
+# 🚆 RailPulse CCO — Centro de Controle Operacional ferroviário
 
-> **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacional em tempo real para a malha ferroviária da **Linha 6-Laranja (Linha Uni)**. A plataforma integra telemetria de subestações de tração (TSS), sinalização ATS ao longo das 15 estações do traçado e envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
+> **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacional em tempo real para malhas ferroviárias. A plataforma integra telemetria de subestações de tração (TSS), sinalização ATS ao longo das estações do traçado e envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
+>
+> A malha é **dado, não código**: cada cliente cadastra as suas linhas e estações, e uma instalação atende vários clientes sem fork. A carga inicial traz a Linha 6-Laranja (Linha Uni) como cliente de demonstração.
 
 ---
 
@@ -30,14 +32,14 @@ O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo 
 
 ## 🚀 Principais Funcionalidades
 
-* 🚉 **Supervisão ATS da Malha Tronco:** Acompanhamento interativo do progresso dos trens (`T-01`, `T-04`, `T-07`, `T-12`) ao longo das 15 estações da Linha 6.
+* 🚉 **Supervisão ATS da Malha Tronco:** Acompanhamento interativo do progresso das composições ao longo das estações da linha, cadastradas por cliente (a demonstração traz as 15 da Linha 6-Laranja com os trens `T-01`, `T-04`, `T-07` e `T-12`).
 * ⚡ **Telemetria SCADA em Tempo Real (TSS):** Leitura de tensão das Subestações de Tração (kV) via WebSocket com gráficos dinâmicos de alta performance (`Recharts`).
 * 🎮 **Painel de Comandos Operacionais:** Frenagem de emergência, restrição de velocidade (20 km/h) e liberação de sinal, aplicados sob lock pessimista e registrados na trilha de auditoria.
 * 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
 * 🔐 **Autenticação em Duas Etapas (2FA/TOTP):** Segundo fator compatível com Google Authenticator, Authy e afins — implementação própria de HOTP/TOTP (RFC 4226/6238), sem dependências externas, validada contra os vetores de teste oficiais do RFC.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
 * 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador de Controle, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
-* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG com as 15 estações posicionadas ao longo do eixo noroeste–centro, composições deslizando entre estações e realce pulsante das estações em alerta.
+* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG desenhado a partir das coordenadas cadastradas de cada estação, com as composições deslizando entre elas e realce pulsante das estações em alerta. Uma linha sem coordenadas cai num eixo reto uniforme.
 * ⇄ **Passagem de Turno:** Relatório consolidado do turno — comandos emitidos, ocorrências abertas/resolvidas, pendências herdadas e comportamento da tensão — com folha de impressão que gera o documento assinável.
 * ⌘ **Paleta de Comandos (Ctrl+K):** Busca difusa por seções, estações, composições e ações rápidas, navegável inteiramente pelo teclado.
 * 🔔 **Alertas de Eventos Críticos:** Sinal sonoro sintetizado (Web Audio) e notificação do sistema para ocorrências críticas, com preferência persistida.
@@ -73,9 +75,10 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 ```
 
-1. **Desacoplamento de Eventos (Event Bus):** O gateway de WebSocket assina eventos globais em um barramento de domínio (`domainEventBus`), permitindo escalar os emissores de telemetria de forma isolada.
-2. **Fail-Fast & Resiliência:** A aplicação valida a integridade do banco de dados na inicialização (`bootstrap`), executando as *DDLs* (`CREATE TABLE IF NOT EXISTS`) e o *seed* do operador padrão antes de abrir a porta HTTP.
+1. **Desacoplamento de Eventos (Event Bus):** O gateway de WebSocket assina eventos de um barramento de domínio (`domainEventBus`), permitindo escalar os emissores de telemetria de forma isolada. Cada evento é carimbado com a linha de origem e entregue por sala do Socket.IO, nunca em broadcast.
+2. **Fail-Fast & Resiliência:** A aplicação valida a integridade do banco de dados na inicialização (`bootstrap`), executando as *DDLs* (`CREATE TABLE IF NOT EXISTS`) e o *seed* do cliente e do operador padrão antes de abrir a porta HTTP.
 3. **Clean Architecture:** Separação rígida entre as camadas de **Apresentação** (`presentation`), **Aplicação** (`application`), **Domínio** (`domain`) e **Infraestrutura** (`infrastructure`).
+4. **Multi-cliente por dado:** `tenants` → `lines` → `stations` descrevem a malha no banco. O JWT carrega o cliente e a linha da sessão, todo repositório recebe esse escopo como parâmetro explícito, e há uma simulação SCADA por linha ativa. Ver [`docs/multi-tenant.md`](docs/multi-tenant.md).
 
 ---
 
@@ -106,38 +109,44 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 cco-rail-pulse/
 ├── .github/workflows/ci.yml                # Tipos, testes, lint, build e integração
 ├── docker-compose.yml                      # PostgreSQL para desenvolvimento
+├── docs/multi-tenant.md                    # Desenho do multi-cliente
+├── scripts/check-tenant-isolation.sh       # Verificação de isolamento entre clientes
 ├── backend/
 │   ├── config/env.ts                       # Configuração validada e centralizada (fail-fast)
 │   ├── shared/                             # Erros, JWT, TOTP (2FA), logger e helpers de HTTP
 │   ├── domain/
-│   │   ├── line.ts                         # Catálogo oficial das 15 estações (fonte única)
+│   │   ├── line.ts                         # LineCatalog: a malha de uma linha, carregada do banco
 │   │   ├── roles.ts                        # Perfis hierárquicos e permissões
 │   │   ├── entities/TrainSession.ts        # Regras de comando ferroviário
 │   │   ├── entities/Incident.ts            # Máquina de estados das ocorrências
-│   │   └── value-objects/StationCode.ts    # Código ATS validado contra a malha
+│   │   └── value-objects/StationCode.ts    # Código ATS (formato); a malha valida a pertinência
 │   ├── application/
 │   │   ├── events/event-bus.ts             # Barramento de eventos de domínio (tipado)
+│   │   ├── services/SimulationRegistry.ts  # Uma simulação por linha ativa
 │   │   ├── services/TelemetrySimulator.ts  # Simulador SCADA (random walk ancorado)
 │   │   ├── services/TelemetryArchiver.ts   # Agregação por janela da série histórica
 │   │   ├── services/TrainMotionSimulator.ts # Vaivém das composições entre os terminais
 │   │   └── use-cases/                      # Comando de trem e relatório de turno
 │   ├── infrastructure/
-│   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding
-│   │   ├── database/repositories/          # Trens, ocorrências e telemetria
-│   │   ├── repositories/                   # Operadores e trilha de auditoria
+│   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding + backfill multi-cliente
+│   │   ├── database/seeds/linha-uni.ts     # Cliente e malha de demonstração
+│   │   ├── database/repositories/          # Trens, ocorrências e telemetria (por linha)
+│   │   ├── repositories/                   # Operadores, auditoria e catálogo de malha (por cliente)
 │   │   └── audit/AuditLogger.ts            # Trilha append-only em disco
 │   ├── presentation/
 │   │   ├── http/app.ts                     # Composição do Express
-│   │   ├── http/middlewares/               # JWT, permissões, rate limit, erro e 404
+│   │   ├── http/tenant-resolution.ts       # Cliente por corpo, header, subdomínio ou padrão
+│   │   ├── http/middlewares/               # JWT + escopo de linha, permissões, rate limit, erro e 404
 │   │   ├── http/routes/                    # auth, operator, team, incidents, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 76 testes unitários (node:test)
+│   └── tests/                              # 91 testes unitários (node:test)
 │
 └── frontend/
     └── src/
         ├── styles/                         # Design system (tokens, base, componentes, layout, impressão)
         ├── config/env.ts                   # URL da API e chaves de storage
+        ├── data/stations.ts                # Helpers de exibição da malha (a malha vem da API)
         ├── lib/                            # Formatação, CSV e espelho das permissões
         ├── hooks/                          # useResource, alertas críticos, relógio, foco de modal
         ├── services/                       # Cliente HTTP e Socket.IO autenticado
@@ -243,6 +252,8 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `TELEMETRY_RETENTION_DAYS` | `7` | Retenção da série histórica |
 | `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
 | `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador de demonstração |
+| `DEFAULT_TENANT_SLUG` | `linha-uni` | Cliente assumido quando a requisição não traz slug |
+| `TENANT_BASE_DOMAIN` | — | Domínio base: define o cliente pelo subdomínio (`cliente.exemplo.app`) |
 
 > ⚠️ O arquivo `.env` **não é versionado**. Use `.env.example` como modelo.
 
@@ -278,7 +289,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 76 testes unitários do domínio e da infraestrutura
+npm test          # 91 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
@@ -287,11 +298,24 @@ A suíte cobre as regras que não podem regredir: ciclo de vida das ocorrências
 comandos ferroviários, validação de código de estação, hierarquia de permissões,
 limitador de tentativas de login, deriva do simulador SCADA, verificação de JWT,
 janela do relatório de turno e o contrato do catálogo da malha (que o mapa consome).
+Entre elas, as que sustentam o multi-cliente: o escopo que sobrevive ao token, dois
+catálogos que coexistem sem compartilhar estações, e um código de estação válido em
+uma linha sendo recusado na outra.
+
+O isolamento fim a fim é verificado contra um banco real por
+[`scripts/check-tenant-isolation.sh`](scripts/check-tenant-isolation.sh), que cria um
+segundo cliente com a credencial de operador e a numeração de composição repetidas de
+propósito e confere, pela API, que cada sessão só alcança a própria linha. Rode-o
+localmente com o Postgres do `docker-compose` no ar:
+
+```bash
+npm run check:isolation
+```
 
 O workflow do GitHub Actions (`.github/workflows/ci.yml`) roda três jobs em paralelo:
 tipos e testes do backend, lint e build do frontend, e um teste de integração que
-sobe a API contra um PostgreSQL real para validar bootstrap, autenticação e a
-recusa de rotas protegidas sem token.
+sobe a API contra um PostgreSQL real para validar bootstrap, autenticação, a recusa
+de rotas protegidas sem token e o isolamento entre dois clientes.
 
 ---
 
@@ -313,7 +337,7 @@ recusa de rotas protegidas sem token.
 
 | Método | Rota | Autenticação | Descrição |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/login` | — | Autentica o operador; retorna o JWT ou um desafio de 2FA |
+| `POST` | `/api/auth/login` | — | Autentica o operador no cliente resolvido (`tenantSlug`, header `X-Tenant-Slug`, subdomínio ou padrão); retorna o JWT ou um desafio de 2FA |
 | `POST` | `/api/auth/login/mfa` | — (desafio) | Troca o código do autenticador pela sessão |
 | `GET` | `/api/auth/session` | Bearer | Valida a sessão restaurada pelo painel |
 | `POST` | `/api/auth/logout` | Bearer | Registra o encerramento do turno |
@@ -323,7 +347,7 @@ recusa de rotas protegidas sem token.
 | `POST` | `/api/operator/mfa/enroll` | Bearer | Gera um novo segredo TOTP pendente |
 | `POST` | `/api/operator/mfa/confirm` | Bearer | Confirma o segredo e ativa o 2FA |
 | `POST` | `/api/operator/mfa/disable` | Bearer + senha | Desativa o 2FA |
-| `GET` | `/api/network/stations` | Bearer | Catálogo da malha + telemetria corrente |
+| `GET` | `/api/network/stations` | Bearer | Cliente, linha e malha da sessão + telemetria corrente |
 | `GET` | `/api/network/trains` | Bearer | Estado persistido das composições |
 | `GET` | `/api/network/telemetry/history?hours&stations` | Bearer | Série histórica agregada de tensão |
 | `GET` | `/api/incidents?limit&offset&status&severity&search` | Bearer | Ocorrências paginadas e filtráveis |
