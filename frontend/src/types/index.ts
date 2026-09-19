@@ -39,7 +39,12 @@ export interface OperatorSession {
   operatorId: string;
   name?: string;
   role: 'OPERADOR' | 'SUPERVISOR' | 'ADMIN';
+  /** Access token de vida curta, enviado em toda requisição. */
   token: string;
+  /** Token opaco usado para renovar o acesso; rotacionado a cada uso. */
+  refreshToken: string;
+  /** Momento (epoch ms) em que o access token vence — base do agendamento da renovação. */
+  expiresAt: number;
   avatarUrl?: string;
 }
 
