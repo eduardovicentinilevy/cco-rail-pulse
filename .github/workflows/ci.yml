@@ -83,11 +83,26 @@ jobs:
 
       - run: npm ci
 
-      - name: Sobe o backend e valida o bootstrap
+      - name: Build de produção (compila e copia as migrações)
+        run: npm run build
+
+      - name: Migrações versionadas
         run: |
-          npx tsx backend/presentation/http/server.ts &
+          npm run migrate
+          npm run migrate:status
+          # Reaplicar não pode ter efeito: a segunda passada tem de ser um no-op.
+          npm run migrate
+
+      - name: Sobe o backend compilado e valida o bootstrap
+        # Só aqui: NODE_ENV=production no job inteiro faria o `npm ci` pular as
+        # devDependencies de que o build depende.
+        env:
+          NODE_ENV: production
+          LOG_FORMAT: json
+        run: |
+          node backend/dist/presentation/http/server.js &
           SERVER_PID=$!
-          # Aguarda o /health responder ONLINE (self-healing DDL + seed concluídos).
+          # Aguarda o /health responder ONLINE (migracoes e carga inicial concluidas).
           for attempt in $(seq 1 30); do
             if curl -sf http://localhost:3333/health | grep -q '"status":"ONLINE"'; then
               echo "Backend pronto."
@@ -96,6 +111,11 @@ jobs:
             sleep 1
           done
           curl -sf http://localhost:3333/health | grep -q '"database":"CONNECTED"'
+          # Sondas de producao: liveness sem banco, readiness com banco.
+          curl -sf http://localhost:3333/health/live | grep -q '"status":"ALIVE"'
+          curl -sf http://localhost:3333/health/ready | grep -q '"status":"READY"'
+          # Toda resposta carrega o id de correlacao usado nos logs.
+          curl -sf -D- -o /dev/null http://localhost:3333/health/live | grep -qi '^x-request-id:'
           # Autenticação deve emitir um JWT utilizável nas rotas protegidas.
           TOKEN=$(curl -sf -X POST http://localhost:3333/api/auth/login \
             -H 'Content-Type: application/json' \
@@ -105,3 +125,43 @@ jobs:
           # Rota protegida sem token precisa ser recusada.
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3333/api/network/trains)" = "401"
           kill $SERVER_PID
+
+  docker:
+    name: Docker — imagens e stack completa
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci_only_secret_not_used_in_production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build das imagens (backend e frontend)
+        run: docker compose build
+
+      - name: Sobe a stack
+        run: docker compose up -d
+
+      - name: Valida o console e a API atraves do nginx
+        run: |
+          # O console e servido pelo nginx, que encaminha /api, /health e /socket.io.
+          for attempt in $(seq 1 60); do
+            if curl -sf http://localhost:8080/health | grep -q '"status":"ONLINE"'; then
+              echo "Stack pronta."
+              break
+            fi
+            sleep 2
+          done
+          curl -sf http://localhost:8080/health | grep -q '"database":"CONNECTED"'
+          curl -sf http://localhost:8080/ | grep -q 'id="root"'
+          TOKEN=$(curl -sf -X POST http://localhost:8080/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"operatorId":"EDP-042","password":"123456"}' | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
+          test -n "$TOKEN"
+          curl -sf http://localhost:8080/api/network/trains -H "Authorization: Bearer $TOKEN" | grep -q 'T-01'
+
+      - name: Logs estruturados do backend
+        if: always()
+        run: docker compose logs backend | tail -40
+
+      - name: Derruba a stack
+        if: always()
+        run: docker compose down -v

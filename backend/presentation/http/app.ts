@@ -15,6 +15,7 @@ import { alarmRouter } from './routes/alarm.routes';
 import { communicationRouter } from './routes/communication.routes';
 import { procedureRouter } from './routes/procedure.routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import { requestLogger } from './middlewares/request-logger.middleware';
 import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 
 /** Cabeçalhos de segurança básicos, sem adicionar dependências ao bundle. */
@@ -31,6 +32,8 @@ export const createApp = (simulator: TelemetrySimulator): Express => {
 
   app.disable('x-powered-by');
   app.set('trust proxy', true);
+  // Antes de tudo: toda requisição nasce com um id de correlação nos logs.
+  app.use(requestLogger);
   app.use(securityHeaders);
   app.use(cors({ origin: env.corsOrigin, methods: ['GET', 'POST', 'PATCH', 'OPTIONS'], credentials: false }));
   app.use(express.json({ limit: '64kb' }));

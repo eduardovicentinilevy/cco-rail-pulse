@@ -1,6 +1,10 @@
-# Sobe apenas a dependência de infraestrutura do RailPulse CCO.
-# O backend e o frontend rodam localmente (npm run dev), para manter o ciclo de
-# desenvolvimento rápido e o hot reload funcionando.
+# Stack completa do RailPulse CCO: banco, API e console web.
+#
+#   docker compose up -d --build     sobe tudo (console em http://localhost:8080)
+#   docker compose up -d postgres    sobe só o banco, para o ciclo de dev com hot reload
+#   docker compose run --rm migrate  aplica as migrações sem subir a aplicação
+#
+# As variáveis vêm do .env da raiz (veja .env.example).
 services:
   postgres:
     image: postgres:16-alpine
@@ -19,6 +23,79 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: railpulse-cco-backend:${APP_VERSION:-dev}
+    container_name: railpulse-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3333
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-railpulse_cco}
+      # Obrigatório: sem ele o boot falha em NODE_ENV=production. Defina no .env.
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      # O console é servido pela mesma origem do nginx; a lista só importa se a
+      # API for exposta a outro domínio.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      DB_MIGRATE_ON_BOOT: ${DB_MIGRATE_ON_BOOT:-true}
+      # Desligue em produção real: as credenciais de demonstração são públicas.
+      DB_SEED_ON_BOOT: ${DB_SEED_ON_BOOT:-true}
+      TELEMETRY_INTERVAL_MS: ${TELEMETRY_INTERVAL_MS:-3000}
+      TELEMETRY_RETENTION_DAYS: ${TELEMETRY_RETENTION_DAYS:-7}
+    ports:
+      - '${PORT:-3333}:3333'
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: railpulse-cco-frontend:${APP_VERSION:-dev}
+    container_name: railpulse-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      BACKEND_ORIGIN: http://backend:3333
+    ports:
+      - '${WEB_PORT:-8080}:8080'
+
+  # Passo de deploy: aplica as migrações pendentes e sai. Não sobe com o `up`.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: railpulse-cco-backend:${APP_VERSION:-dev}
+    profiles: ['tools']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-railpulse_cco}
+      JWT_SECRET: ${JWT_SECRET:-}
+    command: ['node', 'backend/dist/infrastructure/database/migrate.cli.js', 'up']
+    restart: 'no'
 
 volumes:
   railpulse-pgdata:
