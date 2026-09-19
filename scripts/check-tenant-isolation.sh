@@ -111,4 +111,49 @@ STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/api/incident
 EQUIPE_OUTRO="$(get "$TOKEN_OUTRO" /api/team)"
 if grep -q 'Lívia Nakamura' <<<"$EQUIPE_OUTRO"; then fail "equipe de linha-uni vazou para a sessão de metro-ci"; fi
 
+# --- Alarmes, comunicações e procedimentos ---------------------------------
+# As três seções mais novas também pendem da linha. Abrir uma ocorrência gera
+# um alarme persistido: ele tem de aparecer para quem abriu e para mais ninguém.
+MARCA="ISOLAMENTO-$$"
+curl -sf -o /dev/null -X POST "$BASE_URL/api/incidents" \
+  -H "Authorization: Bearer $TOKEN_UNI" -H 'Content-Type: application/json' \
+  -d "{\"title\":\"$MARCA\",\"description\":\"Ocorrência de verificação do isolamento.\",\"category\":\"ENERGIA\",\"severity\":\"CRÍTICA\"}" \
+  || fail "não foi possível abrir a ocorrência de verificação em linha-uni"
+
+# A gravação do alarme é assíncrona em relação à resposta da ocorrência.
+for _ in $(seq 1 10); do
+  ALARMES_UNI="$(get "$TOKEN_UNI" '/api/alarms?limit=50')"
+  grep -q "$MARCA" <<<"$ALARMES_UNI" && break
+  sleep 1
+done
+grep -q "$MARCA" <<<"$ALARMES_UNI" || fail "o alarme da ocorrência não chegou à Central de Alarmes de linha-uni"
+
+ALARMES_OUTRO="$(get "$TOKEN_OUTRO" '/api/alarms?limit=50')"
+if grep -q "$MARCA" <<<"$ALARMES_OUTRO"; then fail "alarme de linha-uni vazou para a sessão de metro-ci"; fi
+
+# Comunicação registrada num cliente não aparece no diário do outro.
+curl -sf -o /dev/null -X POST "$BASE_URL/api/communications" \
+  -H "Authorization: Bearer $TOKEN_UNI" -H 'Content-Type: application/json' \
+  -d "{\"channel\":\"RADIO_TREM\",\"direction\":\"ENVIADA\",\"message\":\"$MARCA — contato de verificação.\"}" \
+  || fail "não foi possível registrar a comunicação de verificação em linha-uni"
+
+COMUNICACOES_OUTRO="$(get "$TOKEN_OUTRO" '/api/communications?limit=50')"
+if grep -q "$MARCA" <<<"$COMUNICACOES_OUTRO"; then fail "comunicação de linha-uni vazou para a sessão de metro-ci"; fi
+
+# Uma comunicação citando estação da outra linha é recusada pela malha da sessão.
+STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/api/communications" \
+  -H "Authorization: Bearer $TOKEN_UNI" -H 'Content-Type: application/json' \
+  -d '{"channel":"RADIO_TREM","direction":"ENVIADA","stationCode":"JAB","message":"Contato com estação de outro cliente."}')"
+[ "$STATUS" = "400" ] || fail "comunicação em estação de outra linha devolveu HTTP $STATUS, esperado 400"
+
+# O manual é da linha: metro-ci nasce com o seu próprio, vazio, e não herda o de linha-uni.
+PROCEDIMENTOS_UNI="$(get "$TOKEN_UNI" /api/procedures)"
+PROCEDIMENTOS_OUTRO="$(get "$TOKEN_OUTRO" /api/procedures)"
+grep -q 'frenagem de emergência' <<<"$PROCEDIMENTOS_UNI" \
+  || fail "a sessão de linha-uni não recebeu o manual semeado da sua linha"
+if grep -q 'frenagem de emergência' <<<"$PROCEDIMENTOS_OUTRO"; then
+  fail "o manual de linha-uni vazou para a sessão de metro-ci"
+fi
+echo "  Alarme, comunicação e manual ficaram na linha de origem."
+
 echo "OK: os dois clientes coexistem sem enxergar a operação um do outro."

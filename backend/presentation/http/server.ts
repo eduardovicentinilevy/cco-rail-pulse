@@ -11,6 +11,7 @@ import { TelemetryArchiver } from '../../application/services/TelemetryArchiver'
 import { runMigrations } from '../../infrastructure/database/migrations';
 import { closeDatabase, db } from '../../infrastructure/database/postgres';
 import { domainEventBus } from '../../application/events/event-bus';
+import { AlarmRepository } from '../../infrastructure/database/repositories/AlarmRepository';
 
 const logger = createLogger('BOOT');
 
@@ -27,6 +28,14 @@ const io = new SocketIOServer(server, {
 });
 
 registerCcoGateway(io, registry);
+
+// Persiste todo alerta de domínio na Central de Alarmes — o feed ao vivo do painel
+// some ao recarregar a página; esta tabela é o histórico que sobrevive entre turnos.
+domainEventBus.on('system:alert', ({ lineId, payload }) => {
+  AlarmRepository.create({ lineId, severity: payload.severity, message: payload.message }).catch((error) =>
+    logger.error('Falha ao persistir alarme.', error),
+  );
+});
 
 // Sem este handler, uma porta ocupada derruba o processo com stack trace bruto.
 server.on('error', (error: NodeJS.ErrnoException) => {

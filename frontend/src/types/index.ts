@@ -148,6 +148,81 @@ export interface IncidentStats {
   averageResolutionMinutes: number | null;
 }
 
+// --- Central de Alarmes -----------------------------------------------------
+
+/** Alarme persistido — histórico entre turnos, diferente do feed ao vivo (sessão apenas). */
+export interface AlarmLogEntry {
+  id: string;
+  severity: AlarmLevel;
+  message: string;
+  createdAt: string;
+  acknowledgedBy: string | null;
+  acknowledgedAt: string | null;
+}
+
+export interface AlarmStats {
+  total: number;
+  unacknowledged: number;
+  criticalUnacknowledged: number;
+  last24h: number;
+}
+
+// --- Comunicações ------------------------------------------------------------
+
+export const COMMUNICATION_CHANNELS = [
+  'RADIO_TREM',
+  'RADIO_MANUTENCAO',
+  'RADIO_SEGURANCA',
+  'TELEFONE',
+  'PRESENCIAL',
+] as const;
+export type CommunicationChannel = (typeof COMMUNICATION_CHANNELS)[number];
+
+export const COMMUNICATION_DIRECTIONS = ['ENVIADA', 'RECEBIDA'] as const;
+export type CommunicationDirection = (typeof COMMUNICATION_DIRECTIONS)[number];
+
+export interface ChannelOption {
+  value: CommunicationChannel;
+  label: string;
+}
+
+export interface Communication {
+  id: string;
+  channel: CommunicationChannel;
+  direction: CommunicationDirection;
+  stationCode: string | null;
+  trainId: string | null;
+  operatorId: string;
+  message: string;
+  createdAt: string;
+}
+
+// --- Procedimentos operacionais ----------------------------------------------
+
+export const PROCEDURE_CATEGORIES = [
+  'EMERGENCIA',
+  'ENERGIA',
+  'SINALIZACAO',
+  'METEOROLOGIA',
+  'EVACUACAO',
+  'SEGURANCA',
+] as const;
+export type ProcedureCategory = (typeof PROCEDURE_CATEGORIES)[number];
+
+export interface ProcedureCategoryOption {
+  value: ProcedureCategory;
+  label: string;
+}
+
+export interface Procedure {
+  id: string;
+  category: ProcedureCategory;
+  title: string;
+  summary: string;
+  steps: string[];
+  updatedAt: string;
+}
+
 // --- Equipe ----------------------------------------------------------------
 
 export const OPERATOR_ROLES = ['OPERADOR', 'SUPERVISOR', 'ADMIN'] as const;

@@ -481,28 +481,6 @@
   pointer-events: none;
 }
 
-.rp-map__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-4);
-  font-size: var(--fs-2xs);
-  color: var(--uni-text-muted);
-}
-
-.rp-map__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.rp-map__legend-train {
-  width: 1.4rem;
-  height: 0.7rem;
-  border: 1.5px solid var(--uni-orange);
-  background-color: var(--uni-bg-card);
-  border-radius: 3px;
-}
-
 /* --- Alternador de visualização --------------------------------------------- */
 .rp-segmented {
   display: inline-flex;

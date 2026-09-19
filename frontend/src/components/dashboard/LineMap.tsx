@@ -159,21 +159,6 @@ export const LineMap: React.FC<LineMapProps> = ({
           );
         })}
       </svg>
-
-      <div className="rp-map__legend">
-        <span className="rp-map__legend-item">
-          <span className="rp-dot" data-status="NORMAL" /> Nominal
-        </span>
-        <span className="rp-map__legend-item">
-          <span className="rp-dot" data-status="ATENÇÃO" /> Atenção
-        </span>
-        <span className="rp-map__legend-item">
-          <span className="rp-dot" data-status="CRÍTICO" /> Crítico
-        </span>
-        <span className="rp-map__legend-item">
-          <span className="rp-map__legend-train" aria-hidden="true" /> Composição em circulação
-        </span>
-      </div>
     </div>
   );
 };

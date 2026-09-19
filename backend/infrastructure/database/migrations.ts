@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 import type { PoolClient } from 'pg';
 import { db, withTransaction } from './postgres';
 import { env } from '../../config/env';
-import { LINHA_UNI_SEED, SEED_TEAM, SEED_TRAINS } from './seeds/linha-uni';
+import { LINHA_UNI_SEED, SEED_PROCEDURES, SEED_TEAM, SEED_TRAINS } from './seeds/linha-uni';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('DB-MIGRATE');
@@ -130,6 +130,45 @@ const OPERATIONAL_DDL = `
     readings    INTEGER NOT NULL,
     UNIQUE (station_id, bucket_at)
   );
+
+  -- Histórico persistido de alarmes: o feed ao vivo do painel vive só na sessão do
+  -- navegador, então sem esta tabela um alarme desaparece ao recarregar a página.
+  -- Um alarme nasce da telemetria de uma estação, então pende da linha.
+  CREATE TABLE IF NOT EXISTS alarms (
+    id               SERIAL PRIMARY KEY,
+    line_id          UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    severity         VARCHAR(20) NOT NULL,
+    message          TEXT NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    acknowledged_by  VARCHAR(50),
+    acknowledged_at  TIMESTAMPTZ
+  );
+
+  -- Registro de comunicação do CCO com maquinistas e estações da própria linha.
+  CREATE TABLE IF NOT EXISTS communications (
+    id            SERIAL PRIMARY KEY,
+    line_id       UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    channel       VARCHAR(30) NOT NULL,
+    direction     VARCHAR(20) NOT NULL,
+    station_code  VARCHAR(10),
+    train_id      VARCHAR(20),
+    operator_id   VARCHAR(50) NOT NULL,
+    message       TEXT NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  -- Biblioteca de procedimentos. Também pende da linha: o texto cita estações,
+  -- subestações e acidentes geográficos da malha a que pertence.
+  CREATE TABLE IF NOT EXISTS procedures (
+    id          SERIAL PRIMARY KEY,
+    line_id     UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    category    VARCHAR(40) NOT NULL,
+    title       VARCHAR(160) NOT NULL,
+    summary     TEXT NOT NULL,
+    steps       JSONB NOT NULL,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (line_id, title)
+  );
 `;
 
 /** Índices das tabelas operacionais — sempre com o discriminador de cliente à frente. */
@@ -139,6 +178,9 @@ const INDEX_DDL = `
   CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents (line_id, status, opened_at DESC);
   CREATE INDEX IF NOT EXISTS idx_incidents_station ON incidents (line_id, station_code);
   CREATE INDEX IF NOT EXISTS idx_telemetry_bucket ON telemetry_samples (station_id, bucket_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_alarms_created_at ON alarms (line_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_communications_created_at ON communications (line_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_procedures_category ON procedures (line_id, category);
 `;
 
 const hasColumn = async (table: string, column: string): Promise<boolean> => {
@@ -183,6 +225,7 @@ export const runMigrations = async (): Promise<void> => {
 
   await seedOperators(tenantId);
   await seedTrains(lineId);
+  await seedProcedures(lineId);
 
   logger.info('Carga inicial (auto-seeding) sincronizada.');
 };
@@ -338,7 +381,43 @@ const upgradeLegacySchema = async (tenantId: string, lineId: string): Promise<vo
     });
     logger.info('telemetry_samples migrada: série amarrada à estação da linha.');
   }
+
+  // As três tabelas abaixo nasceram junto com as seções de Alarmes, Comunicações
+  // e Procedimentos, antes de existir noção de cliente: num banco que já rodou
+  // aquela versão elas existem sem `line_id`.
+  for (const table of ['alarms', 'communications'] as const) {
+    if (await hasColumn(table, 'line_id')) continue;
+    await withTransaction(async (client) => {
+      await client.query(`ALTER TABLE ${table} ADD COLUMN line_id UUID`);
+      await client.query(`UPDATE ${table} SET line_id = $1 WHERE line_id IS NULL`, [lineId]);
+      await client.query(`ALTER TABLE ${table} ALTER COLUMN line_id SET NOT NULL`);
+      await client.query(
+        `ALTER TABLE ${table} ADD CONSTRAINT ${table}_line_fkey
+         FOREIGN KEY (line_id) REFERENCES lines(id) ON DELETE CASCADE`,
+      );
+    });
+    logger.info(`${table} migrada: amarrada à linha.`);
+  }
+
+  if (!(await hasColumn('procedures', 'line_id'))) {
+    // O título era único no banco inteiro; passa a ser único dentro da linha,
+    // senão dois clientes não podem ter o mesmo procedimento no seu manual.
+    const uniques = await constraintNames('procedures', 'u');
+    await withTransaction(async (client) => {
+      await client.query(`ALTER TABLE procedures ADD COLUMN line_id UUID`);
+      await client.query(`UPDATE procedures SET line_id = $1 WHERE line_id IS NULL`, [lineId]);
+      await client.query(`ALTER TABLE procedures ALTER COLUMN line_id SET NOT NULL`);
+      await dropConstraints(client, 'procedures', uniques);
+      await client.query(`ALTER TABLE procedures ADD CONSTRAINT procedures_line_title_key UNIQUE (line_id, title)`);
+      await client.query(
+        `ALTER TABLE procedures ADD CONSTRAINT procedures_line_fkey
+         FOREIGN KEY (line_id) REFERENCES lines(id) ON DELETE CASCADE`,
+      );
+    });
+    logger.info('procedures migrada: manual por linha, título único dentro dela.');
+  }
 };
+
 
 /**
  * Renomeia o perfil `OPERATOR_SOC` (jargão de centro de operações de segurança,
@@ -400,6 +479,23 @@ const seedTrains = async (lineId: string): Promise<void> => {
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (line_id, train_id) DO NOTHING`,
       [lineId, trainId, stationCode, speed, voltage, status],
+    );
+  }
+};
+
+/**
+ * Biblioteca de procedimentos da linha.
+ *
+ * DO NOTHING pelo mesmo motivo das estações: um procedimento ajustado pelo
+ * cliente não pode ser sobrescrito pela carga inicial a cada boot.
+ */
+const seedProcedures = async (lineId: string): Promise<void> => {
+  for (const procedure of SEED_PROCEDURES) {
+    await db.query(
+      `INSERT INTO procedures (line_id, category, title, summary, steps)
+       VALUES ($1, $2, $3, $4, $5::jsonb)
+       ON CONFLICT (line_id, title) DO NOTHING`,
+      [lineId, procedure.category, procedure.title, procedure.summary, JSON.stringify(procedure.steps)],
     );
   }
 };

@@ -11,6 +11,9 @@ import { incidentRouter } from './routes/incident.routes';
 import { teamRouter } from './routes/team.routes';
 import { shiftRouter } from './routes/shift.routes';
 import { healthRouter } from './routes/health.routes';
+import { alarmRouter } from './routes/alarm.routes';
+import { communicationRouter } from './routes/communication.routes';
+import { procedureRouter } from './routes/procedure.routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import type { SimulationRegistry } from '../../application/services/SimulationRegistry';
 
@@ -40,6 +43,9 @@ export const createApp = (registry: SimulationRegistry): Express => {
   app.use('/api/incidents', incidentRouter);
   app.use('/api/team', teamRouter);
   app.use('/api/shift', shiftRouter);
+  app.use('/api/alarms', alarmRouter);
+  app.use('/api/communications', communicationRouter);
+  app.use('/api/procedures', procedureRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

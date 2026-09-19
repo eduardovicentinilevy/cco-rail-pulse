@@ -1,6 +1,6 @@
 // frontend/src/components/views/HistoryView.tsx
 import React, { useCallback, useMemo, useState } from 'react';
-import { Area, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { HistorySample, HistorySummaryRow, OperatorSession, Station } from '../../types';
 import { api } from '../../services/api';
 import { EmptyState } from '../common/EmptyState';
@@ -162,17 +162,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
             <div style={{ width: '100%', height: 300 }}>
               <ResponsiveContainer>
                 <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 4, left: -12 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--uni-border)" vertical={false} />
                   <XAxis
                     dataKey="bucketAt"
-                    stroke="#a3a3a3"
+                    stroke="var(--uni-text-muted)"
                     fontSize={10}
                     tickMargin={8}
                     minTickGap={32}
                     tickFormatter={axisFormatter(hours)}
                   />
                   <YAxis
-                    stroke="#a3a3a3"
+                    stroke="var(--uni-text-muted)"
                     fontSize={10}
                     width={56}
                     domain={['dataMin - 0.3', 'dataMax + 0.3']}
@@ -180,12 +180,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#141414',
-                      border: '1px solid #2e2e2e',
+                      backgroundColor: 'var(--uni-bg-secondary)',
+                      border: '1px solid var(--uni-border)',
                       borderRadius: 8,
                       fontSize: 12,
+                      color: 'var(--uni-text-main)',
                     }}
-                    labelStyle={{ color: '#a3a3a3' }}
+                    labelStyle={{ color: 'var(--uni-text-muted)' }}
                     labelFormatter={(value) => DAY_TIME_FORMAT.format(new Date(String(value)))}
                     formatter={(value, name) => {
                       if (Array.isArray(value)) {
@@ -193,10 +194,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
                       }
                       return [`${Number(value).toFixed(2)} kV`, name === 'avg' ? 'Média da janela' : String(name)];
                     }}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                    formatter={(value) => (value === 'avg' ? 'Média da janela' : 'Faixa min/máx')}
                   />
                   <Area
                     type="monotone"

@@ -2,8 +2,8 @@
 
 Status: **implementado.** As duas decisões da seção 7 foram confirmadas (banco
 compartilhado com `tenant_id`; id interno do operador com credencial única por
-cliente) e o PR 1 da seção 8 está entregue. Dois pontos saíram diferentes do que
-este documento propunha; estão anotados na seção 9.
+cliente) e o PR 1 da seção 8 está entregue. O que saiu diferente do que este
+documento propunha está anotado na seção 9.
 
 ## 1. O problema hoje
 
@@ -159,7 +159,7 @@ passa a ser cadastro, não fork.
 
 ## 9. O que saiu diferente do proposto
 
-Dois pontos mudaram durante a implementação, ambos por honestidade de schema:
+O que mudou entre o desenho e o que foi entregue:
 
 - **`map_x`/`map_y` no lugar de `latitude`/`longitude`.** O que estava preso no
   `LineMap.tsx` não era cartografia: eram coordenadas do `viewBox` do SVG. Gravá-las
@@ -181,3 +181,13 @@ Dois pontos mudaram durante a implementação, ambos por honestidade de schema:
   dentro de um componente compartilhado: mantida, desenharia o Tietê sobre a linha
   de qualquer cliente. Decoração de mapa por linha entra no PR 2, junto com a
   identidade visual.
+
+- **As três seções que chegaram durante o trabalho também pendem da linha.**
+  Enquanto este passo era implementado, a master ganhou Central de Alarmes,
+  Comunicações e Procedimentos, com tabelas sem noção de cliente. Elas entraram
+  no desenho pela mesma regra das demais: `alarms` e `communications` pendem de
+  `line_id` porque descrevem a operação de uma linha, e `procedures` também,
+  porque o texto do manual cita estações e subestações da própria malha. O
+  título do procedimento, que era único no banco inteiro, passou a ser único
+  dentro da linha — senão dois clientes não poderiam ter o mesmo procedimento no
+  seu manual. Quem já rodou aquela versão é convertido no boot, como as demais.
