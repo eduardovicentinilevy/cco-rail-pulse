@@ -243,4 +243,63 @@ export const api = {
       { token },
     );
   },
+
+  // --- Central de Alarmes ---------------------------------------------------
+
+  alarms: (
+    token: string,
+    params: { limit: number; offset: number; severity?: string; acknowledged?: boolean; search?: string },
+  ) => {
+    const query = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+    if (params.severity) query.set('severity', params.severity);
+    if (params.acknowledged !== undefined) query.set('acknowledged', String(params.acknowledged));
+    if (params.search?.trim()) query.set('search', params.search.trim());
+    return request<{ items: unknown[]; total: number; limit: number; offset: number }>(
+      `/api/alarms?${query.toString()}`,
+      { token },
+    );
+  },
+
+  alarmStats: (token: string) =>
+    request<{ total: number; unacknowledged: number; criticalUnacknowledged: number; last24h: number }>(
+      '/api/alarms/stats',
+      { token },
+    ),
+
+  acknowledgeAlarm: (token: string, id: string) =>
+    request<Record<string, unknown>>(`/api/alarms/${encodeURIComponent(id)}/ack`, { method: 'PATCH', token }),
+
+  // --- Comunicações ----------------------------------------------------------
+
+  communicationsMeta: (token: string) =>
+    request<{ channels: Array<{ value: string; label: string }>; directions: string[] }>(
+      '/api/communications/meta',
+      { token },
+    ),
+
+  communications: (token: string, params: { limit: number; offset: number; channel?: string; search?: string }) => {
+    const query = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+    if (params.channel) query.set('channel', params.channel);
+    if (params.search?.trim()) query.set('search', params.search.trim());
+    return request<{ items: unknown[]; total: number; limit: number; offset: number }>(
+      `/api/communications?${query.toString()}`,
+      { token },
+    );
+  },
+
+  createCommunication: (token: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>('/api/communications', { method: 'POST', token, body }),
+
+  // --- Procedimentos operacionais ---------------------------------------------
+
+  proceduresMeta: (token: string) =>
+    request<{ categories: Array<{ value: string; label: string }> }>('/api/procedures/meta', { token }),
+
+  procedures: (token: string, params: { category?: string; search?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.category) query.set('category', params.category);
+    if (params.search?.trim()) query.set('search', params.search.trim());
+    const suffix = query.toString();
+    return request<{ items: unknown[] }>(`/api/procedures${suffix ? `?${suffix}` : ''}`, { token });
+  },
 };

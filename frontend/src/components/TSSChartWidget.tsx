@@ -1,6 +1,6 @@
 // frontend/src/components/TSSChartWidget.tsx
 import React, { useMemo } from 'react';
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Station } from '../types';
 import { EmptyState } from './common/EmptyState';
 
@@ -52,10 +52,10 @@ export const TSSChartWidget: React.FC<TSSChartWidgetProps> = ({ history, seriesC
     <div style={{ width: '100%', height: 280 }}>
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: -12 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" vertical={false} />
-          <XAxis dataKey="time" stroke="#a3a3a3" fontSize={10} tickMargin={8} minTickGap={24} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--uni-border)" vertical={false} />
+          <XAxis dataKey="time" stroke="var(--uni-text-muted)" fontSize={10} tickMargin={8} minTickGap={24} />
           <YAxis
-            stroke="#a3a3a3"
+            stroke="var(--uni-text-muted)"
             fontSize={10}
             width={56}
             domain={['dataMin - 0.3', 'dataMax + 0.3']}
@@ -63,20 +63,17 @@ export const TSSChartWidget: React.FC<TSSChartWidgetProps> = ({ history, seriesC
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#141414',
-              border: '1px solid #2e2e2e',
+              backgroundColor: 'var(--uni-bg-secondary)',
+              border: '1px solid var(--uni-border)',
               borderRadius: 8,
               fontSize: 12,
+              color: 'var(--uni-text-main)',
             }}
-            labelStyle={{ color: '#a3a3a3' }}
+            labelStyle={{ color: 'var(--uni-text-muted)' }}
             formatter={(value, name) => [
               `${Number(value).toFixed(2)} kV`,
               nameByCode.get(String(name)) ?? String(name),
             ]}
-          />
-          <Legend
-            wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-            formatter={(value) => nameByCode.get(String(value)) ?? String(value)}
           />
           {seriesCodes.map((code, index) => (
             <Line
