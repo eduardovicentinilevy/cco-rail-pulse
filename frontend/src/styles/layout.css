@@ -41,18 +41,12 @@
   overflow-y: auto;
   overflow-x: hidden;
   transition: padding var(--dur-base) var(--ease);
-  /* Doze seções podem ultrapassar a altura da janela — quando isso rolar,
-     que a barra seja discreta e combine com o tema do console, não o padrão do SO. */
-  scrollbar-width: thin;
-  scrollbar-color: var(--uni-border-strong) transparent;
 }
 
+/* Doze seções podem ultrapassar a altura da janela — quando isso rolar, uma
+   trilha mais fina que o padrão global (base.css) cabe melhor nesta coluna
+   estreita; cor e track já vêm daquele estilo global via herança. */
 .rp-sidebar::-webkit-scrollbar { width: 6px; }
-.rp-sidebar::-webkit-scrollbar-track { background: transparent; }
-.rp-sidebar::-webkit-scrollbar-thumb {
-  background-color: var(--uni-border-strong);
-  border-radius: var(--radius-pill);
-}
 
 .rp-sidebar__brand {
   display: flex;

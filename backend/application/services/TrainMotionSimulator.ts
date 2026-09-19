@@ -50,6 +50,7 @@ export class TrainMotionSimulator {
   private timer: NodeJS.Timeout | null = null;
   private readonly directions = new Map<string, Direction>();
   private readonly nextAdvanceAt = new Map<string, number>();
+  private isTicking = false;
 
   constructor(
     private readonly catalog: LineCatalog,
@@ -79,26 +80,38 @@ export class TrainMotionSimulator {
   }
 
   private async tick(): Promise<void> {
-    const now = Date.now();
-    const trains = await TrainRepository.findAll(this.catalog.id);
+    // Reentrância: se uma consulta atrasar além de POLL_MS, o próximo tick do
+    // setInterval não espera o anterior terminar. Sem esta trava, dois ticks
+    // sobrepostos poderiam ver o mesmo trem como "devido" e avançá-lo duas
+    // estações de uma vez — o lock pessimista em `advance` evita corrupção de
+    // dado, mas não evita esse duplo avanço indesejado no ritmo do vaivém.
+    if (this.isTicking) return;
+    this.isTicking = true;
 
-    for (const train of trains) {
-      const dueAt = this.nextAdvanceAt.get(train.trainId);
+    try {
+      const now = Date.now();
+      const trains = await TrainRepository.findAll(this.catalog.id);
 
-      // Primeira vez que vemos este trem: agenda o próximo avanço sem mover agora,
-      // para não fazer todas as composições partirem juntas na inicialização.
-      if (dueAt === undefined) {
+      for (const train of trains) {
+        const dueAt = this.nextAdvanceAt.get(train.trainId);
+
+        // Primeira vez que vemos este trem: agenda o próximo avanço sem mover agora,
+        // para não fazer todas as composições partirem juntas na inicialização.
+        if (dueAt === undefined) {
+          this.scheduleNext(train.trainId, now);
+          continue;
+        }
+        if (now < dueAt) continue;
+
+        try {
+          await this.advance(train.trainId);
+        } catch (error) {
+          logger.error(`Falha ao avançar a composição ${train.trainId}.`, error);
+        }
         this.scheduleNext(train.trainId, now);
-        continue;
       }
-      if (now < dueAt) continue;
-
-      try {
-        await this.advance(train.trainId);
-      } catch (error) {
-        logger.error(`Falha ao avançar a composição ${train.trainId}.`, error);
-      }
-      this.scheduleNext(train.trainId, now);
+    } finally {
+      this.isTicking = false;
     }
   }
 
