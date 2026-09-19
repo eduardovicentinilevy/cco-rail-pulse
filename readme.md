@@ -43,6 +43,11 @@ O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo 
 * 🔔 **Alertas de Eventos Críticos:** Sinal sonoro sintetizado (Web Audio) e notificação do sistema para ocorrências críticas, com preferência persistida.
 * 📈 **Série Histórica de Telemetria:** Leituras agregadas por janela (mínima, média e máxima) e persistidas no PostgreSQL, com gráfico de faixa, seleção de período e poda automática por retenção.
 * 📋 **Trilha de Auditoria em Tempo Real:** Log contínuo de ações de operadores e eventos críticos de rede salvos no banco PostgreSQL.
+* 🔔 **Central de Alarmes:** Histórico persistido (entre turnos) de todo alarme gerado por ocorrências e comandos críticos, com reconhecimento pelo operador, filtros e exportação — complementa o feed ao vivo, que existe só na sessão do navegador.
+* 🚶 **Ocupação de Plataformas:** Estimativa de fluxo de passageiros por estação, combinando horário de pico e posição no traçado, com alerta de superlotação.
+* 📹 **CFTV:** Supervisão de cobertura de câmeras por estação — reportar uma falha abre, de verdade, uma ocorrência formal na fila de tratativa.
+* ☏ **Comunicações:** Diário de bordo do CCO — registro de contatos por rádio (condução, manutenção, segurança), telefone e presenciais, vinculados a estação ou composição.
+* 📘 **Procedimentos Operacionais:** Biblioteca de referência com contingências para emergência, energia, sinalização, meteorologia, evacuação e segurança, com busca e filtro por categoria.
 
 ---
 
@@ -123,16 +128,16 @@ cco-rail-pulse/
 │   │   └── use-cases/                      # Comando de trem e relatório de turno
 │   ├── infrastructure/
 │   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding
-│   │   ├── database/repositories/          # Trens, ocorrências e telemetria
+│   │   ├── database/repositories/          # Trens, ocorrências, telemetria, alarmes, comunicações e procedimentos
 │   │   ├── repositories/                   # Operadores e trilha de auditoria
 │   │   └── audit/AuditLogger.ts            # Trilha append-only em disco
 │   ├── presentation/
 │   │   ├── http/app.ts                     # Composição do Express
 │   │   ├── http/middlewares/               # JWT, permissões, rate limit, erro e 404
-│   │   ├── http/routes/                    # auth, operator, team, incidents, network, shift, audit, health
+│   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 76 testes unitários (node:test)
+│   └── tests/                              # 82 testes unitários (node:test)
 │
 └── frontend/
     └── src/
@@ -146,7 +151,7 @@ cco-rail-pulse/
         │   ├── common/                     # Modal, ConfirmDialog, CommandPalette, Toast…
         │   ├── layout/                     # Cabeçalho e navegação lateral
         │   ├── dashboard/                  # Esquemático ATS, mapa da linha, grade, terminal
-        │   ├── views/                      # As doze seções do console
+        │   ├── views/                      # As dezessete seções do console
         │   └── reports/AuditLogsView.tsx   # Trilha de auditoria paginada
         └── App.tsx
 ```
@@ -158,12 +163,17 @@ cco-rail-pulse/
 | **Painel executivo** | KPIs da malha, estações em alerta e últimas ocorrências |
 | **Malha ATS** | Esquemático da via com trens reais, grade de estações e terminal de comandos |
 | **Ocorrências** | Registro, tratativa e resolução com MTTR e trilha de auditoria |
+| **Central de Alarmes** | Histórico persistido de alarmes, com reconhecimento e exportação |
+| **Ocupação** | Estimativa de fluxo de passageiros por estação, com alerta de superlotação |
+| **CFTV** | Cobertura de câmeras por estação, com abertura de ocorrência ao reportar falha |
 | **Telemetria TSS** | Tensão por subestação em tempo real e comparação de curvas |
 | **Série histórica** | Janelas agregadas (mín./méd./máx.) persistidas, por período |
 | **Saúde de ativos** | Carga estimada dos transformadores a partir do afundamento de tensão |
 | **Relatórios & KPIs** | Indicadores derivados do estado corrente e exportação CSV |
 | **Escala & partidas** | Aderência à tabela horária calculada pela marcha real |
 | **Passagem de turno** | Relatório consolidado do turno, pronto para impressão e assinatura |
+| **Comunicações** | Diário de bordo — contatos por rádio, telefone e presenciais com equipes de campo |
+| **Procedimentos** | Biblioteca de contingências operacionais, com busca e filtro por categoria |
 | **Equipe** | Cadastro de operadores, perfis de acesso e revogação de credenciais |
 | **Status do sistema** | Saúde da API, do banco e do barramento em tempo real, sondada a cada 15s |
 | **Configurações** | Preferências de alerta do operador e referência de atalhos de teclado |
@@ -278,7 +288,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 76 testes unitários do domínio e da infraestrutura
+npm test          # 82 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
@@ -338,6 +348,12 @@ recusa de rotas protegidas sem token.
 | `PATCH` | `/api/team/:id/active` | Supervisor+ | Revoga ou reativa a credencial |
 | `GET` | `/api/shift/report?since` | Bearer | Relatório consolidado de passagem de turno |
 | `GET` | `/api/audit-logs?limit&offset&search` | Bearer | Trilha de auditoria paginada |
+| `GET` | `/api/alarms?limit&offset&severity&acknowledged&search` | Bearer | Histórico de alarmes paginado e filtrável |
+| `GET` | `/api/alarms/stats` | Bearer | Contadores (total, pendentes, críticos pendentes, 24h) |
+| `PATCH` | `/api/alarms/:id/ack` | Bearer | Reconhece um alarme pendente |
+| `GET` | `/api/communications?limit&offset&channel&search` | Bearer | Comunicações paginadas e filtráveis |
+| `POST` | `/api/communications` | Bearer | Registra uma comunicação no diário de bordo |
+| `GET` | `/api/procedures?category&search` | Bearer | Biblioteca de procedimentos operacionais |
 | `GET` | `/health` | — | Saúde da aplicação e do banco (`503` se degradado) |
 
 ### Eventos WebSocket (`Socket.IO`)

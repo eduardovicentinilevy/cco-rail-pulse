@@ -28,6 +28,11 @@ import { AnalyticsReportsView } from './views/AnalyticsReportsView';
 import { AssetMaintenanceView } from './views/AssetMaintenanceView';
 import { TimetableDispatchView } from './views/TimetableDispatchView';
 import { IncidentsView } from './views/IncidentsView';
+import { AlarmsView } from './views/AlarmsView';
+import { OccupancyView } from './views/OccupancyView';
+import { CamerasView } from './views/CamerasView';
+import { CommunicationsView } from './views/CommunicationsView';
+import { ProceduresView } from './views/ProceduresView';
 import { TeamView } from './views/TeamView';
 import { HistoryView } from './views/HistoryView';
 import { ShiftHandoverView } from './views/ShiftHandoverView';
@@ -54,12 +59,17 @@ type TabKey =
   | 'overview'
   | 'ats'
   | 'incidents'
+  | 'alarms'
+  | 'occupancy'
+  | 'cameras'
   | 'energy'
   | 'history'
   | 'assets'
   | 'analytics'
   | 'timetable'
   | 'handover'
+  | 'comms'
+  | 'procedures'
   | 'team'
   | 'status'
   | 'settings';
@@ -78,6 +88,11 @@ const NAV_ORDER: readonly TabKey[] = [
   'team',
   'status',
   'settings',
+  'alarms',
+  'comms',
+  'procedures',
+  'occupancy',
+  'cameras',
 ];
 
 const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
@@ -87,6 +102,9 @@ const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
       { key: 'overview', label: 'Painel executivo', icon: '◉' },
       { key: 'ats', label: 'Malha ATS', icon: '⌖' },
       { key: 'incidents', label: 'Ocorrências', icon: '⚠' },
+      { key: 'alarms', label: 'Central de Alarmes', icon: '◍' },
+      { key: 'occupancy', label: 'Ocupação', icon: '◐' },
+      { key: 'cameras', label: 'CFTV', icon: '◙' },
     ],
   },
   {
@@ -103,6 +121,8 @@ const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
       { key: 'analytics', label: 'Relatórios & KPIs', icon: '◧' },
       { key: 'timetable', label: 'Escala & partidas', icon: '◔' },
       { key: 'handover', label: 'Passagem de turno', icon: '⇄' },
+      { key: 'comms', label: 'Comunicações', icon: '☏' },
+      { key: 'procedures', label: 'Procedimentos', icon: '▤' },
       { key: 'team', label: 'Equipe', icon: '⬡' },
     ],
   },
@@ -146,6 +166,9 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   /** Incrementado a cada evento `incident:changed` — sinaliza recarga à aba de ocorrências. */
   const [incidentRefresh, setIncidentRefresh] = useState(0);
   const [openIncidents, setOpenIncidents] = useState(0);
+  /** Incrementado a cada `alert:critical` — sinaliza recarga à Central de Alarmes. */
+  const [alarmRefresh, setAlarmRefresh] = useState(0);
+  const [pendingAlarms, setPendingAlarms] = useState(0);
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
@@ -285,6 +308,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
     const handleCriticalAlert = (alert: { message: string; severity?: AlarmLevel }) => {
       addAlarm('REDE', alert.message, alert.severity ?? 'INFO');
+      setAlarmRefresh((value) => value + 1);
       if (alert.severity === 'CRITICAL') notifyCritical('Alerta crítico na malha', alert.message);
     };
 
@@ -352,6 +376,22 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       cancelled = true;
     };
   }, [session.token, incidentRefresh]);
+
+  // Contador de alarmes pendentes exibido no item de navegação; recarrega a cada novo alarme.
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .alarmStats(session.token)
+      .then((stats) => {
+        if (!cancelled) setPendingAlarms(stats.unacknowledged);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session.token, alarmRefresh]);
 
   const criticalAlarms = useMemo(
     () => alarms.filter((alarm) => alarm.level === 'CRITICAL' && !alarm.acknowledged).length,
@@ -532,9 +572,13 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
     () =>
       NAV_GROUPS.map((group) => ({
         ...group,
-        items: group.items.map((item) => (item.key === 'incidents' ? { ...item, badge: openIncidents } : item)),
+        items: group.items.map((item) => {
+          if (item.key === 'incidents') return { ...item, badge: openIncidents };
+          if (item.key === 'alarms') return { ...item, badge: pendingAlarms };
+          return item;
+        }),
       })),
-    [openIncidents],
+    [openIncidents, pendingAlarms],
   );
 
   return (
@@ -697,6 +741,21 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           />
         )}
 
+        {activeTab === 'alarms' && (
+          <AlarmsView
+            session={session}
+            refreshToken={alarmRefresh}
+            onNotify={addToast}
+            onAuthError={onExpireSession}
+            onAcknowledged={() => setAlarmRefresh((value) => value + 1)}
+          />
+        )}
+
+        {activeTab === 'occupancy' && <OccupancyView stations={stations} />}
+        {activeTab === 'cameras' && (
+          <CamerasView session={session} stations={stations} onNotify={addToast} onAuthError={onExpireSession} />
+        )}
+
         {activeTab === 'energy' && <EnergyView stations={stations} history={history} />}
         {activeTab === 'history' && (
           <HistoryView session={session} stations={stations} onAuthError={onExpireSession} />
@@ -707,6 +766,16 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         {activeTab === 'handover' && (
           <ShiftHandoverView session={session} shiftStartedAt={shiftStartedAt} onAuthError={onExpireSession} />
         )}
+        {activeTab === 'comms' && (
+          <CommunicationsView
+            session={session}
+            stations={stations}
+            trains={trains}
+            onNotify={addToast}
+            onAuthError={onExpireSession}
+          />
+        )}
+        {activeTab === 'procedures' && <ProceduresView session={session} onAuthError={onExpireSession} />}
         {activeTab === 'team' && (
           <TeamView
             session={session}
