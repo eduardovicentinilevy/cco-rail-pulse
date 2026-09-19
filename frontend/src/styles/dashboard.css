@@ -194,7 +194,10 @@
 .rp-station-node:hover .rp-station-node__name { background-color: var(--uni-orange-softer); }
 
 .rp-station-node[aria-pressed='true'] .rp-station-node__name {
-  color: #fff;
+  /* Azul-marinho, não branco: sobre o laranja sólido do tema claro o branco
+     cai para ~2.5:1 de contraste (falha WCAG AA); o navy institucional
+     mantém a leitura do nome da estação em >5:1. */
+  color: var(--uni-navy);
   font-weight: 700;
   background-color: var(--uni-orange);
   border-color: var(--uni-orange);
