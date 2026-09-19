@@ -13,6 +13,7 @@ import { TrainMotionSimulator } from '../../application/services/TrainMotionSimu
 import { prepareDatabase } from '../../infrastructure/database/bootstrap';
 import { closeDatabase, db } from '../../infrastructure/database/postgres';
 import { domainEventBus } from '../../application/events/event-bus';
+import { AlarmRepository } from '../../infrastructure/database/repositories/AlarmRepository';
 
 const logger = createLogger('BOOT');
 
@@ -30,6 +31,12 @@ const io = new SocketIOServer(server, {
 });
 
 registerCcoGateway(io, simulator);
+
+// Persiste todo alerta de domínio na Central de Alarmes — o feed ao vivo do painel
+// some ao recarregar a página; esta tabela é o histórico que sobrevive entre turnos.
+domainEventBus.on('system:alert', (alert) => {
+  AlarmRepository.create(alert).catch((error) => logger.error('Falha ao persistir alarme.', error));
+});
 
 // Sem este handler, uma porta ocupada derruba o processo com stack trace bruto.
 server.on('error', (error: NodeJS.ErrnoException) => {
