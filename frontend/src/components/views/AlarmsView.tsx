@@ -1,5 +1,5 @@
 // frontend/src/components/views/AlarmsView.tsx
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AlarmLevel, AlarmLogEntry, AlarmStats, OperatorSession } from '../../types';
 import { api, ApiError } from '../../services/api';
 import { EmptyState } from '../common/EmptyState';
@@ -45,8 +45,22 @@ export const AlarmsView: React.FC<AlarmsViewProps> = ({
   const [ackFilter, setAckFilter] = useState<'ALL' | 'PENDING' | 'ACKED'>('ALL');
   const [search, setSearch] = useState('');
   const [ackingId, setAckingId] = useState<string | null>(null);
+  const [severities, setSeverities] = useState<AlarmLevel[]>(['INFO', 'WARNING', 'CRITICAL']);
 
   const debouncedSearch = useDebouncedValue(search, 350);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .alarmsMeta(session.token)
+      .then((meta) => {
+        if (!cancelled) setSeverities(meta.severities as AlarmLevel[]);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [session.token]);
 
   const load = useCallback(async () => {
     const [page, stats] = await Promise.all([
@@ -198,7 +212,7 @@ export const AlarmsView: React.FC<AlarmsViewProps> = ({
           <div className="rp-row">
             <div className="rp-chip-row" role="group" aria-label="Filtrar por severidade">
               <span className="rp-chip-row__label">Severidade</span>
-              {(['ALL', 'INFO', 'WARNING', 'CRITICAL'] as const).map((value) => (
+              {(['ALL', ...severities] as const).map((value) => (
                 <button
                   key={value}
                   type="button"

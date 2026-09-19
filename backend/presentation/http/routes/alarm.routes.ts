@@ -4,7 +4,7 @@ import { ALARM_SEVERITIES, isAlarmSeverity } from '../../../domain/alarms';
 import { AlarmRepository } from '../../../infrastructure/database/repositories/AlarmRepository';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
 import { NotFoundError } from '../../../shared/errors';
-import { routeParam } from '../../../shared/http';
+import { routeParam, toBoundedInt } from '../../../shared/http';
 import { verifyJwt } from '../middlewares/auth.middleware';
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
@@ -14,12 +14,6 @@ alarmRouter.use(verifyJwt);
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
-
-const toBoundedInt = (raw: unknown, fallback: number, min: number, max: number): number => {
-  const parsed = Number.parseInt(String(raw ?? ''), 10);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(max, Math.max(min, parsed));
-};
 
 const toOptionalBoolean = (raw: unknown): boolean | undefined => {
   if (raw === 'true') return true;

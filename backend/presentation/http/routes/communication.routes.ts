@@ -10,6 +10,7 @@ import {
 import { isKnownStation } from '../../../domain/line';
 import { CommunicationRepository } from '../../../infrastructure/database/repositories/CommunicationRepository';
 import { ValidationError } from '../../../shared/errors';
+import { toBoundedInt } from '../../../shared/http';
 import { verifyJwt } from '../middlewares/auth.middleware';
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
@@ -21,12 +22,6 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const MIN_MESSAGE_LENGTH = 5;
 const MAX_MESSAGE_LENGTH = 500;
-
-const toBoundedInt = (raw: unknown, fallback: number, min: number, max: number): number => {
-  const parsed = Number.parseInt(String(raw ?? ''), 10);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(max, Math.max(min, parsed));
-};
 
 const optionalText = (value: unknown): string | null => {
   const text = String(value ?? '').trim();

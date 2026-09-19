@@ -246,6 +246,8 @@ export const api = {
 
   // --- Central de Alarmes ---------------------------------------------------
 
+  alarmsMeta: (token: string) => request<{ severities: string[] }>('/api/alarms/meta', { token }),
+
   alarms: (
     token: string,
     params: { limit: number; offset: number; severity?: string; acknowledged?: boolean; search?: string },
