@@ -1,6 +1,7 @@
 // backend/presentation/http/routes/audit.routes.ts
 import { Router } from 'express';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
+import { toBoundedInt } from '../../../shared/http';
 import { verifyJwt } from '../middlewares/auth.middleware';
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
@@ -8,12 +9,6 @@ export const auditRouter: Router = Router();
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
-
-const toBoundedInt = (raw: unknown, fallback: number, min: number, max: number): number => {
-  const parsed = Number.parseInt(String(raw ?? ''), 10);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(max, Math.max(min, parsed));
-};
 
 auditRouter.get('/', verifyJwt, async (req: AuthenticatedRequest, res) => {
   const limit = toBoundedInt(req.query.limit, DEFAULT_LIMIT, 1, MAX_LIMIT);

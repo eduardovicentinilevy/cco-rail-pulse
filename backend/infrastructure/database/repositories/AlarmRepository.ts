@@ -104,8 +104,9 @@ export class AlarmRepository {
    * entra no WHERE: sem ela, um id chutado reconheceria o alarme de outro.
    */
   public static async acknowledge(lineId: string, id: string, credential: string): Promise<AlarmSnapshot | null> {
+    // Estrito (não `parseInt` solto): um id como "12abc" não pode reconhecer o alarme #12 por engano.
+    if (!/^\d+$/.test(id)) return null;
     const numericId = Number.parseInt(id, 10);
-    if (!Number.isFinite(numericId)) return null;
 
     const result = await db.query<AlarmRow>(
       `UPDATE alarms SET acknowledged_by = $3, acknowledged_at = NOW()

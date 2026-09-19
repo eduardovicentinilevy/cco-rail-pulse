@@ -13,7 +13,7 @@ import { IncidentRepository } from '../../../infrastructure/database/repositorie
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
 import { domainEventBus } from '../../../application/events/event-bus';
 import { NotFoundError, ValidationError } from '../../../shared/errors';
-import { routeParam } from '../../../shared/http';
+import { routeParam, toBoundedInt } from '../../../shared/http';
 import { verifyJwt, withLineCatalog } from '../middlewares/auth.middleware';
 import type { ScopedRequest } from '../middlewares/auth.middleware';
 
@@ -26,12 +26,6 @@ incidentRouter.use(verifyJwt, withLineCatalog);
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
-
-const toBoundedInt = (raw: unknown, fallback: number, min: number, max: number): number => {
-  const parsed = Number.parseInt(String(raw ?? ''), 10);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(max, Math.max(min, parsed));
-};
 
 /** Normaliza um campo opcional de texto: string vazia vira `null`. */
 const optionalText = (value: unknown): string | null => {
