@@ -75,6 +75,8 @@ const OPERATIONAL_DDL = `
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     mfa_secret     TEXT,
     mfa_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Último passo TOTP aceito: impede reusar o mesmo código dentro da tolerância (±30s).
+    mfa_last_used_step BIGINT,
     UNIQUE (tenant_id, login_id)
   );
 
@@ -306,6 +308,8 @@ const upgradeLegacySchema = async (tenantId: string, lineId: string): Promise<vo
   // Colunas do 2FA em bancos anteriores à autenticação em duas etapas.
   await db.query(`ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_secret TEXT`);
   await db.query(`ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+  // E a coluna anti-reuso de código TOTP, em bancos anteriores a ela.
+  await db.query(`ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_last_used_step BIGINT`);
 
   if (!(await hasColumn('audit_logs', 'tenant_id'))) {
     await withTransaction(async (client) => {

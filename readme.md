@@ -169,7 +169,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 101 testes unitários (node:test)
+│   └── tests/                              # 106 testes unitários (node:test)
 │
 └── frontend/
     └── src/
@@ -285,7 +285,7 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `TELEMETRY_BUCKET_SECONDS` | `60` | Janela de agregação da série histórica |
 | `TELEMETRY_RETENTION_DAYS` | `7` | Retenção da série histórica |
 | `TRAIN_COMMAND_LOCK_TIMEOUT_MS` | `4000` | Prazo do lock pessimista (`FOR UPDATE`) de um comando de trem antes de recusar com `409` |
-| `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
+| `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização — `SEED_OPERATOR_PASSWORD` é obrigatório e não pode ficar no valor padrão quando `NODE_ENV=production` (o boot falha sem isso) |
 | `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador de demonstração |
 | `DEFAULT_TENANT_SLUG` | `linha-uni` | Cliente assumido quando a requisição não traz slug |
 | `TENANT_BASE_DOMAIN` | — | Domínio base: define o cliente pelo subdomínio (`cliente.exemplo.app`) |
@@ -324,7 +324,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 101 testes unitários do domínio e da infraestrutura
+npm test          # 106 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```

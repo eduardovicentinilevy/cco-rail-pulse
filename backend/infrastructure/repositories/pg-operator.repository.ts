@@ -18,6 +18,7 @@ export interface OperatorEntity {
   is_active: boolean;
   mfa_secret: string | null;
   mfa_enabled: boolean;
+  mfa_last_used_step: string | null;
 }
 
 /** Projeção pública do operador — nunca carrega o hash da senha nem o id interno. */
@@ -74,7 +75,8 @@ export interface AuditEvent {
 }
 
 const ENTITY_COLUMNS = `
-  id, tenant_id, login_id, name, role, password_hash, avatar_url, is_active, mfa_secret, mfa_enabled
+  id, tenant_id, login_id, name, role, password_hash, avatar_url, is_active,
+  mfa_secret, mfa_enabled, mfa_last_used_step
 `;
 
 /**
@@ -121,7 +123,15 @@ export class PgOperatorRepository {
   }
 
   public async disableMfa(operatorId: string): Promise<void> {
-    await db.query(`UPDATE operators SET mfa_enabled = FALSE, mfa_secret = NULL WHERE id = $1`, [operatorId]);
+    await db.query(
+      `UPDATE operators SET mfa_enabled = FALSE, mfa_secret = NULL, mfa_last_used_step = NULL WHERE id = $1`,
+      [operatorId],
+    );
+  }
+
+  /** Registra o passo TOTP aceito — qualquer código de passo igual ou anterior passa a ser recusado. */
+  public async setMfaLastUsedStep(operatorId: string, step: number): Promise<void> {
+    await db.query(`UPDATE operators SET mfa_last_used_step = $2 WHERE id = $1`, [operatorId, step]);
   }
 
   /**
@@ -188,12 +198,17 @@ export class PgOperatorRepository {
     ]);
   }
 
-  public async setActive(tenantId: string, credential: string, isActive: boolean): Promise<void> {
-    await db.query(`UPDATE operators SET is_active = $3 WHERE tenant_id = $1 AND login_id = $2`, [
-      tenantId,
-      credential,
-      isActive,
-    ]);
+  /**
+   * Devolve a chave interna da linha alterada: quem desativa precisa dela para
+   * derrubar o socket já aberto, e o crachá sozinho não identifica o operador
+   * fora do cliente.
+   */
+  public async setActive(tenantId: string, credential: string, isActive: boolean): Promise<string | null> {
+    const result = await db.query<{ id: string }>(
+      `UPDATE operators SET is_active = $3 WHERE tenant_id = $1 AND login_id = $2 RETURNING id`,
+      [tenantId, credential, isActive],
+    );
+    return result.rows[0]?.id ?? null;
   }
 
   /** Nomes por crachá, usados para exibir responsáveis sem um segundo round-trip. */

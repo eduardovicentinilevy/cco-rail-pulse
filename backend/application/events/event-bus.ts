@@ -28,6 +28,12 @@ export interface DomainEvents {
   'train:updated': [LineEvent<TrainSnapshot>];
   'incident:changed': [LineEvent<IncidentSnapshot>];
   'system:alert': [LineEvent<SystemAlert>];
+  /**
+   * Operador desativado — o gateway WS derruba qualquer socket já aberto em nome dele.
+   * Não é evento de linha: o operador pertence ao cliente, e o id aqui é a chave
+   * interna (UUID), única em toda a instalação.
+   */
+  'operator:deactivated': [{ operatorId: string }];
 }
 
 type EventName = keyof DomainEvents;

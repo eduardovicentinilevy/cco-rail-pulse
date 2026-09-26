@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { extractBearerToken, verifyOperatorToken } from '../../../shared/jwt';
 import type { OperatorTokenPayload } from '../../../shared/jwt';
 import { lineCatalogRepository } from '../../../infrastructure/repositories/pg-line-catalog.repository';
+import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
 import type { LineCatalog } from '../../../domain/line';
 import { can } from '../../../domain/roles';
 import type { Permission } from '../../../domain/roles';
@@ -16,7 +17,19 @@ export interface ScopedRequest extends AuthenticatedRequest {
   catalog?: LineCatalog;
 }
 
-export const verifyJwt = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+/**
+ * Valida a assinatura do token E revalida o operador contra o estado atual do banco.
+ *
+ * Um JWT válido só prova que o servidor o assinou uma vez — não prova que a conta segue
+ * ativa nem que o perfil embutido nele ainda é o vigente. Sem esta segunda checagem,
+ * desativar um operador ou rebaixar seu perfil em `Equipe` não teria efeito algum sobre
+ * uma sessão já aberta até o token expirar sozinho (até `JWT_EXPIRES_IN`, um turno
+ * inteiro por padrão) — a funcionalidade de "revogar credencial" seria só decorativa.
+ * `operatorRepository.findById` já filtra `is_active = TRUE`, então um operador
+ * desativado simplesmente não é encontrado aqui, e recebe o cliente do token, então a
+ * busca nunca alcança o operador de outro cliente.
+ */
+export const verifyJwt = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   const token = extractBearerToken(req.headers.authorization);
 
   if (!token) {
@@ -24,14 +37,24 @@ export const verifyJwt = (req: AuthenticatedRequest, res: Response, next: NextFu
     return;
   }
 
-  const operator = verifyOperatorToken(token);
+  const payload = verifyOperatorToken(token);
 
-  if (!operator) {
+  if (!payload) {
     res.status(401).json({ error: 'Sessão expirada ou token inválido.', code: 'TOKEN_INVALID' });
     return;
   }
 
-  req.operator = operator;
+  const operator = await operatorRepository.findById(payload.tenantId, payload.operatorId);
+
+  if (!operator) {
+    res.status(401).json({ error: 'Credenciamento revogado ou operador inativo.', code: 'REVOKED' });
+    return;
+  }
+
+  // O escopo (cliente e linha) vem do token, que é assinado; o perfil vem sempre fresco
+  // do banco — nunca do token, que pode carregar um perfil já trocado desde que foi
+  // assinado.
+  req.operator = { ...payload, role: operator.role };
   next();
 };
 

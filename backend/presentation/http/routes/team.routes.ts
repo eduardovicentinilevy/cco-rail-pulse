@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import { env } from '../../../config/env';
 import { OPERATOR_ROLES, ROLE_LABELS, isOperatorRole } from '../../../domain/roles';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
+import { domainEventBus } from '../../../application/events/event-bus';
 import { NotFoundError, ValidationError } from '../../../shared/errors';
 import { routeParam } from '../../../shared/http';
 import { verifyJwt, requirePermission } from '../middlewares/auth.middleware';
@@ -109,7 +110,7 @@ teamRouter.patch('/:id/active', requirePermission('MANAGE_OPERATORS'), async (re
     throw new NotFoundError(`Operador ${operatorId} não encontrado.`);
   }
 
-  await operatorRepository.setActive(tenantId, operatorId, isActive);
+  const internalId = await operatorRepository.setActive(tenantId, operatorId, isActive);
   await operatorRepository.logAudit({
     tenantId,
     credential: requesterId,
@@ -117,6 +118,15 @@ teamRouter.patch('/:id/active', requirePermission('MANAGE_OPERATORS'), async (re
     target: `OPERATOR_${operatorId}`,
     status: 'EXECUTED',
   });
+
+  // O REST já para de aceitar o token dessa credencial na próxima requisição (verifyJwt
+  // revalida contra o banco); um WebSocket já aberto não faz uma nova requisição sozinho,
+  // então precisa ser derrubado explicitamente para a desativação valer imediatamente.
+  // O evento leva a chave interna, não o crachá: é por ela que o socket se identifica,
+  // e ela é única na instalação — o crachá se repete entre clientes.
+  if (!isActive && internalId) {
+    domainEventBus.emit('operator:deactivated', { operatorId: internalId });
+  }
 
   res.status(200).json({ id: operatorId, isActive });
 });

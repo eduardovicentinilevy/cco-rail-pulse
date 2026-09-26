@@ -7,7 +7,7 @@ import { operatorRepository } from '../../../infrastructure/repositories/pg-oper
 import type { OperatorEntity } from '../../../infrastructure/repositories/pg-operator.repository';
 import { lineCatalogRepository } from '../../../infrastructure/repositories/pg-line-catalog.repository';
 import { signMfaChallengeToken, signOperatorToken, verifyMfaChallengeToken } from '../../../shared/jwt';
-import { verifyTotp } from '../../../shared/totp';
+import { verifyTotpStep } from '../../../shared/totp';
 import { ValidationError } from '../../../shared/errors';
 import { RateLimiter } from '../middlewares/rate-limit.middleware';
 import { verifyJwt } from '../middlewares/auth.middleware';
@@ -44,6 +44,16 @@ const issueSession = async (res: Response, operator: OperatorEntity, lineId: str
 };
 
 const loginLimiter = new RateLimiter(env.loginMaxAttempts, env.loginWindowMs);
+/**
+ * Reforço independente de IP: a chave acima (`IP:cliente:credencial`) já limita força bruta
+ * por origem, mas `req.ip` só é confiável quando não há proxy mentindo sobre o cliente
+ * real. Este segundo limitador, chaveado só pela credencial, garante um teto total de
+ * tentativas contra uma conta específica mesmo que o componente de IP seja neutralizado
+ * (proxy mal configurado, ou simplesmente muitos IPs de verdade em paralelo). A chave
+ * é `cliente:credencial`, não a credencial solta: o teto é por conta, e a conta é do
+ * cliente.
+ */
+const loginLimiterByOperator = new RateLimiter(env.loginMaxAttempts, env.loginWindowMs);
 // Um código de 6 dígitos tem 1.000.000 de combinações — mesmo um limite folgado
 // torna a força bruta impraticável dentro da validade do desafio (5 minutos).
 const mfaLimiter = new RateLimiter(8, 60_000);
@@ -66,8 +76,12 @@ authRouter.post('/login', async (req, res) => {
   }
 
   const tenantSlug = resolveTenantSlug(req);
-  const rateKey = `${req.ip ?? 'unknown'}:${tenantSlug}:${operatorId.toUpperCase()}`;
+  // A chave da conta inclui o cliente: duas instalações podem ter a mesma credencial,
+  // e uma cota compartilhada deixaria um cliente trancar a conta homônima do outro.
+  const accountKey = `${tenantSlug}:${operatorId.toUpperCase()}`;
+  const rateKey = `${req.ip ?? 'unknown'}:${accountKey}`;
   loginLimiter.consume(rateKey);
+  loginLimiterByOperator.consume(accountKey);
 
   const tenant = await lineCatalogRepository.tenantBySlug(tenantSlug);
 
@@ -104,6 +118,7 @@ authRouter.post('/login', async (req, res) => {
   }
 
   loginLimiter.reset(rateKey);
+  loginLimiterByOperator.reset(accountKey);
 
   // Segundo fator ativo: a senha só abre um desafio de 5 minutos, nunca a sessão em si.
   if (operator.mfa_enabled) {
@@ -152,7 +167,11 @@ authRouter.post('/login/mfa', async (req, res) => {
     return res.status(401).json(invalidChallenge);
   }
 
-  if (!verifyTotp(operator.mfa_secret, code)) {
+  const step = verifyTotpStep(operator.mfa_secret, code);
+  const lastUsedStep = operator.mfa_last_used_step == null ? null : Number(operator.mfa_last_used_step);
+
+  // Código não bate, ou bate mas já foi usado (mesmo passo ou um anterior) — nunca aceitar de novo.
+  if (step === null || (lastUsedStep !== null && step <= lastUsedStep)) {
     await operatorRepository.logAudit({
       tenantId: operator.tenant_id,
       credential: operator.login_id,
@@ -168,6 +187,7 @@ authRouter.post('/login/mfa', async (req, res) => {
     throw new ValidationError('Este cliente ainda não tem uma linha cadastrada. Procure o administrador.');
   }
 
+  await operatorRepository.setMfaLastUsedStep(operator.id, step);
   mfaLimiter.reset(challenge.operatorId);
   await operatorRepository.logAudit({
     tenantId: operator.tenant_id,

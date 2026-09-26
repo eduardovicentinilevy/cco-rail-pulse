@@ -66,18 +66,36 @@ const stepAt = (at: number): number => Math.floor(at / 1000 / TOTP_PERIOD_SECOND
 
 export const currentTotp = (secret: string, at: number = Date.now()): string => hotp(base32Decode(secret), stepAt(at));
 
+/** Compara dois códigos em tempo constante — nunca `===` direto num segredo/derivado dele. */
+const safeEqual = (a: string, b: string): boolean =>
+  a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
 /**
  * Aceita o código do passo atual e de um passo antes/depois (±30s), tolerando
  * pequena dessincronia entre o relógio do servidor e o do aplicativo autenticador.
+ *
+ * Retorna o número do passo (contador de 30s) que bateu, ou `null` se nenhum bateu.
+ * O chamador que precisar de proteção contra reuso (não aceitar o MESMO código duas
+ * vezes) guarda esse valor e rejeita qualquer passo `<=` ao último aceito — ver
+ * `operatorRepository.setMfaLastUsedStep`.
  */
-export const verifyTotp = (secret: string, code: string, at: number = Date.now()): boolean => {
+export const verifyTotpStep = (secret: string, code: string, at: number = Date.now()): number | null => {
   const clean = code.trim();
-  if (!/^\d{6}$/.test(clean)) return false;
+  if (!/^\d{6}$/.test(clean)) return null;
 
   const key = base32Decode(secret);
   const counter = stepAt(at);
-  return [0, -1, 1].some((drift) => hotp(key, counter + drift) === clean);
+
+  for (const drift of [0, -1, 1]) {
+    const step = counter + drift;
+    if (safeEqual(hotp(key, step), clean)) return step;
+  }
+  return null;
 };
+
+/** Atalho booleano sobre `verifyTotpStep`, para quem não precisa rastrear reuso. */
+export const verifyTotp = (secret: string, code: string, at: number = Date.now()): boolean =>
+  verifyTotpStep(secret, code, at) !== null;
 
 /** URI padrão (`otpauth://`) reconhecido por Google Authenticator, Authy etc. */
 export const buildOtpAuthUrl = (secret: string, accountName: string, issuer = 'RailPulse CCO'): string =>
