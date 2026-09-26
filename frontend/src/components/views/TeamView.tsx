@@ -289,6 +289,8 @@ interface CreateOperatorModalProps {
 }
 
 const CREDENTIAL_PATTERN = /^[A-Z]{3}-\d{3}$/;
+/** Espelha o mínimo da política do backend; a validação completa é feita lá. */
+const MIN_PASSWORD_LENGTH = 12;
 
 const CreateOperatorModal: React.FC<CreateOperatorModalProps> = ({
   session,
@@ -305,7 +307,7 @@ const CreateOperatorModal: React.FC<CreateOperatorModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const isCredentialValid = CREDENTIAL_PATTERN.test(id);
-  const canSubmit = isCredentialValid && name.trim().length >= 3 && password.length >= 6 && !isSaving;
+  const canSubmit = isCredentialValid && name.trim().length >= 3 && password.length >= MIN_PASSWORD_LENGTH && !isSaving;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -399,10 +401,13 @@ const CreateOperatorModal: React.FC<CreateOperatorModalProps> = ({
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="Mínimo de 6 caracteres"
+            placeholder={`Mínimo de ${MIN_PASSWORD_LENGTH} caracteres`}
             required
           />
-          <span className="rp-hint">A senha é armazenada apenas como hash bcrypt.</span>
+          <span className="rp-hint">
+            Use maiúscula, minúscula, número e símbolo. É armazenada apenas como hash bcrypt e o operador terá de
+            trocá-la no primeiro acesso.
+          </span>
         </div>
 
         {error && (

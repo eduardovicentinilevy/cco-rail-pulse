@@ -7,9 +7,11 @@ import { operatorRepository } from '../../infrastructure/repositories/pg-operato
 import { isTrainCommand } from '../../domain/entities/TrainSession';
 import type { TrainCommand } from '../../domain/entities/TrainSession';
 import { verifyOperatorToken, extractBearerToken } from '../../shared/jwt';
+import { authSessionService } from '../../infrastructure/auth/session-service';
 import { createLogger } from '../../shared/logger';
 import { AppError } from '../../shared/errors';
 import { RateLimiter } from '../http/middlewares/rate-limit.middleware';
+import { rateLimitStore } from '../../infrastructure/rate-limit/pg-rate-limit.store';
 import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 import type { OperatorTokenPayload } from '../../shared/jwt';
 
@@ -32,7 +34,7 @@ const resolveCommand = (raw: unknown): TrainCommand | null => {
 const MAX_IDENTIFIER_LENGTH = 20;
 
 /** Por operador (não por socket): reconectar não reabre a cota. Reaproveita o limitador já usado no login. */
-const commandLimiter = new RateLimiter(20, 10_000);
+const commandLimiter = new RateLimiter(20, 10_000, rateLimitStore);
 
 interface AuthenticatedSocket extends Socket {
   operator?: OperatorTokenPayload;
@@ -65,7 +67,14 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
       return;
     }
 
-    socket.operator = { operatorId: operator.id, role: operator.role };
+    // A sessão pode ter sido revogada depois da emissão do token: o socket fica
+    // aberto por horas, então conferir só a assinatura deixaria o canal vivo.
+    if (!(await authSessionService.isActive(payload.sessionId))) {
+      next(new Error('UNAUTHORIZED'));
+      return;
+    }
+
+    socket.operator = { operatorId: operator.id, role: operator.role, sessionId: payload.sessionId };
     next();
   });
 
@@ -128,7 +137,7 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
         // trem permanentemente disputado, fazendo outros operadores levarem 409 com
         // frequência — o próprio mecanismo de segurança de concorrência virando negação
         // de serviço contra um trem específico.
-        commandLimiter.consume(operator.operatorId);
+        await commandLimiter.consume(`ws-command:${operator.operatorId}`);
 
         // Adquire o lock pessimista, valida, audita, executa e emite — tudo dentro do
         // use case; ver ProcessTrainCommand.ts para o ciclo de vida completo e a

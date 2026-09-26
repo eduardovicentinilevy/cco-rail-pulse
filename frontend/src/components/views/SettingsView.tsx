@@ -4,6 +4,7 @@ import type { OperatorSession } from '../../types';
 import type { CriticalAlerts } from '../../hooks/useCriticalAlerts';
 import { roleLabel } from '../../lib/permissions';
 import { MfaSettingsCard } from './MfaSettingsCard';
+import { PasswordSettingsCard } from './PasswordSettingsCard';
 
 interface SettingsViewProps {
   session: OperatorSession;
@@ -107,6 +108,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ session, alerts, onA
             />
           </div>
         </section>
+
+        <PasswordSettingsCard onAuthError={onAuthError} />
 
         <MfaSettingsCard token={session.token} onAuthError={onAuthError} />
       </div>

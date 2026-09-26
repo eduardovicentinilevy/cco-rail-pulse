@@ -3,6 +3,8 @@ import bcrypt from 'bcrypt';
 import { db } from './postgres';
 import { env } from '../../config/env';
 import { LINE_STATIONS } from '../../domain/line';
+import { generateCompliantPassword } from '../../domain/password-policy';
+import { operatorRepository } from '../repositories/pg-operator.repository';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('DB-MIGRATE');
@@ -24,6 +26,42 @@ const DDL = `
   -- Self-healing: bancos criados antes do 2FA não têm essas colunas.
   ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_secret TEXT;
   ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+  ALTER TABLE operators ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
+  ALTER TABLE operators ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ;
+
+  -- Uma linha por geração de refresh token. Revogar é um UPDATE aqui, então vale
+  -- na hora para todas as instâncias — inclusive para access tokens ainda válidos.
+  CREATE TABLE IF NOT EXISTS auth_sessions (
+    id UUID PRIMARY KEY,
+    family_id UUID NOT NULL,
+    operator_id VARCHAR(50) NOT NULL REFERENCES operators (id) ON DELETE CASCADE,
+    refresh_token_hash CHAR(64) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    absolute_expires_at TIMESTAMPTZ NOT NULL,
+    rotated_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    revoked_reason VARCHAR(50),
+    ip VARCHAR(64),
+    user_agent TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_auth_sessions_family ON auth_sessions (family_id);
+  CREATE INDEX IF NOT EXISTS idx_auth_sessions_operator ON auth_sessions (operator_id);
+  CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions (absolute_expires_at);
+
+  -- Contador de rate limit compartilhado: o incremento é atômico, então o teto
+  -- vale para o conjunto das instâncias e não por processo.
+  CREATE TABLE IF NOT EXISTS rate_limit_hits (
+    bucket_key TEXT NOT NULL,
+    window_start BIGINT NOT NULL,
+    hits INTEGER NOT NULL DEFAULT 0,
+    expires_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (bucket_key, window_start)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_rate_limit_expires ON rate_limit_hits (expires_at);
+
   -- Impede o reuso do mesmo código TOTP dentro da janela de tolerância (±30s).
   ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_last_used_step BIGINT;
 
@@ -129,7 +167,7 @@ const SEED_TRAINS: ReadonlyArray<[trainId: string, stationCode: string, speed: n
   ['T-12', '14B', 48, 24.6, 'NORMAL'],
 ];
 
-/** Equipe de plantão semeada para demonstrar o cadastro e os perfis de acesso. */
+/** Equipe de plantão de vitrine, semeada apenas fora de produção. */
 const SEED_TEAM: ReadonlyArray<[id: string, name: string, role: string]> = [
   ['MAR-109', 'Marina Rezende', 'OPERADOR'],
   ['SOU-012', 'Sousa Okamoto', 'OPERADOR'],
@@ -245,40 +283,114 @@ const renameLegacyOperatorRole = async (): Promise<void> => {
   }
 };
 
-export const runMigrations = async (): Promise<void> => {
-  await db.query(DDL);
-  await renameLegacyOperatorRole();
-  logger.info('Schema verificado (self-healing DDL aplicado).');
-
-  const passwordHash = await bcrypt.hash(env.seedOperatorPassword, env.bcryptRounds);
-  const seeded = await db.query(
-    `INSERT INTO operators (id, name, role, password_hash, avatar_url, is_active)
-     VALUES ($1, $2, $3, $4, NULL, TRUE)
-     ON CONFLICT (id) DO NOTHING
-     RETURNING id`,
-    [env.seedOperatorId, env.seedOperatorName, env.seedOperatorRole, passwordHash],
-  );
-
-  if (seeded.rowCount && seeded.rowCount > 0) {
-    logger.info(`Operador padrão "${env.seedOperatorId}" criado como ${env.seedOperatorRole}.`);
-  } else {
-    // Mantém o perfil do operador de demonstração alinhado à configuração,
+/**
+ * Cria o operador inicial.
+ *
+ * Nenhuma senha vem no código. Com `SEED_OPERATOR_PASSWORD` a senha informada é
+ * usada (já validada contra a política na carga do `env`); sem ela, o boot sorteia
+ * uma senha de primeiro acesso e a imprime uma única vez. Nos dois casos a conta
+ * nasce marcada para troca obrigatória, de modo que a credencial semeada nunca
+ * permanece válida depois do primeiro login.
+ */
+const seedInitialOperator = async (): Promise<void> => {
+  if (await operatorRepository.exists(env.seedOperatorId)) {
+    // Mantém o perfil do operador inicial alinhado à configuração,
     // sem jamais sobrescrever a senha de uma conta já existente.
     await db.query(`UPDATE operators SET role = $2 WHERE id = $1 AND role <> $2`, [
       env.seedOperatorId,
       env.seedOperatorRole,
     ]);
+    return;
   }
 
-  // A equipe de plantão compartilha a senha padrão apenas em ambiente de demonstração.
-  for (const [id, name, role] of SEED_TEAM) {
-    await db.query(
-      `INSERT INTO operators (id, name, role, password_hash, is_active)
-       VALUES ($1, $2, $3, $4, TRUE)
-       ON CONFLICT (id) DO NOTHING`,
-      [id, name, role, passwordHash],
-    );
+  const password = env.seedOperatorPassword ?? generateCompliantPassword();
+  const passwordHash = await bcrypt.hash(password, env.bcryptRounds);
+
+  await db.query(
+    `INSERT INTO operators (id, name, role, password_hash, avatar_url, is_active, must_change_password)
+     VALUES ($1, $2, $3, $4, NULL, TRUE, TRUE)
+     ON CONFLICT (id) DO NOTHING`,
+    [env.seedOperatorId, env.seedOperatorName, env.seedOperatorRole, passwordHash],
+  );
+
+  logger.info(`Operador inicial "${env.seedOperatorId}" criado como ${env.seedOperatorRole}.`);
+
+  if (env.seedOperatorPassword) {
+    logger.info('Senha inicial lida de SEED_OPERATOR_PASSWORD. A troca será exigida no primeiro acesso.');
+    return;
   }
+
+  logger.warn(
+    [
+      '',
+      '  ┌───────────────────────────────────────────────────────────────────┐',
+      '  │ SENHA DE PRIMEIRO ACESSO — exibida uma única vez                  │',
+      `  │ Credencial: ${env.seedOperatorId.padEnd(54)}│`,
+      `  │ Senha:      ${password.padEnd(54)}│`,
+      '  │ Troque-a no primeiro login; ela não volta a ser exibida.          │',
+      '  └───────────────────────────────────────────────────────────────────┘',
+      '',
+    ].join('\n'),
+  );
+};
+
+/**
+ * Semeia a equipe de vitrine fora de produção. Cada conta recebe uma senha
+ * aleatória que ninguém conhece e nasce marcada para troca: elas povoam o cadastro
+ * sem criar credenciais utilizáveis.
+ */
+const seedDemoTeam = async (): Promise<void> => {
+  for (const [id, name, role] of SEED_TEAM) {
+    if (await operatorRepository.exists(id)) continue;
+    const passwordHash = await bcrypt.hash(generateCompliantPassword(), env.bcryptRounds);
+    await operatorRepository.create({ id, name, role, passwordHash, mustChangePassword: true });
+  }
+};
+
+/** Senhas de demonstração conhecidas, herdadas das versões de protótipo. */
+const LEGACY_DEMO_PASSWORDS = ['123456', 'senha123', 'railpulse'];
+const LEGACY_SWEEP_LIMIT = 500;
+
+/**
+ * Marca para troca obrigatória qualquer conta que ainda use uma senha de
+ * demonstração — é o que impede que uma instalação antiga continue aberta com
+ * "123456" depois da atualização.
+ */
+const flagLegacyDemoPasswords = async (): Promise<void> => {
+  const operators = await operatorRepository.listPasswordHashes();
+
+  if (operators.length > LEGACY_SWEEP_LIMIT) {
+    logger.info('Cadastro grande demais para a varredura de senhas herdadas — etapa ignorada.');
+    return;
+  }
+
+  const flagged: string[] = [];
+
+  for (const operator of operators) {
+    if (operator.mustChange) continue;
+
+    for (const legacy of LEGACY_DEMO_PASSWORDS) {
+      if (await bcrypt.compare(legacy, operator.passwordHash)) {
+        await operatorRepository.requirePasswordChange(operator.id);
+        flagged.push(operator.id);
+        break;
+      }
+    }
+  }
+
+  if (flagged.length > 0) {
+    logger.warn(`Senha de demonstração detectada — troca obrigatória exigida de: ${flagged.join(', ')}.`);
+  }
+};
+
+export const runMigrations = async (): Promise<void> => {
+  await db.query(DDL);
+  await renameLegacyOperatorRole();
+  logger.info('Schema verificado (self-healing DDL aplicado).');
+
+  await seedInitialOperator();
+  if (env.seedDemoTeam) await seedDemoTeam();
+  await flagLegacyDemoPasswords();
 
   const knownCodes = new Set(LINE_STATIONS.map((station) => station.code));
   for (const [trainId, stationCode, speed, voltage, status] of SEED_TRAINS) {

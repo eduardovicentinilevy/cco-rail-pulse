@@ -73,6 +73,8 @@ jobs:
       DB_PASS: postgres
       DB_NAME: railpulse_cco
       JWT_SECRET: ci_only_secret_not_used_in_production
+      SEED_OPERATOR_PASSWORD: Provisoria#CI7kv
+      SEED_DEMO_TEAM: 'false'
     steps:
       - uses: actions/checkout@v4
 
@@ -96,11 +98,29 @@ jobs:
             sleep 1
           done
           curl -sf http://localhost:3333/health | grep -q '"database":"CONNECTED"'
-          # Autenticação deve emitir um JWT utilizável nas rotas protegidas.
-          TOKEN=$(curl -sf -X POST http://localhost:3333/api/auth/login \
+
+          json() { node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const p=JSON.parse(d);console.log(p[process.argv[1]] ?? '')})" "$1"; }
+
+          # A senha semeada não abre sessão: ela só libera a troca obrigatória.
+          LOGIN=$(curl -sf -X POST http://localhost:3333/api/auth/login \
             -H 'Content-Type: application/json' \
-            -d '{"operatorId":"EDP-042","password":"123456"}' | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
-          test -n "$TOKEN"
+            -d "{\"operatorId\":\"EDP-042\",\"password\":\"$SEED_OPERATOR_PASSWORD\"}")
+          echo "$LOGIN" | grep -q '"passwordChangeRequired":true'
+          CHANGE_TOKEN=$(echo "$LOGIN" | json changeToken)
+          test -n "$CHANGE_TOKEN"
+
+          # Uma senha fraca é recusada pela política.
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3333/api/auth/password/initial \
+            -H 'Content-Type: application/json' \
+            -d "{\"changeToken\":\"$CHANGE_TOKEN\",\"newPassword\":\"123456\"}")" = "400"
+
+          SESSION=$(curl -sf -X POST http://localhost:3333/api/auth/password/initial \
+            -H 'Content-Type: application/json' \
+            -d "{\"changeToken\":\"$CHANGE_TOKEN\",\"newPassword\":\"Definitiva#CI9kv\"}")
+          TOKEN=$(echo "$SESSION" | json accessToken)
+          REFRESH=$(echo "$SESSION" | json refreshToken)
+          test -n "$TOKEN" && test -n "$REFRESH"
+
           curl -sf http://localhost:3333/api/network/trains -H "Authorization: Bearer $TOKEN" | grep -q 'T-01'
           # Rota protegida sem token precisa ser recusada.
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3333/api/network/trains)" = "401"
@@ -109,4 +129,24 @@ jobs:
           curl -sf http://localhost:3333/api/alarms/meta -H "Authorization: Bearer $TOKEN" | grep -q 'CRITICAL'
           curl -sf http://localhost:3333/api/communications/meta -H "Authorization: Bearer $TOKEN" | grep -q 'RADIO_TREM'
           curl -sf http://localhost:3333/api/procedures -H "Authorization: Bearer $TOKEN" | grep -q 'EMERGENCIA'
+
+          # Renovação: sai um par novo e o refresh token anterior é queimado.
+          RENEWED=$(curl -sf -X POST http://localhost:3333/api/auth/refresh \
+            -H 'Content-Type: application/json' -d "{\"refreshToken\":\"$REFRESH\"}")
+          NEW_TOKEN=$(echo "$RENEWED" | json accessToken)
+          test -n "$NEW_TOKEN"
+          curl -sf http://localhost:3333/api/network/trains -H "Authorization: Bearer $NEW_TOKEN" > /dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3333/api/auth/refresh \
+            -H 'Content-Type: application/json' -d "{\"refreshToken\":\"$REFRESH\"}")" = "401"
+
+          # Logout revoga a sessão na hora, antes de o access token vencer.
+          curl -sf -X POST http://localhost:3333/api/auth/logout -H "Authorization: Bearer $NEW_TOKEN"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3333/api/network/trains \
+            -H "Authorization: Bearer $NEW_TOKEN")" = "401"
+
+          # A nova senha abre sessão direto, sem troca pendente.
+          curl -sf -X POST http://localhost:3333/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"operatorId":"EDP-042","password":"Definitiva#CI9kv"}' | grep -q '"accessToken"'
+
           kill $SERVER_PID

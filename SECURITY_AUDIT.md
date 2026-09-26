@@ -13,14 +13,14 @@
 
 | # | Achado | Severidade | Status |
 | --- | --- | --- | --- |
-| 1 | Revogar acesso (desativar/rebaixar operador) não invalida o token já emitido | **Alta** | ✅ **Corrigido** — validado ao vivo (REST e WebSocket) |
+| 1 | Revogar acesso (desativar/rebaixar operador) não invalida o token já emitido | **Alta** | ✅ **Corrigido** — validado ao vivo (REST e WebSocket); reforçado depois pelas sessões revogáveis |
 | 2 | `trust proxy: true` permite falsificar IP e contornar o rate limiter de login | **Alta** | ✅ **Corrigido** — validado ao vivo |
 | 3 | Ativar 2FA não exige senha (assimetria com desativar) | Média | ✅ **Corrigido** — validado ao vivo |
 | 4 | TOTP sem proteção contra reuso dentro da janela de tolerância | Média | ✅ **Corrigido** — validado ao vivo |
 | 5 | `train:command` (WebSocket) não tem rate limit | Média | ✅ **Corrigido** — validado ao vivo |
 | 6 | Payload do WebSocket sem validação de tamanho/formato | Baixa/Média | ✅ **Corrigido** — validado ao vivo |
 | 7 | Sem `Content-Security-Policy` / `HSTS` | Baixa | ✅ **Corrigido** — validado ao vivo |
-| 8 | Senha de seed fraca sem trava em produção | Baixa | ✅ **Corrigido** — validado ao vivo |
+| 8 | Senha de seed fraca sem trava em produção | Baixa | ✅ **Corrigido** — validado ao vivo; a senha padrão deixou de existir depois |
 | 9 | Comparação do código TOTP não é *constant-time* | Informativa | ✅ **Corrigido** |
 | 10 | `.env` já esteve no histórico do git (removido depois) | Informativa | ⏳ **Pendente** — reescrever histórico é destrutivo (força push, muda hashes de commit); aguardando decisão explícita |
 
@@ -65,6 +65,10 @@ export const verifyOperatorToken = (token: string | undefined | null): OperatorT
 ```
 
 `verifyJwt` (`auth.middleware.ts`) e o handshake do WebSocket (`cco.gateway.ts`) usam **só** `verifyOperatorToken` — nenhum dos dois volta ao banco para conferir se o operador segue ativo ou se o perfil mudou.
+
+> **Nota posterior:** a Opção A abaixo foi adotada e o trabalho de reforço do login somou a
+> ela uma checagem de sessão (`auth_sessions`), então hoje um logout ou uma troca de senha
+> também derrubam o token na hora, não só a desativação da conta.
 
 ### Impacto
 
@@ -348,6 +352,13 @@ Ajustar `img-src` conforme a política real de avatares (hoje aceita qualquer `h
 > **Validado ao vivo:** subir com `NODE_ENV=production` e sem `SEED_OPERATOR_PASSWORD`
 > lança `[CONFIG] SEED_OPERATOR_PASSWORD precisa de um valor forte...`; com uma senha forte
 > definida, o boot passa normalmente.
+>
+> **Superado depois:** o trabalho de reforço do login removeu a senha padrão por completo.
+> Sem `SEED_OPERATOR_PASSWORD`, o boot sorteia uma senha de primeiro acesso e a imprime uma
+> única vez; quando a variável é informada, ela passa pela mesma política exigida dos
+> operadores (`backend/domain/password-policy.ts`) e o boot falha se for fraca, em qualquer
+> ambiente e não só em produção. A checagem de igualdade com `123456` ficou sem objeto e
+> saiu do código; o texto abaixo descreve o estado anterior a essa mudança.
 
 ### Evidência
 

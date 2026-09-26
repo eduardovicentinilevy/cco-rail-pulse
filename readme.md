@@ -56,7 +56,7 @@ texto da própria tela deixa claro que é uma estimativa ou uma simulação.
 * 🚉 **Supervisão ATS da Malha Tronco:** Acompanhamento interativo do progresso dos trens (`T-01`, `T-04`, `T-07`, `T-12`) ao longo das 15 estações da Linha 6.
 * ⚡ **Telemetria SCADA em Tempo Real (TSS):** Leitura de tensão das Subestações de Tração (kV) via WebSocket com gráficos dinâmicos de alta performance (`Recharts`).
 * 🎮 **Painel de Comandos Operacionais:** Frenagem de emergência, restrição de velocidade (20 km/h) e liberação de sinal, aplicados sob lock pessimista e registrados na trilha de auditoria.
-* 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
+* 🛡️ **Autenticação Segura & Proteção de Credenciais:** Access token JWT de vida curta com **refresh token rotacionado e revogação imediata**, política de senha, troca obrigatória no primeiro acesso e mitigação de *timing attack* na enumeração de credenciais.
 * 🔐 **Autenticação em Duas Etapas (2FA/TOTP):** Segundo fator compatível com Google Authenticator, Authy e afins — implementação própria de HOTP/TOTP (RFC 4226/6238), sem dependências externas, validada contra os vetores de teste oficiais do RFC.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
 * 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador de Controle, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
@@ -161,7 +161,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 91 testes unitários (node:test)
+│   └── tests/                              # 143 testes unitários (node:test)
 │
 └── frontend/
     └── src/
@@ -267,34 +267,85 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `PORT` | `3333` | Porta HTTP do backend |
 | `DATABASE_URL` | — | Alternativa às variáveis `DB_*` |
 | `JWT_SECRET` | *(dev-only)* | **Obrigatório** quando `NODE_ENV=production` — o boot falha sem ele |
-| `JWT_EXPIRES_IN` | `8h` | Validade do token de sessão |
+| `JWT_EXPIRES_IN` | `15m` | Validade do access token (o painel renova sozinho antes de vencer) |
+| `REFRESH_TOKEN_TTL_DAYS` | `7` | Janela deslizante do refresh token |
+| `REFRESH_TOKEN_ABSOLUTE_TTL_DAYS` | `30` | Teto absoluto da sessão, mesmo com uso contínuo |
+| `PASSWORD_MIN_LENGTH` | `12` | Mínimo da política de senha (valores menores são ignorados) |
+| `BCRYPT_ROUNDS` | `12` | Custo do hash de senha |
 | `CORS_ORIGIN` | `*` | Origens permitidas, separadas por vírgula |
+| `RATE_LIMIT_STORE` | `postgres` | `postgres` (compartilhado entre instâncias) ou `memory` |
 | `LOGIN_MAX_ATTEMPTS` | `8` | Tentativas de login por janela |
 | `LOGIN_WINDOW_MS` | `60000` | Janela do limitador de tentativas |
+| `API_MAX_REQUESTS` / `API_WINDOW_MS` | `600` / `60000` | Teto global por origem em toda a API |
 | `TELEMETRY_INTERVAL_MS` | `3000` | Período de emissão da telemetria SCADA |
 | `TRAIN_MOTION_INTERVAL_MS` | `4000` | Intervalo base entre avanços de uma estação por composição (±35% de variação aleatória, para não sincronizar todos os trens) |
 | `TELEMETRY_BUCKET_SECONDS` | `60` | Janela de agregação da série histórica |
 | `TELEMETRY_RETENTION_DAYS` | `7` | Retenção da série histórica |
 | `TRAIN_COMMAND_LOCK_TIMEOUT_MS` | `4000` | Prazo do lock pessimista (`FOR UPDATE`) de um comando de trem antes de recusar com `409` |
-| `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização — `SEED_OPERATOR_PASSWORD` é obrigatório e não pode ficar no valor padrão quando `NODE_ENV=production` (o boot falha sem isso) |
-| `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador de demonstração |
+| `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
+| `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador inicial |
+| `SEED_OPERATOR_PASSWORD` | — | Sem padrão: em branco, o boot sorteia uma senha e a exibe uma vez; quando informada, precisa passar pela política de senha |
+| `SEED_DEMO_TEAM` | `true` fora de produção | Semeia a equipe de vitrine (sem login utilizável) |
 
 > ⚠️ O arquivo `.env` **não é versionado**. Use `.env.example` como modelo.
 
 ---
 
-## 🔐 Credenciais de Teste
+## 🔐 Primeiro Acesso
 
-O operador padrão é criado na **primeira** inicialização (nas seguintes, a senha
-existente é preservada). A equipe de plantão (`MAR-109`, `SOU-012`, `LIV-551`)
-também é semeada, compartilhando a mesma senha de demonstração, para exercitar o
-cadastro e os perfis de acesso:
+**Não existe senha padrão no código.** O operador inicial é criado na primeira
+inicialização e sempre nasce marcado para troca obrigatória: a credencial usada
+para entrar da primeira vez não continua valendo depois disso.
+
+| Como você configura | O que acontece no primeiro boot |
+| --- | --- |
+| `SEED_OPERATOR_PASSWORD` em branco | O servidor sorteia uma senha forte e a imprime **uma única vez** no log |
+| `SEED_OPERATOR_PASSWORD` preenchida | A senha é validada contra a política; se for fraca, o boot falha |
+
+No primeiro login o backend não abre sessão: devolve `passwordChangeRequired` e
+um token de curta duração que só libera `POST /api/auth/password/initial`. O
+painel exibe a tela de definição de senha e só então entrega o console.
 
 | Parâmetro | Valor |
 | --- | --- |
-| **Credencial / ID** | `EDP-042` |
-| **Senha padrão** | `123456` (configurável via `SEED_OPERATOR_PASSWORD`) |
+| **Credencial / ID** | `EDP-042` (configurável em `SEED_OPERATOR_ID`) |
 | **Nível de acesso** | `SUPERVISOR` (configurável em `SEED_OPERATOR_ROLE`) |
+
+A equipe de vitrine (`MAR-109`, `SOU-012`, `LIV-551`) é semeada apenas fora de
+produção, com senhas aleatórias que ninguém conhece: ela povoa o cadastro para
+demonstrar perfis de acesso, sem criar credenciais utilizáveis.
+
+Atualizando uma instalação antiga? O boot varre o cadastro e marca para troca
+obrigatória qualquer conta que ainda use uma senha de demonstração conhecida.
+
+### Política de senha
+
+Aplicada no primeiro acesso, na troca voluntária e no cadastro de operadores
+(`backend/domain/password-policy.ts`):
+
+* mínimo de 12 caracteres e no máximo 72 bytes (além disso o bcrypt ignora o excedente);
+* maiúscula, minúscula, número e símbolo;
+* sem termos de dicionário, jargão do produto ou sequências como `1234`/`abcd`;
+* não pode conter a credencial nem partes do nome do operador.
+
+### Sessões, renovação e revogação
+
+* O **access token** (JWT) vale 15 minutos e carrega o identificador da sessão (`sid`).
+* O **refresh token** é opaco, guardado apenas como SHA-256 e **rotacionado a cada uso**.
+* Reapresentar um refresh token já trocado derruba a sessão inteira — é o sinal
+  clássico de credencial copiada. Há uma tolerância curta para a corrida entre abas.
+* Toda requisição autenticada confere a sessão no banco, então `logout`, troca de
+  senha, mudança de perfil e desativação de credencial valem **na hora**, sem
+  esperar o token vencer — inclusive no WebSocket.
+* `POST /api/auth/logout/all` encerra a sessão em todos os dispositivos.
+
+### Rate limit em cluster
+
+Os contadores ficam no PostgreSQL (`rate_limit_hits`), com incremento atômico e
+janela ancorada no relógio: o teto vale para o conjunto das instâncias atrás do
+balanceador, sem Redis e sem sessão sticky. Se o banco ficar indisponível, o
+limitador degrada para contagem local em vez de derrubar o login. Além do login,
+há limites para o 2FA, a renovação, a troca de senha e um teto global por origem.
 
 ### Perfis de acesso
 
@@ -313,20 +364,22 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 91 testes unitários do domínio e da infraestrutura
+npm test          # 143 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
 
 A suíte cobre as regras que não podem regredir: ciclo de vida das ocorrências,
 comandos ferroviários, validação de código de estação, hierarquia de permissões,
-limitador de tentativas de login, deriva do simulador SCADA, verificação de JWT,
-janela do relatório de turno e o contrato do catálogo da malha (que o mapa consome).
+política de senha, emissão/rotação/revogação de sessões (com relógio controlado),
+limitador de tentativas compartilhado entre instâncias, deriva do simulador SCADA,
+verificação de JWT, janela do relatório de turno e o contrato do catálogo da malha.
 
 O workflow do GitHub Actions (`.github/workflows/ci.yml`) roda três jobs em paralelo:
 tipos e testes do backend, lint e build do frontend, e um teste de integração que
-sobe a API contra um PostgreSQL real para validar bootstrap, autenticação e a
-recusa de rotas protegidas sem token.
+sobe a API contra um PostgreSQL real para validar o bootstrap, a troca de senha
+obrigatória no primeiro acesso, a recusa de senha fraca, a rotação do refresh
+token, a revogação imediata no logout e a recusa de rotas protegidas sem token.
 
 ---
 
@@ -348,10 +401,14 @@ recusa de rotas protegidas sem token.
 
 | Método | Rota | Autenticação | Descrição |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/login` | — | Autentica o operador; retorna o JWT ou um desafio de 2FA |
+| `POST` | `/api/auth/login` | — | Autentica o operador; retorna a sessão, um desafio de 2FA ou a exigência de troca de senha |
 | `POST` | `/api/auth/login/mfa` | — (desafio) | Troca o código do autenticador pela sessão |
+| `POST` | `/api/auth/refresh` | — (refresh token) | Rotaciona o par de tokens |
+| `POST` | `/api/auth/password/initial` | — (token de troca) | Define a senha no primeiro acesso |
+| `POST` | `/api/auth/password` | Bearer + senha atual | Troca a senha e encerra as demais sessões |
 | `GET` | `/api/auth/session` | Bearer | Valida a sessão restaurada pelo painel |
-| `POST` | `/api/auth/logout` | Bearer | Registra o encerramento do turno |
+| `POST` | `/api/auth/logout` | Bearer | Revoga a sessão corrente |
+| `POST` | `/api/auth/logout/all` | Bearer | Revoga a sessão em todos os dispositivos |
 | `GET` | `/api/operator/profile` | Bearer | Perfil do operador autenticado |
 | `PATCH` | `/api/operator/profile/avatar` | Bearer | Persiste o avatar no cadastro |
 | `GET` | `/api/operator/mfa` | Bearer | Indica se o 2FA está ativo |
