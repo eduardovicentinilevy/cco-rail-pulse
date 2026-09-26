@@ -176,7 +176,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 91 testes unitários (node:test)
+│   └── tests/                              # 96 testes unitários (node:test)
 │
 └── frontend/
     ├── Dockerfile                          # Build do Vite publicado por nginx
@@ -283,8 +283,9 @@ A stack completa — PostgreSQL, API e console web — sobe em contêineres:
 ```bash
 cp .env.example .env
 
-# Obrigatório: o boot em produção falha sem um segredo próprio.
-node -e "console.log('JWT_SECRET=' + require('crypto').randomBytes(48).toString('hex'))" >> .env
+# Obrigatórios: em produção o boot falha sem um segredo de assinatura próprio e
+# recusa a senha padrão do operador de demonstração.
+node -e "const r=n=>require('crypto').randomBytes(n).toString('hex');console.log('JWT_SECRET='+r(48));console.log('SEED_OPERATOR_PASSWORD='+r(16))" >> .env
 
 docker compose up -d --build
 ```
@@ -319,7 +320,9 @@ de API compilada no JavaScript.
   ```
 
 > ⚠️ Em produção real, defina `DB_SEED_ON_BOOT=false`: as credenciais de demonstração deste
-> repositório são públicas.
+> repositório são públicas. Enquanto a carga de demonstração estiver ligada, a senha do
+> operador semeado vem de `SEED_OPERATOR_PASSWORD` — que o boot exige, e recusa no valor
+> padrão.
 
 ### Somente o banco, para desenvolver
 
@@ -430,7 +433,7 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `TELEMETRY_BUCKET_SECONDS` | `60` | Janela de agregação da série histórica |
 | `TELEMETRY_RETENTION_DAYS` | `7` | Retenção da série histórica |
 | `TRAIN_COMMAND_LOCK_TIMEOUT_MS` | `4000` | Prazo do lock pessimista (`FOR UPDATE`) de um comando de trem antes de recusar com `409` |
-| `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
+| `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização — `SEED_OPERATOR_PASSWORD` é obrigatório e não pode ficar no valor padrão quando `NODE_ENV=production` (o boot falha sem isso) |
 | `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador de demonstração |
 
 > ⚠️ O arquivo `.env` **não é versionado**. Use `.env.example` como modelo.
@@ -467,7 +470,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 91 testes unitários do domínio e da infraestrutura
+npm test          # 96 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```

@@ -73,6 +73,8 @@ jobs:
       DB_PASS: postgres
       DB_NAME: railpulse_cco
       JWT_SECRET: ci_only_secret_not_used_in_production
+      # Em NODE_ENV=production o boot recusa a senha de seed padrão.
+      SEED_OPERATOR_PASSWORD: ci_only_seed_password
     steps:
       - uses: actions/checkout@v4
 
@@ -119,7 +121,7 @@ jobs:
           # Autenticação deve emitir um JWT utilizável nas rotas protegidas.
           TOKEN=$(curl -sf -X POST http://localhost:3333/api/auth/login \
             -H 'Content-Type: application/json' \
-            -d '{"operatorId":"EDP-042","password":"123456"}' | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
+            -d "{\"operatorId\":\"EDP-042\",\"password\":\"$SEED_OPERATOR_PASSWORD\"}" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
           test -n "$TOKEN"
           curl -sf http://localhost:3333/api/network/trains -H "Authorization: Bearer $TOKEN" | grep -q 'T-01'
           # Rota protegida sem token precisa ser recusada.
@@ -136,6 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       JWT_SECRET: ci_only_secret_not_used_in_production
+      SEED_OPERATOR_PASSWORD: ci_only_seed_password
     steps:
       - uses: actions/checkout@v4
 
@@ -159,7 +162,7 @@ jobs:
           curl -sf http://localhost:8080/ | grep -q 'id="root"'
           TOKEN=$(curl -sf -X POST http://localhost:8080/api/auth/login \
             -H 'Content-Type: application/json' \
-            -d '{"operatorId":"EDP-042","password":"123456"}' | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
+            -d "{\"operatorId\":\"EDP-042\",\"password\":\"$SEED_OPERATOR_PASSWORD\"}" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
           test -n "$TOKEN"
           curl -sf http://localhost:8080/api/network/trains -H "Authorization: Bearer $TOKEN" | grep -q 'T-01'
 

@@ -46,8 +46,9 @@ services:
       DB_USER: ${DB_USER:-postgres}
       DB_PASS: ${DB_PASS:-postgres}
       DB_NAME: ${DB_NAME:-railpulse_cco}
-      # Obrigatório: sem ele o boot falha em NODE_ENV=production. Defina no .env.
+      # Obrigatórios: sem eles o boot falha em NODE_ENV=production. Defina no .env.
       JWT_SECRET: ${JWT_SECRET:-}
+      SEED_OPERATOR_PASSWORD: ${SEED_OPERATOR_PASSWORD:-}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
       # O console é servido pela mesma origem do nginx; a lista só importa se a
       # API for exposta a outro domínio.
@@ -93,7 +94,9 @@ services:
       DB_USER: ${DB_USER:-postgres}
       DB_PASS: ${DB_PASS:-postgres}
       DB_NAME: ${DB_NAME:-railpulse_cco}
+      # A configuração é validada no import, mesmo num comando que não semeia nada.
       JWT_SECRET: ${JWT_SECRET:-}
+      SEED_OPERATOR_PASSWORD: ${SEED_OPERATOR_PASSWORD:-}
     command: ['node', 'backend/dist/infrastructure/database/migrate.cli.js', 'up']
     restart: 'no'
 

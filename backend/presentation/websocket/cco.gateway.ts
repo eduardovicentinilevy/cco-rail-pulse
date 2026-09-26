@@ -3,10 +3,13 @@ import type { Server as SocketIOServer, Socket } from 'socket.io';
 import { domainEventBus } from '../../application/events/event-bus';
 import { processTrainCommandUseCase } from '../../application/use-cases/ProcessTrainCommand';
 import { TrainRepository } from '../../infrastructure/database/repositories/TrainRepository';
+import { operatorRepository } from '../../infrastructure/repositories/pg-operator.repository';
 import { isTrainCommand } from '../../domain/entities/TrainSession';
 import type { TrainCommand } from '../../domain/entities/TrainSession';
 import { verifyOperatorToken, extractBearerToken } from '../../shared/jwt';
 import { createLogger } from '../../shared/logger';
+import { AppError } from '../../shared/errors';
+import { RateLimiter } from '../http/middlewares/rate-limit.middleware';
 import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 import type { OperatorTokenPayload } from '../../shared/jwt';
 
@@ -25,6 +28,12 @@ const resolveCommand = (raw: unknown): TrainCommand | null => {
   return isTrainCommand(raw) ? raw : null;
 };
 
+/** Nenhum identificador real da malha chega perto disso — sobra é payload malformado. */
+const MAX_IDENTIFIER_LENGTH = 20;
+
+/** Por operador (não por socket): reconectar não reabre a cota. Reaproveita o limitador já usado no login. */
+const commandLimiter = new RateLimiter(20, 10_000);
+
 interface AuthenticatedSocket extends Socket {
   operator?: OperatorTokenPayload;
 }
@@ -36,21 +45,40 @@ interface AuthenticatedSocket extends Socket {
  * token — nunca do payload enviado pelo cliente, que é falsificável.
  */
 export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimulator): void => {
-  io.use((socket: AuthenticatedSocket, next) => {
+  io.use(async (socket: AuthenticatedSocket, next) => {
     const handshake = socket.handshake;
     const token =
       (typeof handshake.auth?.token === 'string' ? handshake.auth.token : null) ??
       extractBearerToken(handshake.headers.authorization);
 
-    const operator = verifyOperatorToken(token);
+    const payload = verifyOperatorToken(token);
+    if (!payload) {
+      next(new Error('UNAUTHORIZED'));
+      return;
+    }
 
+    // Mesma revalidação do REST (`verifyJwt`): um token assinado não prova, sozinho, que a
+    // conta segue ativa. `findById` já filtra `is_active = TRUE`.
+    const operator = await operatorRepository.findById(payload.operatorId);
     if (!operator) {
       next(new Error('UNAUTHORIZED'));
       return;
     }
 
-    socket.operator = operator;
+    socket.operator = { operatorId: operator.id, role: operator.role };
     next();
+  });
+
+  // Registrado uma única vez para o gateway inteiro (não por conexão): desativar um
+  // operador em `Equipe` derruba qualquer socket já aberto em nome dele, na hora — sem
+  // isso, uma sessão de WebSocket já estabelecida seguiria comandando trens normalmente
+  // até o cliente desconectar por conta própria.
+  domainEventBus.on('operator:deactivated', ({ operatorId }) => {
+    for (const socket of io.sockets.sockets.values()) {
+      if ((socket as AuthenticatedSocket).operator?.operatorId === operatorId) {
+        socket.disconnect(true);
+      }
+    }
   });
 
   io.on('connection', (socket: AuthenticatedSocket) => {
@@ -82,12 +110,26 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
       const acknowledge = (status: 'EXECUTED' | 'FAILED', message?: string) =>
         socket.emit('train:command:acknowledged', { trainId, command: rawCommand, status, message });
 
+      // Nenhum id real da malha chega perto deste tamanho — acima disso é payload
+      // malformado (ou hostil), e não vale nem abrir uma transação com lock para ele.
+      if (trainId.length > MAX_IDENTIFIER_LENGTH || (targetBlock?.length ?? 0) > MAX_IDENTIFIER_LENGTH) {
+        acknowledge('FAILED', 'Identificador de composição ou bloco inválido.');
+        return;
+      }
+
       if (!trainId || !command) {
         acknowledge('FAILED', 'Comando ou composição inválidos.');
         return;
       }
 
       try {
+        // Por operador: sem isso, um único cliente autenticado (qualquer perfil, mesmo
+        // OPERADOR) poderia inundar `train:command` e manter o lock pessimista de um
+        // trem permanentemente disputado, fazendo outros operadores levarem 409 com
+        // frequência — o próprio mecanismo de segurança de concorrência virando negação
+        // de serviço contra um trem específico.
+        commandLimiter.consume(operator.operatorId);
+
         // Adquire o lock pessimista, valida, audita, executa e emite — tudo dentro do
         // use case; ver ProcessTrainCommand.ts para o ciclo de vida completo e a
         // mitigação de deadlock/inanição sob comandos concorrentes ao mesmo trem.
@@ -102,7 +144,10 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
         acknowledge('EXECUTED', applied ? undefined : `O trem ${trainId} já estava neste estado.`);
       } catch (error) {
         logger.error(`Falha ao executar ${rawCommand} em ${trainId}`, error);
-        acknowledge('FAILED', error instanceof Error ? error.message : undefined);
+        // Só a mensagem de um AppError (nosso, com texto pensado pro operador) sai pro
+        // cliente — qualquer outro erro (ex.: uma falha crua do driver do Postgres) vira
+        // uma mensagem genérica, do mesmo jeito que o error handler do REST já faz.
+        acknowledge('FAILED', error instanceof AppError ? error.message : 'Falha ao executar o comando.');
       }
     });
 

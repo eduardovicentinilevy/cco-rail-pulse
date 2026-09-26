@@ -40,6 +40,13 @@ if (isProduction && !process.env.JWT_SECRET) {
   throw new Error('[CONFIG] JWT_SECRET é obrigatório quando NODE_ENV=production.');
 }
 
+const DEFAULT_SEED_PASSWORD = '123456';
+if (isProduction && (process.env.SEED_OPERATOR_PASSWORD ?? DEFAULT_SEED_PASSWORD) === DEFAULT_SEED_PASSWORD) {
+  // Fail-fast: sem isso, um deploy real esquecido sobe com uma conta (SUPERVISOR por
+  // padrão) protegida por uma senha trivial e publicamente documentada no .env.example.
+  throw new Error('[CONFIG] SEED_OPERATOR_PASSWORD precisa de um valor forte quando NODE_ENV=production.');
+}
+
 /** Origens liberadas no CORS. Vazio (default em dev) libera qualquer origem. */
 const corsOrigins = toList(process.env.CORS_ORIGIN);
 

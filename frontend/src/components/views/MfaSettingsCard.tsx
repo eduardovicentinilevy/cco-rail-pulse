@@ -52,6 +52,7 @@ export const MfaSettingsCard: React.FC<MfaSettingsCardProps> = ({ token, onAuthE
     try {
       const result = await api.mfaEnroll(token);
       setPending(result);
+      setPassword('');
       setStage('enrolling');
     } catch (err) {
       handleError(err, 'Não foi possível gerar o segredo.');
@@ -63,15 +64,16 @@ export const MfaSettingsCard: React.FC<MfaSettingsCardProps> = ({ token, onAuthE
   const confirmEnroll = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
-      if (code.trim().length !== 6) return;
+      if (code.trim().length !== 6 || password.length === 0) return;
 
       setError(null);
       setIsBusy(true);
       try {
-        await api.mfaConfirm(token, code.trim());
+        await api.mfaConfirm(token, code.trim(), password);
         setStage('idle');
         setPending(null);
         setCode('');
+        setPassword('');
         reload();
       } catch (err) {
         handleError(err, 'Código de verificação inválido.');
@@ -79,13 +81,14 @@ export const MfaSettingsCard: React.FC<MfaSettingsCardProps> = ({ token, onAuthE
         setIsBusy(false);
       }
     },
-    [token, code, reload, handleError],
+    [token, code, password, reload, handleError],
   );
 
   const cancelEnroll = useCallback(() => {
     setStage('idle');
     setPending(null);
     setCode('');
+    setPassword('');
     setError(null);
   }, []);
 
@@ -158,6 +161,25 @@ export const MfaSettingsCard: React.FC<MfaSettingsCardProps> = ({ token, onAuthE
             />
           </div>
 
+          <div className="rp-field">
+            <label className="rp-label" htmlFor="mfa-confirm-password">
+              Senha de acesso
+            </label>
+            <input
+              id="mfa-confirm-password"
+              className="rp-input"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (error) setError(null);
+              }}
+              required
+            />
+            <span className="rp-hint">Confirma que é você mesmo ativando — evita que uma sessão aberta sozinha ligue o 2FA.</span>
+          </div>
+
           {error && (
             <p className="rp-login__error" role="alert">
               <span aria-hidden="true">⚠</span> {error}
@@ -165,7 +187,11 @@ export const MfaSettingsCard: React.FC<MfaSettingsCardProps> = ({ token, onAuthE
           )}
 
           <div className="rp-row">
-            <button type="submit" className="rp-btn rp-btn--primary" disabled={isBusy || code.trim().length !== 6}>
+            <button
+              type="submit"
+              className="rp-btn rp-btn--primary"
+              disabled={isBusy || code.trim().length !== 6 || password.length === 0}
+            >
               {isBusy && <span className="rp-spinner" aria-hidden="true" />}
               Confirmar ativação
             </button>
