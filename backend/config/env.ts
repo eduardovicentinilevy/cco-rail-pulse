@@ -103,6 +103,12 @@ export const env = {
    * processos isolados e a testes.
    */
   rateLimitStore: (process.env.RATE_LIMIT_STORE ?? 'postgres') as 'postgres' | 'memory',
+  /**
+   * Tempo máximo que um comando de trem espera pelo lock pessimista (FOR UPDATE) do
+   * registro antes de desistir. Sem isso, uma transação travada faria toda composição
+   * ficar incomandável indefinidamente para qualquer operador.
+   */
+  trainCommandLockTimeoutMs: toInt(process.env.TRAIN_COMMAND_LOCK_TIMEOUT_MS, 4000),
   database: {
     url: process.env.DATABASE_URL,
     host: process.env.DB_HOST ?? 'localhost',

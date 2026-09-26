@@ -104,6 +104,7 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 1. **Desacoplamento de Eventos (Event Bus):** O gateway de WebSocket assina eventos globais em um barramento de domínio (`domainEventBus`), permitindo escalar os emissores de telemetria de forma isolada.
 2. **Fail-Fast & Resiliência:** A aplicação valida a integridade do banco de dados na inicialização (`bootstrap`), executando as *DDLs* (`CREATE TABLE IF NOT EXISTS`) e o *seed* do operador padrão antes de abrir a porta HTTP.
 3. **Clean Architecture:** Separação rígida entre as camadas de **Apresentação** (`presentation`), **Aplicação** (`application`), **Domínio** (`domain`) e **Infraestrutura** (`infrastructure`).
+4. **Locking Pessimista em Comandos de Trem:** `ProcessTrainCommand` (caso de uso por trás do `train:command` do WebSocket) adquire `SELECT ... FOR UPDATE` sobre o registro do trem dentro de uma transação, com `lock_timeout` configurável (`TRAIN_COMMAND_LOCK_TIMEOUT_MS`). Dois operadores comandando a mesma composição são serializados pelo próprio Postgres — nunca há leitura-e-escrita concorrente sobre o mesmo trem — e a persistência na trilha de auditoria acontece na mesma transação do estado, nunca desacoplada dela. Deadlock é estruturalmente impossível aqui (nunca mais de um lock de linha por transação); o risco real seria inanição por uma transação lenta, mitigado pelo `lock_timeout`, que devolve `409 Conflict` em vez de deixar o operador esperando indefinidamente.
 
 ---
 
@@ -160,7 +161,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 82 testes unitários (node:test)
+│   └── tests/                              # 138 testes unitários (node:test)
 │
 └── frontend/
     └── src/
@@ -280,6 +281,7 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `TRAIN_MOTION_INTERVAL_MS` | `4000` | Intervalo base entre avanços de uma estação por composição (±35% de variação aleatória, para não sincronizar todos os trens) |
 | `TELEMETRY_BUCKET_SECONDS` | `60` | Janela de agregação da série histórica |
 | `TELEMETRY_RETENTION_DAYS` | `7` | Retenção da série histórica |
+| `TRAIN_COMMAND_LOCK_TIMEOUT_MS` | `4000` | Prazo do lock pessimista (`FOR UPDATE`) de um comando de trem antes de recusar com `409` |
 | `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
 | `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador inicial |
 | `SEED_OPERATOR_PASSWORD` | — | Sem padrão: em branco, o boot sorteia uma senha e a exibe uma vez |
@@ -362,7 +364,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 134 testes unitários do domínio e da infraestrutura
+npm test          # 138 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
