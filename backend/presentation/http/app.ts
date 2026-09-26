@@ -15,6 +15,7 @@ import { alarmRouter } from './routes/alarm.routes';
 import { communicationRouter } from './routes/communication.routes';
 import { procedureRouter } from './routes/procedure.routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import { requestLogger } from './middlewares/request-logger.middleware';
 import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 
 /**
@@ -48,8 +49,12 @@ export const createApp = (simulator: TelemetrySimulator): Express => {
   // Sem proxy reverso conhecido na frente deste deploy — confiar em `X-Forwarded-For` do
   // próprio cliente permitiria forjar `req.ip` e contornar o rate limiter de login (que usa
   // IP como parte da chave). Se um dia houver um proxy real, trocar para o IP/CIDR dele
-  // especificamente — nunca `true`.
+  // especificamente — nunca `true`. Com o console servido pelo nginx da stack, `req.ip` é o
+  // IP do contêiner do nginx: o limitador por operador (`loginLimiterByOperator`) é o que
+  // segura a força bruta nesse caminho.
   app.set('trust proxy', false);
+  // Antes de tudo: toda requisição nasce com um id de correlação nos logs.
+  app.use(requestLogger);
   app.use(securityHeaders);
   app.use(cors({ origin: env.corsOrigin, methods: ['GET', 'POST', 'PATCH', 'OPTIONS'], credentials: false }));
   app.use(express.json({ limit: '64kb' }));

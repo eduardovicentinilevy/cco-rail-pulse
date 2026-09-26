@@ -4,6 +4,7 @@ import { extractBearerToken, verifyOperatorToken } from '../../../shared/jwt';
 import type { OperatorTokenPayload } from '../../../shared/jwt';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
 import { can } from '../../../domain/roles';
+import { assignLogContext } from '../../../shared/logger';
 import type { Permission } from '../../../domain/roles';
 
 export interface AuthenticatedRequest extends Request {
@@ -46,6 +47,8 @@ export const verifyJwt = async (req: AuthenticatedRequest, res: Response, next: 
   // O perfil vem sempre fresco do banco — nunca do token, que pode carregar um perfil
   // já trocado desde que foi assinado.
   req.operator = { operatorId: operator.id, role: operator.role };
+  // Correlaciona os logs da requisição ao operador autenticado.
+  assignLogContext({ operatorId: operator.id });
   next();
 };
 

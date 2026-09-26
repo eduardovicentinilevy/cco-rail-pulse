@@ -1,125 +1,12 @@
-// backend/infrastructure/database/migrations.ts
+// backend/infrastructure/database/seed.ts
 import bcrypt from 'bcrypt';
+
 import { db } from './postgres';
 import { env } from '../../config/env';
 import { LINE_STATIONS } from '../../domain/line';
 import { createLogger } from '../../shared/logger';
 
-const logger = createLogger('DB-MIGRATE');
-
-const DDL = `
-  CREATE TABLE IF NOT EXISTS operators (
-    id VARCHAR(50) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'OPERADOR',
-    password_hash VARCHAR(255) NOT NULL,
-    avatar_url TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    mfa_secret TEXT,
-    mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-    mfa_last_used_step BIGINT
-  );
-
-  -- Self-healing: bancos criados antes do 2FA não têm essas colunas.
-  ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_secret TEXT;
-  ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
-  -- Impede o reuso do mesmo código TOTP dentro da janela de tolerância (±30s).
-  ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_last_used_step BIGINT;
-
-  CREATE TABLE IF NOT EXISTS audit_logs (
-    id SERIAL PRIMARY KEY,
-    operator_id VARCHAR(50),
-    action VARCHAR(100) NOT NULL,
-    target VARCHAR(100) NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_audit_logs_operator ON audit_logs (operator_id);
-
-  CREATE TABLE IF NOT EXISTS trains (
-    train_id VARCHAR(20) PRIMARY KEY,
-    current_station_code VARCHAR(10) NOT NULL,
-    speed_kmh NUMERIC(5, 1) NOT NULL,
-    voltage_kv NUMERIC(5, 2) NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-
-  CREATE TABLE IF NOT EXISTS incidents (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(120) NOT NULL,
-    description TEXT NOT NULL,
-    station_code VARCHAR(10),
-    train_id VARCHAR(20),
-    category VARCHAR(30) NOT NULL,
-    severity VARCHAR(20) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'ABERTA',
-    opened_by VARCHAR(50) NOT NULL,
-    assigned_to VARCHAR(50),
-    resolution_note TEXT,
-    opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    resolved_at TIMESTAMPTZ
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents (status, opened_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_incidents_station ON incidents (station_code);
-
-  -- Série histórica agregada por janela: uma linha por estação por janela,
-  -- em vez de uma linha por leitura (que geraria 5 escritas por segundo).
-  CREATE TABLE IF NOT EXISTS telemetry_samples (
-    id BIGSERIAL PRIMARY KEY,
-    station_code VARCHAR(10) NOT NULL,
-    bucket_at TIMESTAMPTZ NOT NULL,
-    min_kv NUMERIC(5, 2) NOT NULL,
-    avg_kv NUMERIC(5, 2) NOT NULL,
-    max_kv NUMERIC(5, 2) NOT NULL,
-    readings INTEGER NOT NULL,
-    UNIQUE (station_code, bucket_at)
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_telemetry_bucket ON telemetry_samples (bucket_at DESC);
-
-  -- Histórico persistido de alarmes: o feed ao vivo do painel vive só na sessão do
-  -- navegador, então sem esta tabela um alarme desaparece ao recarregar a página.
-  CREATE TABLE IF NOT EXISTS alarms (
-    id SERIAL PRIMARY KEY,
-    severity VARCHAR(20) NOT NULL,
-    message TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    acknowledged_by VARCHAR(50),
-    acknowledged_at TIMESTAMPTZ
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_alarms_created_at ON alarms (created_at DESC);
-
-  CREATE TABLE IF NOT EXISTS communications (
-    id SERIAL PRIMARY KEY,
-    channel VARCHAR(30) NOT NULL,
-    direction VARCHAR(20) NOT NULL,
-    station_code VARCHAR(10),
-    train_id VARCHAR(20),
-    operator_id VARCHAR(50) NOT NULL,
-    message TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_communications_created_at ON communications (created_at DESC);
-
-  CREATE TABLE IF NOT EXISTS procedures (
-    id SERIAL PRIMARY KEY,
-    category VARCHAR(40) NOT NULL,
-    title VARCHAR(160) NOT NULL UNIQUE,
-    summary TEXT NOT NULL,
-    steps JSONB NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_procedures_category ON procedures (category);
-`;
+const logger = createLogger('DB-SEED');
 
 /** Composições semeadas na malha, posicionadas em estações reais do traçado. */
 const SEED_TRAINS: ReadonlyArray<[trainId: string, stationCode: string, speed: number, voltage: number, status: string]> = [
@@ -230,27 +117,15 @@ const SEED_PROCEDURES: ReadonlyArray<{
 ];
 
 /**
- * Renomeia o perfil `OPERATOR_SOC` (jargão de centro de operações de segurança,
- * herdado por engano) para `OPERADOR`. Idempotente: em bancos novos não há
- * linhas a converter e o DEFAULT já nasce correto.
+ * Carga inicial de demonstração: operador padrão, equipe de plantão e composições.
+ *
+ * É idempotente (`ON CONFLICT DO NOTHING`) e nunca sobrescreve a senha de uma
+ * conta existente. Em produção costuma ser desligada com `DB_SEED_ON_BOOT=false`,
+ * já que as credenciais de demonstração são públicas.
  */
-const renameLegacyOperatorRole = async (): Promise<void> => {
-  const updated = await db.query(`UPDATE operators SET role = 'OPERADOR' WHERE role = 'OPERATOR_SOC'`);
-
-  // O DEFAULT do CREATE TABLE não alcança tabelas que já existem.
-  await db.query(`ALTER TABLE operators ALTER COLUMN role SET DEFAULT 'OPERADOR'`);
-
-  if (updated.rowCount && updated.rowCount > 0) {
-    logger.info(`Perfil OPERATOR_SOC migrado para OPERADOR em ${updated.rowCount} operador(es).`);
-  }
-};
-
-export const runMigrations = async (): Promise<void> => {
-  await db.query(DDL);
-  await renameLegacyOperatorRole();
-  logger.info('Schema verificado (self-healing DDL aplicado).');
-
+export const runSeed = async (): Promise<void> => {
   const passwordHash = await bcrypt.hash(env.seedOperatorPassword, env.bcryptRounds);
+
   const seeded = await db.query(
     `INSERT INTO operators (id, name, role, password_hash, avatar_url, is_active)
      VALUES ($1, $2, $3, $4, NULL, TRUE)
@@ -300,5 +175,5 @@ export const runMigrations = async (): Promise<void> => {
     );
   }
 
-  logger.info('Carga inicial (auto-seeding) sincronizada.');
+  logger.info('Carga inicial sincronizada.');
 };
