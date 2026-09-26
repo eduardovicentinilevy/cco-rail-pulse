@@ -7,6 +7,7 @@
 ## 📌 Sumário
 
 * [Visão Geral](#-visão-geral)
+* [Sobre os Dados](#-sobre-os-dados)
 * [Principais Funcionalidades](#-principais-funcionalidades)
 * [Arquitetura e Decisões Técnicas](#️-arquitetura-e-decisões-técnicas)
 * [Tech Stack](#️-tech-stack)
@@ -31,6 +32,28 @@ O sistema foi desenhado para operar de forma resiliente e autônoma: o schema ev
 **migrações versionadas e idempotentes**, aplicadas em transação e registradas no próprio
 banco, e a carga inicial de demonstração é sincronizada sem scripts manuais. A publicação é
 containerizada — `docker compose up -d` sobe banco, API e console web.
+
+---
+
+## 🔍 Sobre os Dados
+
+Este é um projeto de portfólio, sem integração com sistemas SCADA/ATS reais da
+Linha 6-Laranja. Para que quem avalia o projeto — inclusive quem opera a linha
+de verdade — saiba exatamente o que está vendo, a tabela abaixo separa o que é
+**infraestrutura real** (mecanismo de verdade, dado fabricado) do que é
+**simulação declarada** (mecanismo e dado ambos ilustrativos):
+
+| Camada | Natureza | Detalhe |
+| --- | --- | --- |
+| Autenticação, 2FA/TOTP, RBAC, JWT | **Real** | Implementação própria, sem mocks — inclusive o segundo fator segue RFC 4226/6238 de verdade |
+| Persistência (PostgreSQL), auditoria, ciclo de vida de ocorrências | **Real** | Escritas e leituras de banco de verdade; nada é mantido só em memória |
+| Tensão das subestações (TSS) e deslocamento dos trens | **Simulação declarada** | *Random walk* ancorado nos valores nominais reais do projeto elétrico da linha — plausível, mas gerado no servidor, não lido de campo |
+| Ocupação de plataformas | **Simulação declarada** | Estimativa calculada no navegador (horário de pico + posição da estação no traçado), sem qualquer sensor de fato |
+| CFTV | **Simulação declarada** | Status de câmera sorteado de forma determinística por estação — não há vídeo nem integração real; "Reportar falha" abre uma ocorrência de verdade no banco |
+| Estações, ordem e nomes da Linha 6-Laranja | **Real** | Confere com o traçado e a nomenclatura oficiais; o desenho do trilho no mapa é estilizado, não é cartografia exata |
+
+Onde a interface poderia sugerir uma fonte real (um "sensor", uma "câmera"), o
+texto da própria tela deixa claro que é uma estimativa ou uma simulação.
 
 ---
 
@@ -87,6 +110,7 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 1. **Desacoplamento de Eventos (Event Bus):** O gateway de WebSocket assina eventos globais em um barramento de domínio (`domainEventBus`), permitindo escalar os emissores de telemetria de forma isolada.
 2. **Fail-Fast & Resiliência:** A aplicação valida a conexão com o banco na inicialização (`bootstrap`), aplica as **migrações pendentes** sob *advisory lock* — para que réplicas subindo em paralelo não disputem o schema — e só então abre a porta HTTP.
 3. **Clean Architecture:** Separação rígida entre as camadas de **Apresentação** (`presentation`), **Aplicação** (`application`), **Domínio** (`domain`) e **Infraestrutura** (`infrastructure`).
+4. **Locking Pessimista em Comandos de Trem:** `ProcessTrainCommand` (caso de uso por trás do `train:command` do WebSocket) adquire `SELECT ... FOR UPDATE` sobre o registro do trem dentro de uma transação, com `lock_timeout` configurável (`TRAIN_COMMAND_LOCK_TIMEOUT_MS`). Dois operadores comandando a mesma composição são serializados pelo próprio Postgres — nunca há leitura-e-escrita concorrente sobre o mesmo trem — e a persistência na trilha de auditoria acontece na mesma transação do estado, nunca desacoplada dela. Deadlock é estruturalmente impossível aqui (nunca mais de um lock de linha por transação); o risco real seria inanição por uma transação lenta, mitigado pelo `lock_timeout`, que devolve `409 Conflict` em vez de deixar o operador esperando indefinidamente.
 
 ---
 
@@ -152,7 +176,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 87 testes unitários (node:test)
+│   └── tests/                              # 91 testes unitários (node:test)
 │
 └── frontend/
     ├── Dockerfile                          # Build do Vite publicado por nginx
@@ -405,6 +429,7 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `TRAIN_MOTION_INTERVAL_MS` | `4000` | Intervalo base entre avanços de uma estação por composição (±35% de variação aleatória, para não sincronizar todos os trens) |
 | `TELEMETRY_BUCKET_SECONDS` | `60` | Janela de agregação da série histórica |
 | `TELEMETRY_RETENTION_DAYS` | `7` | Retenção da série histórica |
+| `TRAIN_COMMAND_LOCK_TIMEOUT_MS` | `4000` | Prazo do lock pessimista (`FOR UPDATE`) de um comando de trem antes de recusar com `409` |
 | `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
 | `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador de demonstração |
 
@@ -442,7 +467,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 87 testes unitários do domínio e da infraestrutura
+npm test          # 91 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```

@@ -4,6 +4,7 @@ import type { OperatorSession, Station } from '../../types';
 import { api, ApiError } from '../../services/api';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
+import { hashString } from '../../lib/hash';
 
 interface CamerasViewProps {
   session: OperatorSession;
@@ -26,15 +27,6 @@ interface Camera {
   kind: CameraKind;
   online: boolean;
 }
-
-/** Hash determinístico (djb2) — cada câmera sempre cai no mesmo lado do sorteio. */
-const hashString = (value: string): number => {
-  let hash = 5381;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 33) ^ value.charCodeAt(index);
-  }
-  return Math.abs(hash);
-};
 
 const BASE_OFFLINE_CHANCE = 0.06;
 const DEGRADED_STATION_OFFLINE_CHANCE = 0.32;

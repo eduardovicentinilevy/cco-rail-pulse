@@ -77,6 +77,12 @@ export const env = {
   /** Tentativas de login permitidas por credencial dentro da janela. */
   loginMaxAttempts: toInt(process.env.LOGIN_MAX_ATTEMPTS, 8),
   loginWindowMs: toInt(process.env.LOGIN_WINDOW_MS, 60_000),
+  /**
+   * Tempo máximo que um comando de trem espera pelo lock pessimista (FOR UPDATE) do
+   * registro antes de desistir. Sem isso, uma transação travada faria toda composição
+   * ficar incomandável indefinidamente para qualquer operador.
+   */
+  trainCommandLockTimeoutMs: toInt(process.env.TRAIN_COMMAND_LOCK_TIMEOUT_MS, 4000),
   database: {
     url: process.env.DATABASE_URL,
     host: process.env.DB_HOST ?? 'localhost',
