@@ -1,4 +1,5 @@
 // backend/infrastructure/repositories/pg-operator.repository.ts
+import type { PoolClient } from 'pg';
 import { db } from '../database/postgres';
 import { createLogger } from '../../shared/logger';
 
@@ -152,14 +153,30 @@ export class PgOperatorRepository {
 
   /**
    * Registra um evento na trilha de auditoria.
-   * Nunca propaga erro: falhar ao auditar não pode derrubar a operação em curso.
+   *
+   * Sem `client`: nunca propaga erro — falhar ao auditar não pode derrubar a operação
+   * em curso (uso normal, fora de transação). Com `client`: roda dentro da transação do
+   * chamador e propaga qualquer erro de propósito — usado por comandos de segurança
+   * (ex.: comandos de trem sob lock pessimista) onde a auditoria faz parte da atomicidade
+   * da operação: ou o estado e o registro persistem juntos, ou nenhum dos dois persiste.
    */
-  public async logAudit(operatorId: string, action: string, target: string, status: string): Promise<void> {
+  public async logAudit(
+    operatorId: string,
+    action: string,
+    target: string,
+    status: string,
+    client?: Pick<PoolClient, 'query'>,
+  ): Promise<void> {
+    const query = `INSERT INTO audit_logs (operator_id, action, target, status) VALUES ($1, $2, $3, $4)`;
+    const params = [operatorId, action, target, status];
+
+    if (client) {
+      await client.query(query, params);
+      return;
+    }
+
     try {
-      await db.query(
-        `INSERT INTO audit_logs (operator_id, action, target, status) VALUES ($1, $2, $3, $4)`,
-        [operatorId, action, target, status],
-      );
+      await db.query(query, params);
     } catch (error) {
       logger.error('Falha ao gravar evento de auditoria.', error);
     }

@@ -33,3 +33,10 @@ export class TooManyRequestsError extends AppError {
     super(429, message, 'TOO_MANY_REQUESTS');
   }
 }
+
+/** Recurso sob disputa: outra transação já detém o lock pessimista sobre o mesmo registro. */
+export class ConflictError extends AppError {
+  constructor(message = 'Recurso em uso por outra operação. Tente novamente em instantes.') {
+    super(409, message, 'CONFLICT');
+  }
+}
