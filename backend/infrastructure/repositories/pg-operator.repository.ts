@@ -14,6 +14,7 @@ export interface OperatorEntity {
   is_active: boolean;
   mfa_secret: string | null;
   mfa_enabled: boolean;
+  mfa_last_used_step: string | null;
 }
 
 /** Projeção pública do operador — nunca carrega o hash da senha. */
@@ -61,7 +62,7 @@ export interface AuditPage {
 export class PgOperatorRepository {
   public async findById(operatorId: string): Promise<OperatorEntity | null> {
     const result = await db.query<OperatorEntity>(
-      `SELECT id, name, role, password_hash, avatar_url, is_active, mfa_secret, mfa_enabled
+      `SELECT id, name, role, password_hash, avatar_url, is_active, mfa_secret, mfa_enabled, mfa_last_used_step
        FROM operators
        WHERE id = $1 AND is_active = TRUE`,
       [operatorId.trim().toUpperCase()],
@@ -85,7 +86,15 @@ export class PgOperatorRepository {
   }
 
   public async disableMfa(operatorId: string): Promise<void> {
-    await db.query(`UPDATE operators SET mfa_enabled = FALSE, mfa_secret = NULL WHERE id = $1`, [operatorId]);
+    await db.query(
+      `UPDATE operators SET mfa_enabled = FALSE, mfa_secret = NULL, mfa_last_used_step = NULL WHERE id = $1`,
+      [operatorId],
+    );
+  }
+
+  /** Registra o passo TOTP aceito — qualquer código de passo igual ou anterior passa a ser recusado. */
+  public async setMfaLastUsedStep(operatorId: string, step: number): Promise<void> {
+    await db.query(`UPDATE operators SET mfa_last_used_step = $2 WHERE id = $1`, [operatorId, step]);
   }
 
   /**

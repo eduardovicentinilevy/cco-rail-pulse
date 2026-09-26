@@ -3,7 +3,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
 import { NotFoundError, UnauthorizedError, ValidationError } from '../../../shared/errors';
-import { buildOtpAuthUrl, generateTotpSecret, verifyTotp } from '../../../shared/totp';
+import { buildOtpAuthUrl, generateTotpSecret, verifyTotpStep } from '../../../shared/totp';
 import { verifyJwt } from '../middlewares/auth.middleware';
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 
@@ -79,18 +79,31 @@ operatorRouter.post('/mfa/enroll', async (req: AuthenticatedRequest, res) => {
   res.status(200).json({ secret, otpauthUrl: buildOtpAuthUrl(secret, operator.id) });
 });
 
-/** Confirma o segredo pendente com um código válido — só então o 2FA passa a ser exigido no login. */
+/**
+ * Confirma o segredo pendente com um código válido — só então o 2FA passa a ser exigido no login.
+ *
+ * Exige a senha atual, no mesmo padrão de `/mfa/disable`: sem isso, uma sessão comprometida
+ * (mesmo sem a senha) poderia ativar um 2FA com segredo do atacante e bloquear o dono
+ * legítimo no próximo login — a senha é o que garante que só quem já tinha acesso de fato
+ * à conta pode ligar o segundo fator.
+ */
 operatorRouter.post('/mfa/confirm', async (req: AuthenticatedRequest, res) => {
   const code = typeof req.body?.code === 'string' ? req.body.code : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
   const operator = await operatorRepository.findById(req.operator!.operatorId);
   if (!operator) throw new NotFoundError('Operador não encontrado.');
   if (!operator.mfa_secret) throw new ValidationError('Gere um novo código secreto antes de confirmar.');
 
-  if (!verifyTotp(operator.mfa_secret, code)) {
+  const isPasswordValid = password.length > 0 && (await bcrypt.compare(password, operator.password_hash));
+  if (!isPasswordValid) throw new UnauthorizedError('Senha incorreta.');
+
+  const step = verifyTotpStep(operator.mfa_secret, code);
+  if (step === null) {
     throw new ValidationError('Código de verificação inválido.');
   }
 
   await operatorRepository.confirmMfa(operator.id);
+  await operatorRepository.setMfaLastUsedStep(operator.id, step);
   await operatorRepository.logAudit(operator.id, 'MFA_ENABLED', `OPERATOR_${operator.id}`, 'SUCCESS');
   res.status(200).json({ enabled: true });
 });

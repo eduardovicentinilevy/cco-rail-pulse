@@ -1,9 +1,9 @@
 # Relatório de Pentest — RailPulse CCO
 
-**Data:** 2026-09-26
+**Data da auditoria:** 2026-09-26 · **Data das correções:** 2026-09-26
 **Escopo:** `backend/` (Express + PostgreSQL + Socket.IO) e `frontend/` (React 19)
 **Método:** revisão de código autenticada (não é um black-box scan), com verificação ao vivo dos achados exploráveis contra a aplicação rodando localmente + `npm audit` nas duas árvores de dependências.
-**Commit avaliado:** `78fde34`
+**Commit avaliado:** `78fde34` · **Commit com as correções:** ver histórico do git a partir deste arquivo
 
 > Convenção de severidade: **Crítica** (compromete a segurança de toda a operação ou de contas), **Alta** (compromete uma conta/funcionalidade específica com esforço razoável), **Média** (exige um pré-requisito não trivial, ou o impacto é limitado), **Baixa** (defesa em profundidade — hoje sem vetor de exploração conhecido), **Informativa** (higiene, sem risco imediato).
 
@@ -11,24 +11,34 @@
 
 ## Resumo executivo
 
-| # | Achado | Severidade | Explorado ao vivo? |
+| # | Achado | Severidade | Status |
 | --- | --- | --- | --- |
-| 1 | Revogar acesso (desativar/rebaixar operador) não invalida o token já emitido | **Alta** | Confirmado por leitura de código (sem DB check pós-login) |
-| 2 | `trust proxy: true` permite falsificar IP e contornar o rate limiter de login | **Alta** | Confirmado por leitura de código |
-| 3 | Ativar 2FA não exige senha (assimetria com desativar) | Média | Confirmado por leitura de código |
-| 4 | TOTP sem proteção contra reuso dentro da janela de tolerância | Média | Confirmado por leitura de código |
-| 5 | `train:command` (WebSocket) não tem rate limit | Média | Confirmado por leitura de código |
-| 6 | Payload do WebSocket sem validação de tamanho/formato | Baixa/Média | Confirmado por leitura de código |
-| 7 | Sem `Content-Security-Policy` / `HSTS` | Baixa | N/A (defesa em profundidade) |
-| 8 | Senha de seed fraca sem trava em produção | Baixa | Confirmado por leitura de código |
-| 9 | Comparação do código TOTP não é *constant-time* | Informativa | N/A |
-| 10 | `.env` já esteve no histórico do git (removido depois) | Informativa | Confirmado (`git log`) |
+| 1 | Revogar acesso (desativar/rebaixar operador) não invalida o token já emitido | **Alta** | ✅ **Corrigido** — validado ao vivo (REST e WebSocket) |
+| 2 | `trust proxy: true` permite falsificar IP e contornar o rate limiter de login | **Alta** | ✅ **Corrigido** — validado ao vivo |
+| 3 | Ativar 2FA não exige senha (assimetria com desativar) | Média | ✅ **Corrigido** — validado ao vivo |
+| 4 | TOTP sem proteção contra reuso dentro da janela de tolerância | Média | ✅ **Corrigido** — validado ao vivo |
+| 5 | `train:command` (WebSocket) não tem rate limit | Média | ✅ **Corrigido** — validado ao vivo |
+| 6 | Payload do WebSocket sem validação de tamanho/formato | Baixa/Média | ✅ **Corrigido** — validado ao vivo |
+| 7 | Sem `Content-Security-Policy` / `HSTS` | Baixa | ✅ **Corrigido** — validado ao vivo |
+| 8 | Senha de seed fraca sem trava em produção | Baixa | ✅ **Corrigido** — validado ao vivo |
+| 9 | Comparação do código TOTP não é *constant-time* | Informativa | ✅ **Corrigido** |
+| 10 | `.env` já esteve no histórico do git (removido depois) | Informativa | ⏳ **Pendente** — reescrever histórico é destrutivo (força push, muda hashes de commit); aguardando decisão explícita |
 
 **O que já está correto** (verificado, não presumido) está na seção final — é bastante coisa, e vale ler para saber o que **não** mexer.
 
 ---
 
 ## 1. Revogar acesso não invalida o token já emitido — **Alta**
+
+> ✅ **Corrigido.** `verifyJwt` (REST) e o handshake do gateway (WebSocket) agora revalidam
+> o operador contra `operatorRepository.findById` a cada requisição/conexão (já filtra
+> `is_active = TRUE` e devolve o `role` fresco). Desativar um operador também emite
+> `operator:deactivated` no barramento de eventos, e o gateway derruba na hora qualquer
+> socket já aberto em nome dele. **Validado ao vivo:** um token de operador ativo
+> funcionava (`200`); após desativar a conta pela API, o MESMO token (ainda dentro da
+> validade) passou a receber `401 REVOKED` no REST, e um WebSocket já conectado com aquele
+> operador foi desconectado pelo servidor (`io server disconnect`) no instante da
+> desativação.
 
 ### Evidência
 
@@ -94,6 +104,13 @@ Um `Map<operatorId, {isActive, role, expiresAt}>` em memória, invalidado nas pr
 
 ## 2. `trust proxy: true` permite contornar o rate limiter de login — **Alta**
 
+> ✅ **Corrigido.** `trust proxy` agora é `false` (padrão do Express — sem proxy reverso
+> conhecido na frente deste deploy). Reforço adicional: o login agora também passa por um
+> segundo limitador chaveado só pela credencial (`loginLimiterByOperator`), independente
+> de IP. **Validado ao vivo:** 10 tentativas de login com senha errada, cada uma com um
+> `X-Forwarded-For` diferente, ainda assim bateram o limite exatamente na 9ª tentativa
+> (`429`) — a falsificação de IP deixou de ter qualquer efeito.
+
 ### Evidência
 
 `backend/presentation/http/app.ts`:
@@ -131,6 +148,11 @@ Como a chave do limitador é `IP:operatorId` e o IP é forjável a cada chamada,
 ---
 
 ## 3. Ativar 2FA não exige senha — assimetria com desativar — **Média**
+
+> ✅ **Corrigido.** `/mfa/confirm` agora exige a senha atual (`bcrypt.compare`), no mesmo
+> padrão de `/mfa/disable`. O frontend (`MfaSettingsCard`) ganhou o campo de senha na etapa
+> de confirmação. **Validado ao vivo:** confirmar sem senha retorna `401 Senha incorreta.`;
+> com a senha e o código certos, o 2FA ativa normalmente (`200 {"enabled":true}`).
 
 ### Evidência
 
@@ -174,6 +196,13 @@ operatorRouter.post('/mfa/confirm', async (req: AuthenticatedRequest, res) => {
 
 ## 4. TOTP sem proteção contra reuso — **Média**
 
+> ✅ **Corrigido.** Nova coluna `operators.mfa_last_used_step`; `verifyTotpStep` (substitui o
+> uso direto de `verifyTotp` nos pontos de login/confirmação) retorna o passo que bateu, e
+> qualquer passo `<=` ao último aceito é recusado. **Validado ao vivo:** um código usado com
+> sucesso no login funcionou (`200` + token); reenviar o MESMO código num novo desafio de
+> MFA foi recusado (`401 INVALID_MFA_CODE`), mesmo sendo formalmente um código "correto"
+> para aquela janela de 30s.
+
 ### Evidência
 
 `backend/shared/totp.ts`:
@@ -208,6 +237,11 @@ await operatorRepository.setMfaLastUsedStep(operator.id, step);
 
 ## 5. `train:command` sem rate limit — **Média**
 
+> ✅ **Corrigido.** Novo `RateLimiter(20, 10_000)` por `operatorId` no handler de
+> `train:command`. **Validado ao vivo:** de 25 comandos disparados em sequência pelo mesmo
+> operador, exatamente os primeiros 20 foram `EXECUTED` e os 5 seguintes vieram `FAILED`
+> por limite de taxa.
+
 ### Evidência
 
 `backend/presentation/websocket/cco.gateway.ts` — o handler de `train:command` não tem nenhum limitador; compare com `loginLimiter`/`mfaLimiter` em `auth.routes.ts`, que são os únicos pontos com `RateLimiter` no projeto todo.
@@ -238,6 +272,12 @@ socket.on('train:command', async (payload) => {
 
 ## 6. Payload do WebSocket sem validação de tamanho/formato — **Baixa/Média**
 
+> ✅ **Corrigido.** `trainId`/`targetBlock` acima de 20 caracteres são recusados antes de
+> qualquer transação/lock. Erros que não são `AppError` (ex.: uma falha crua do driver do
+> Postgres) agora viram uma mensagem genérica no `catch` do gateway, em vez de vazar
+> `error.message` bruto. **Validado ao vivo:** um `trainId` de 500 caracteres foi recusado
+> na hora (`FAILED — Identificador de composição ou bloco inválido.`), sem tocar o banco.
+
 ### Evidência
 
 ```ts
@@ -265,6 +305,11 @@ E, no `catch` geral do handler, nunca repassar `error.message` de erros que não
 ---
 
 ## 7. Sem `Content-Security-Policy` nem `Strict-Transport-Security` — **Baixa**
+
+> ✅ **Corrigido.** CSP adicionada em `securityHeaders` (`default-src 'self'`, com exceções
+> pontuais para WebSocket e imagens de avatar); `Strict-Transport-Security` é enviado
+> quando `NODE_ENV=production`. **Validado ao vivo:** `curl -I /health` mostra o cabeçalho
+> `Content-Security-Policy` presente na resposta.
 
 ### Evidência
 
@@ -298,6 +343,12 @@ Ajustar `img-src` conforme a política real de avatares (hoje aceita qualquer `h
 
 ## 8. Senha de seed fraca sem trava em produção — **Baixa**
 
+> ✅ **Corrigido.** `env.ts` agora falha o boot em produção se `SEED_OPERATOR_PASSWORD`
+> estiver ausente ou igual ao padrão (`123456`), no mesmo padrão já usado para `JWT_SECRET`.
+> **Validado ao vivo:** subir com `NODE_ENV=production` e sem `SEED_OPERATOR_PASSWORD`
+> lança `[CONFIG] SEED_OPERATOR_PASSWORD precisa de um valor forte...`; com uma senha forte
+> definida, o boot passa normalmente.
+
 ### Evidência
 
 `.env.example`:
@@ -321,6 +372,10 @@ if (isProduction && (process.env.SEED_OPERATOR_PASSWORD ?? '123456') === '123456
 ---
 
 ## 9. Comparação do código TOTP não é *constant-time* — Informativa
+
+> ✅ **Corrigido.** `verifyTotpStep` (que `verifyTotp` agora usa por baixo) compara com
+> `crypto.timingSafeEqual` em vez de `===`. Coberto pelos testes existentes de
+> `totp.test.ts`, que continuam passando sem alteração de comportamento observável.
 
 `hotp(key, counter + drift) === clean` usa `===` (comparação de string comum), não `crypto.timingSafeEqual`. O risco prático é baixo — o código muda a cada 30s e há limitador de 8 tentativas/min — mas trocar por comparação de tempo constante é uma correção de poucas linhas e remove a discussão por completo:
 
@@ -356,11 +411,18 @@ const safeEqual = (a: string, b: string) =>
 
 ---
 
-## Priorização sugerida
+## Status final
 
-1. **#1 e #2** primeiro — são os únicos com severidade Alta, e ambos têm correção mecânica e localizada (poucos arquivos).
-2. **#3, #4, #5** — cada um é uma mudança pequena e isolada; #5 fica ainda mais relevante por interagir com o lock pessimista recém-implementado.
-3. **#6, #7, #8** — baratos, sem trade-off, dá pra fazer juntos numa mesma limpeza.
-4. **#9 e #10** — sem urgência; #10 exige uma conversa sobre reescrever histórico antes de qualquer ação.
+Achados **#1 a #9 corrigidos e validados ao vivo** contra a aplicação rodando (não só por
+leitura de código) — ver a nota "✅ Corrigido" logo abaixo do título de cada um, com o que
+foi implementado e como foi verificado. Nenhum exigiu uma nova dependência de
+infraestrutura: tudo usa peças que o projeto já tinha (`RateLimiter`, `bcrypt`, o próprio
+Postgres).
 
-Nenhum dos achados exigiu uma nova dependência de infraestrutura para ser corrigido — todos usam peças que o projeto já tem (`RateLimiter`, `bcrypt`, o próprio Postgres).
+**#10 (`.env` no histórico do git) permanece pendente** — reescrever histórico é uma
+operação destrutiva (muda hashes de commit, exige `push --force` coordenado com qualquer
+colaborador) e só deve ser feita mediante decisão explícita, não como parte automática de
+uma correção de código.
+
+Suíte após as correções: 91 testes (era 82 no início da sessão de correções), typecheck,
+lint e build de produção — todos limpos.

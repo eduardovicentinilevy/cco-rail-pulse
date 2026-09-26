@@ -16,6 +16,8 @@ export interface DomainEvents {
   'train:updated': [TrainSnapshot];
   'incident:changed': [IncidentSnapshot];
   'system:alert': [SystemAlert];
+  /** Operador desativado — o gateway WS derruba qualquer socket já aberto em nome dele. */
+  'operator:deactivated': [{ operatorId: string }];
 }
 
 type EventName = keyof DomainEvents;

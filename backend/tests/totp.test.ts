@@ -1,7 +1,15 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { base32Decode, base32Encode, buildOtpAuthUrl, currentTotp, generateTotpSecret, verifyTotp } from '../shared/totp';
+import {
+  base32Decode,
+  base32Encode,
+  buildOtpAuthUrl,
+  currentTotp,
+  generateTotpSecret,
+  verifyTotp,
+  verifyTotpStep,
+} from '../shared/totp';
 
 describe('TOTP — base32', () => {
   it('faz o roundtrip de qualquer buffer', () => {
@@ -73,5 +81,50 @@ describe('TOTP — geração e verificação', () => {
     assert.match(url, /secret=ABCDEFGHIJKLMNOP/);
     assert.match(url, /digits=6/);
     assert.match(url, /period=30/);
+  });
+});
+
+describe('TOTP — verifyTotpStep (base da proteção contra reuso)', () => {
+  it('retorna o número do passo quando o código bate', () => {
+    const secret = generateTotpSecret();
+    const now = Date.now();
+    const step = verifyTotpStep(secret, currentTotp(secret, now), now);
+    assert.equal(typeof step, 'number');
+  });
+
+  it('retorna o MESMO passo para o mesmo código — é isso que permite detectar reuso', () => {
+    const secret = generateTotpSecret();
+    const now = Date.now();
+    const code = currentTotp(secret, now);
+
+    assert.equal(verifyTotpStep(secret, code, now), verifyTotpStep(secret, code, now));
+  });
+
+  it('passos de janelas de 30s diferentes são números diferentes', () => {
+    const secret = generateTotpSecret();
+    const now = Date.now();
+    const stepNow = verifyTotpStep(secret, currentTotp(secret, now), now);
+    const stepLater = verifyTotpStep(secret, currentTotp(secret, now + 30_000), now + 30_000);
+
+    assert.notEqual(stepNow, stepLater);
+    assert.ok(stepLater! > stepNow!);
+  });
+
+  it('retorna null para código inválido ou fora da janela', () => {
+    const secret = generateTotpSecret();
+    const now = Date.now();
+    const code = currentTotp(secret, now);
+
+    assert.equal(verifyTotpStep(secret, 'abcdef', now), null);
+    assert.equal(verifyTotpStep(secret, code, now + 90_000), null);
+  });
+
+  it('verifyTotp é exatamente "verifyTotpStep não é null"', () => {
+    const secret = generateTotpSecret();
+    const now = Date.now();
+    const code = currentTotp(secret, now);
+
+    assert.equal(verifyTotp(secret, code, now), verifyTotpStep(secret, code, now) !== null);
+    assert.equal(verifyTotp(secret, '000000', now), verifyTotpStep(secret, '000000', now) !== null);
   });
 });

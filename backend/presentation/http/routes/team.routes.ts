@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import { env } from '../../../config/env';
 import { OPERATOR_ROLES, ROLE_LABELS, isOperatorRole } from '../../../domain/roles';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
+import { domainEventBus } from '../../../application/events/event-bus';
 import { NotFoundError, ValidationError } from '../../../shared/errors';
 import { routeParam } from '../../../shared/http';
 import { verifyJwt, requirePermission } from '../middlewares/auth.middleware';
@@ -95,6 +96,13 @@ teamRouter.patch('/:id/active', requirePermission('MANAGE_OPERATORS'), async (re
     `OPERATOR_${operatorId}`,
     'EXECUTED',
   );
+
+  // O REST já para de aceitar o token dessa credencial na próxima requisição (verifyJwt
+  // revalida contra o banco); um WebSocket já aberto não faz uma nova requisição sozinho,
+  // então precisa ser derrubado explicitamente para a desativação valer imediatamente.
+  if (!isActive) {
+    domainEventBus.emit('operator:deactivated', { operatorId });
+  }
 
   res.status(200).json({ id: operatorId, isActive });
 });
