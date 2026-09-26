@@ -15,7 +15,7 @@ import {
   verifyMfaChallengeToken,
   verifyPasswordChangeToken,
 } from '../../../shared/jwt';
-import { verifyTotp } from '../../../shared/totp';
+import { verifyTotpStep } from '../../../shared/totp';
 import { UnauthorizedError, ValidationError } from '../../../shared/errors';
 import { RateLimiter } from '../middlewares/rate-limit.middleware';
 import { verifyJwt } from '../middlewares/auth.middleware';
@@ -24,6 +24,14 @@ import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
 export const authRouter: Router = Router();
 
 const loginLimiter = new RateLimiter(env.loginMaxAttempts, env.loginWindowMs, rateLimitStore);
+/**
+ * Reforço independente de IP: a chave acima (`IP:credencial`) já limita força bruta
+ * por origem, mas `req.ip` só é confiável quando não há proxy mentindo sobre o cliente
+ * real. Este segundo limitador, chaveado só pela credencial, garante um teto total de
+ * tentativas contra uma conta específica mesmo que o componente de IP seja neutralizado
+ * (proxy mal configurado, ou simplesmente muitos IPs de verdade em paralelo).
+ */
+const loginLimiterByOperator = new RateLimiter(env.loginMaxAttempts, env.loginWindowMs, rateLimitStore);
 // Um código de 6 dígitos tem 1.000.000 de combinações — mesmo um limite folgado
 // torna a força bruta impraticável dentro da validade do desafio.
 const mfaLimiter = new RateLimiter(8, 60_000, rateLimitStore);
@@ -127,8 +135,10 @@ authRouter.post('/login', async (req, res) => {
     throw new ValidationError('Credencial e senha são obrigatórias.');
   }
 
-  const rateKey = `login:${req.ip ?? 'unknown'}:${operatorId.toUpperCase()}`;
+  const normalizedId = operatorId.toUpperCase();
+  const rateKey = `login:${req.ip ?? 'unknown'}:${normalizedId}`;
   await loginLimiter.consume(rateKey);
+  await loginLimiterByOperator.consume(`login:${normalizedId}`);
 
   const operator = await operatorRepository.findById(operatorId);
   const invalidCredentials = { error: 'Credencial inválida ou operador inativo.', code: 'INVALID_CREDENTIALS' };
@@ -146,6 +156,7 @@ authRouter.post('/login', async (req, res) => {
   }
 
   await loginLimiter.reset(rateKey);
+  await loginLimiterByOperator.reset(`login:${normalizedId}`);
 
   // Segundo fator ativo: a senha só abre um desafio curto, nunca a sessão em si.
   if (operator.mfa_enabled) {
@@ -175,11 +186,16 @@ authRouter.post('/login/mfa', async (req, res) => {
     return res.status(401).json(invalidChallenge);
   }
 
-  if (!verifyTotp(operator.mfa_secret, readString(req.body?.code))) {
+  const step = verifyTotpStep(operator.mfa_secret, readString(req.body?.code));
+  const lastUsedStep = operator.mfa_last_used_step == null ? null : Number(operator.mfa_last_used_step);
+
+  // Código não bate, ou bate mas já foi usado (mesmo passo ou um anterior) — nunca aceitar de novo.
+  if (step === null || (lastUsedStep !== null && step <= lastUsedStep)) {
     await operatorRepository.logAudit(operator.id, 'LOGIN_MFA_FAILED', 'AUTH_SYSTEM', 'UNAUTHORIZED');
     return res.status(401).json({ error: 'Código de verificação inválido.', code: 'INVALID_MFA_CODE' });
   }
 
+  await operatorRepository.setMfaLastUsedStep(operator.id, step);
   await mfaLimiter.reset(`mfa:${operatorId}`);
   return completeLogin(req, res, operator);
 });

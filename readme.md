@@ -161,7 +161,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 138 testes unitários (node:test)
+│   └── tests/                              # 143 testes unitários (node:test)
 │
 └── frontend/
     └── src/
@@ -284,7 +284,7 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `TRAIN_COMMAND_LOCK_TIMEOUT_MS` | `4000` | Prazo do lock pessimista (`FOR UPDATE`) de um comando de trem antes de recusar com `409` |
 | `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização |
 | `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador inicial |
-| `SEED_OPERATOR_PASSWORD` | — | Sem padrão: em branco, o boot sorteia uma senha e a exibe uma vez |
+| `SEED_OPERATOR_PASSWORD` | — | Sem padrão: em branco, o boot sorteia uma senha e a exibe uma vez; quando informada, precisa passar pela política de senha |
 | `SEED_DEMO_TEAM` | `true` fora de produção | Semeia a equipe de vitrine (sem login utilizável) |
 
 > ⚠️ O arquivo `.env` **não é versionado**. Use `.env.example` como modelo.
@@ -364,7 +364,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 138 testes unitários do domínio e da infraestrutura
+npm test          # 143 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```

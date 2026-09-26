@@ -123,8 +123,8 @@ export const api = {
   mfaEnroll: (token: string) =>
     request<{ secret: string; otpauthUrl: string }>('/api/operator/mfa/enroll', { method: 'POST', token }),
 
-  mfaConfirm: (token: string, code: string) =>
-    request<{ enabled: true }>('/api/operator/mfa/confirm', { method: 'POST', token, body: { code } }),
+  mfaConfirm: (token: string, code: string, password: string) =>
+    request<{ enabled: true }>('/api/operator/mfa/confirm', { method: 'POST', token, body: { code, password } }),
 
   mfaDisable: (token: string, password: string) =>
     request<{ enabled: false }>('/api/operator/mfa/disable', { method: 'POST', token, body: { password } }),

@@ -7,6 +7,7 @@ import { describeViolations, validatePassword } from '../../../domain/password-p
 import { REVOCATION_REASONS } from '../../../domain/entities/AuthSession';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
 import { authSessionService } from '../../../infrastructure/auth/session-service';
+import { domainEventBus } from '../../../application/events/event-bus';
 import { NotFoundError, ValidationError } from '../../../shared/errors';
 import { routeParam } from '../../../shared/http';
 import { verifyJwt, requirePermission } from '../middlewares/auth.middleware';
@@ -103,10 +104,15 @@ teamRouter.patch('/:id/active', requirePermission('MANAGE_OPERATORS'), async (re
   }
 
   await operatorRepository.setActive(operatorId, isActive);
+
+  // Desativar precisa valer na hora, inclusive para quem já está com o painel aberto.
+  // Revogar as sessões basta para o REST, que revalida a cada requisição; um WebSocket
+  // já aberto não faz uma nova requisição sozinho, então também é derrubado por evento.
   if (!isActive) {
-    // Desativar precisa valer na hora, inclusive para quem já está com o painel aberto.
     await authSessionService.revokeOperator(operatorId, REVOCATION_REASONS.operatorDisabled);
+    domainEventBus.emit('operator:deactivated', { operatorId });
   }
+
   await operatorRepository.logAudit(
     requesterId,
     isActive ? 'OPERATOR_ACTIVATED' : 'OPERATOR_DEACTIVATED',
