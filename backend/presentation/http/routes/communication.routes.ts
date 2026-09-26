@@ -7,16 +7,16 @@ import {
   isCommunicationChannel,
   isCommunicationDirection,
 } from '../../../domain/communications';
-import { isKnownStation } from '../../../domain/line';
 import { CommunicationRepository } from '../../../infrastructure/database/repositories/CommunicationRepository';
 import { ValidationError } from '../../../shared/errors';
 import { toBoundedInt } from '../../../shared/http';
-import { verifyJwt } from '../middlewares/auth.middleware';
-import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
+import { verifyJwt, withLineCatalog } from '../middlewares/auth.middleware';
+import type { ScopedRequest } from '../middlewares/auth.middleware';
 
 export const communicationRouter: Router = Router();
 
-communicationRouter.use(verifyJwt);
+// O registro é da operação da linha e cita estações e composições dela.
+communicationRouter.use(verifyJwt, withLineCatalog);
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -35,17 +35,18 @@ communicationRouter.get('/meta', (_req, res) => {
   });
 });
 
-communicationRouter.get('/', async (req, res) => {
+communicationRouter.get('/', async (req: ScopedRequest, res) => {
   const limit = toBoundedInt(req.query.limit, DEFAULT_LIMIT, 1, MAX_LIMIT);
   const offset = toBoundedInt(req.query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
   const channel = isCommunicationChannel(req.query.channel) ? req.query.channel : undefined;
   const search = typeof req.query.search === 'string' ? req.query.search : undefined;
 
-  const page = await CommunicationRepository.list({ limit, offset, channel, search });
+  const page = await CommunicationRepository.list({ lineId: req.catalog!.id, limit, offset, channel, search });
   res.status(200).json(page);
 });
 
-communicationRouter.post('/', async (req: AuthenticatedRequest, res) => {
+communicationRouter.post('/', async (req: ScopedRequest, res) => {
+  const catalog = req.catalog!;
   const body = req.body ?? {};
 
   if (!isCommunicationChannel(body.channel)) {
@@ -64,16 +65,16 @@ communicationRouter.post('/', async (req: AuthenticatedRequest, res) => {
   }
 
   const stationCode = optionalText(body.stationCode)?.toUpperCase() ?? null;
-  if (stationCode && !isKnownStation(stationCode)) {
-    throw new ValidationError(`A estação "${stationCode}" não pertence à malha da Linha 6-Laranja.`);
-  }
+  // Quem diz se o código existe é a malha da linha da sessão, e o erro nomeia a linha.
+  if (stationCode) catalog.requireStation(stationCode);
 
   const communication = await CommunicationRepository.create({
+    lineId: catalog.id,
     channel: body.channel,
     direction: body.direction,
     stationCode,
     trainId: optionalText(body.trainId)?.toUpperCase() ?? null,
-    operatorId: req.operator!.operatorId,
+    operatorId: req.operator!.credential,
     message,
   });
 

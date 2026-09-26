@@ -18,6 +18,9 @@ interface SidebarProps<T extends string> {
   groups: ReadonlyArray<NavGroup<T>>;
   activeKey: T;
   collapsed: boolean;
+  /** Identificação da linha no cabeçalho da barra, vinda da sessão. */
+  lineName: string;
+  lineCode: string;
   /** Rodapé com a identificação do operador e do turno. */
   footer?: React.ReactNode;
   onSelect: (key: T) => void;
@@ -34,6 +37,8 @@ export const Sidebar = <T extends string>({
   groups,
   activeKey,
   collapsed,
+  lineName,
+  lineCode,
   footer,
   onSelect,
   onToggleCollapse,
@@ -61,11 +66,11 @@ export const Sidebar = <T extends string>({
     <nav className="rp-sidebar" aria-label="Navegação principal" onKeyDown={handleKeyDown}>
       <div className="rp-sidebar__brand">
         <span className="rp-sidebar__mark" aria-hidden="true">
-          L06
+          {lineCode}
         </span>
         <span className="rp-sidebar__wordmark">
           <span className="rp-sidebar__name">RailPulse CCO</span>
-          <span className="rp-sidebar__line">Linha 6-Laranja</span>
+          <span className="rp-sidebar__line">{lineName}</span>
         </span>
       </div>
 

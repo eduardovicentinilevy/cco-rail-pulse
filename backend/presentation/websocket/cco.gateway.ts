@@ -1,6 +1,7 @@
 // backend/presentation/websocket/cco.gateway.ts
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import { domainEventBus } from '../../application/events/event-bus';
+import type { LineEvent } from '../../application/events/event-bus';
 import { processTrainCommandUseCase } from '../../application/use-cases/ProcessTrainCommand';
 import { TrainRepository } from '../../infrastructure/database/repositories/TrainRepository';
 import { operatorRepository } from '../../infrastructure/repositories/pg-operator.repository';
@@ -10,7 +11,7 @@ import { verifyOperatorToken, extractBearerToken } from '../../shared/jwt';
 import { createLogger } from '../../shared/logger';
 import { AppError } from '../../shared/errors';
 import { RateLimiter } from '../http/middlewares/rate-limit.middleware';
-import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
+import type { SimulationRegistry } from '../../application/services/SimulationRegistry';
 import type { OperatorTokenPayload } from '../../shared/jwt';
 
 const logger = createLogger('CCO-GATEWAY');
@@ -38,13 +39,19 @@ interface AuthenticatedSocket extends Socket {
   operator?: OperatorTokenPayload;
 }
 
+/** Sala de uma linha. Um painel só recebe o que acontece na linha do seu token. */
+const roomFor = (lineId: string): string => `line:${lineId}`;
+
 /**
  * Gateway WebSocket do CCO.
  *
  * Toda conexão é autenticada no handshake e a identidade do operador passa a vir do
- * token — nunca do payload enviado pelo cliente, que é falsificável.
+ * token — nunca do payload enviado pelo cliente, que é falsificável. A linha da
+ * sessão vem do mesmo token e define a sala do socket: os eventos de domínio são
+ * entregues por sala, não em broadcast, que é o que impedia dois clientes de
+ * coexistirem no mesmo processo sem ver a operação um do outro.
  */
-export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimulator): void => {
+export const registerCcoGateway = (io: SocketIOServer, registry: SimulationRegistry): void => {
   io.use(async (socket: AuthenticatedSocket, next) => {
     const handshake = socket.handshake;
     const token =
@@ -58,21 +65,37 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
     }
 
     // Mesma revalidação do REST (`verifyJwt`): um token assinado não prova, sozinho, que a
-    // conta segue ativa. `findById` já filtra `is_active = TRUE`.
-    const operator = await operatorRepository.findById(payload.operatorId);
+    // conta segue ativa. `findById` já filtra `is_active = TRUE`, e recebe o cliente do
+    // token: a busca nunca alcança um operador de outro cliente com o mesmo id.
+    const operator = await operatorRepository.findById(payload.tenantId, payload.operatorId);
     if (!operator) {
       next(new Error('UNAUTHORIZED'));
       return;
     }
 
-    socket.operator = { operatorId: operator.id, role: operator.role };
+    // O escopo (cliente e linha) vem do token; o perfil vem fresco do banco, para que
+    // um rebaixamento de permissão valha para a sessão já aberta.
+    socket.operator = { ...payload, role: operator.role };
     next();
   });
 
-  // Registrado uma única vez para o gateway inteiro (não por conexão): desativar um
-  // operador em `Equipe` derruba qualquer socket já aberto em nome dele, na hora — sem
-  // isso, uma sessão de WebSocket já estabelecida seguiria comandando trens normalmente
-  // até o cliente desconectar por conta própria.
+  // Uma assinatura por processo, com roteamento por sala. Antes cada socket
+  // registrava quatro listeners próprios no barramento e recebia tudo.
+  const relay = <T>(event: 'telemetry:batch' | 'alert:critical' | 'train:updated' | 'incident:changed') =>
+    ({ lineId, payload }: LineEvent<T>) => {
+      io.to(roomFor(lineId)).emit(event, payload);
+    };
+
+  domainEventBus.on('telemetry:updated', relay('telemetry:batch'));
+  domainEventBus.on('system:alert', relay('alert:critical'));
+  domainEventBus.on('train:updated', relay('train:updated'));
+  domainEventBus.on('incident:changed', relay('incident:changed'));
+
+  // Também uma única vez para o gateway inteiro: desativar um operador em `Equipe`
+  // derruba qualquer socket já aberto em nome dele, na hora — sem isso, uma sessão de
+  // WebSocket já estabelecida seguiria comandando trens normalmente até o cliente
+  // desconectar por conta própria. O id é a chave interna (UUID), única em toda a
+  // instalação, então não há como derrubar o socket do operador de outro cliente.
   domainEventBus.on('operator:deactivated', ({ operatorId }) => {
     for (const socket of io.sockets.sockets.values()) {
       if ((socket as AuthenticatedSocket).operator?.operatorId === operatorId) {
@@ -83,21 +106,14 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
 
   io.on('connection', (socket: AuthenticatedSocket) => {
     const operator = socket.operator!;
-    logger.info(`Painel conectado: ${socket.id} (operador ${operator.operatorId})`);
+    const { lineId, tenantId } = operator;
 
-    const onTelemetryBatch = (batch: unknown) => socket.emit('telemetry:batch', batch);
-    const onCriticalAlert = (alert: unknown) => socket.emit('alert:critical', alert);
-    const onTrainUpdated = (train: unknown) => socket.emit('train:updated', train);
-    const onIncidentChanged = (incident: unknown) => socket.emit('incident:changed', incident);
+    void socket.join(roomFor(lineId));
+    logger.info(`Painel conectado: ${socket.id} (operador ${operator.credential}, linha ${lineId})`);
 
-    domainEventBus.on('telemetry:updated', onTelemetryBatch);
-    domainEventBus.on('system:alert', onCriticalAlert);
-    domainEventBus.on('train:updated', onTrainUpdated);
-    domainEventBus.on('incident:changed', onIncidentChanged);
-
-    // Carga inicial: o painel já abre com o estado corrente da malha.
-    socket.emit('telemetry:batch', simulator.snapshot());
-    TrainRepository.findAll()
+    // Carga inicial: o painel já abre com o estado corrente da sua linha.
+    socket.emit('telemetry:batch', registry.snapshotOf(lineId));
+    TrainRepository.findAll(lineId)
       .then((trains) => socket.emit('train:sync', trains.map((train) => train.toSnapshot())))
       .catch((error) => logger.error('Falha ao sincronizar composições no handshake.', error));
 
@@ -134,7 +150,9 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
         // use case; ver ProcessTrainCommand.ts para o ciclo de vida completo e a
         // mitigação de deadlock/inanição sob comandos concorrentes ao mesmo trem.
         const { applied } = await processTrainCommandUseCase.execute({
-          operatorId: operator.operatorId,
+          lineId,
+          tenantId,
+          operatorCredential: operator.credential,
           trainId,
           rawCommand,
           command,
@@ -152,11 +170,8 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
     });
 
     socket.on('disconnect', (reason) => {
-      // Clean-up vital: sem isso cada reconexão acumula listeners no barramento.
-      domainEventBus.off('telemetry:updated', onTelemetryBatch);
-      domainEventBus.off('system:alert', onCriticalAlert);
-      domainEventBus.off('train:updated', onTrainUpdated);
-      domainEventBus.off('incident:changed', onIncidentChanged);
+      // O Socket.IO tira o socket da sala sozinho; não há mais listeners de
+      // barramento por conexão para limpar.
       logger.info(`Painel desconectado: ${socket.id} (${reason})`);
     });
   });

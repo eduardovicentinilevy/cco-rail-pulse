@@ -1,5 +1,5 @@
 // backend/application/services/TelemetrySimulator.ts
-import { LINE_STATIONS } from '../../domain/line';
+import type { LineCatalog } from '../../domain/line';
 import { domainEventBus } from '../events/event-bus';
 import type { StationTelemetryDTO } from '../dtos/TrainDTO';
 
@@ -21,20 +21,30 @@ const classify = (voltageKV: number): StationTelemetryDTO['status'] => {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /**
- * Simulador de hardware SCADA.
+ * Simulador de hardware SCADA de uma linha.
  *
  * Substitui o `Math.random()` puro por um *random walk* ancorado na tensão nominal
  * de cada subestação: a leitura oscila de forma contínua e plausível, o que produz
  * gráficos legíveis em vez de ruído branco.
+ *
+ * Existe uma instância por linha ativa, criada pelo `SimulationRegistry` — antes
+ * era um singleton, o que só funcionava enquanto houvesse uma malha no processo.
  */
 export class TelemetrySimulator {
   private timer: NodeJS.Timeout | null = null;
   private readonly readings = new Map<string, number>();
 
-  constructor(private readonly intervalMs: number) {
-    for (const station of LINE_STATIONS) {
+  constructor(
+    private readonly catalog: LineCatalog,
+    private readonly intervalMs: number,
+  ) {
+    for (const station of catalog.stations) {
       this.readings.set(station.code, station.nominalVoltageKV);
     }
+  }
+
+  public get lineId(): string {
+    return this.catalog.id;
   }
 
   public get isRunning(): boolean {
@@ -43,15 +53,23 @@ export class TelemetrySimulator {
 
   /** Estado corrente da malha, enviado a cada painel que se conecta. */
   public snapshot(): StationTelemetryDTO[] {
-    return LINE_STATIONS.map((station) => {
+    return this.catalog.stations.map((station) => {
       const voltageKV = this.readings.get(station.code) ?? station.nominalVoltageKV;
-      return { currentStationCode: station.code, voltageKV, status: classify(voltageKV) };
+      return {
+        stationId: station.id,
+        currentStationCode: station.code,
+        voltageKV,
+        status: classify(voltageKV),
+      };
     });
   }
 
   public start(): void {
     if (this.timer) return;
-    this.timer = setInterval(() => domainEventBus.emit('telemetry:updated', this.tick()), this.intervalMs);
+    this.timer = setInterval(
+      () => domainEventBus.emit('telemetry:updated', { lineId: this.catalog.id, payload: this.tick() }),
+      this.intervalMs,
+    );
     // Não impede o processo de encerrar durante um shutdown gracioso.
     this.timer.unref?.();
   }
@@ -63,7 +81,7 @@ export class TelemetrySimulator {
   }
 
   private tick(): StationTelemetryDTO[] {
-    return LINE_STATIONS.map((station) => {
+    return this.catalog.stations.map((station) => {
       const previous = this.readings.get(station.code) ?? station.nominalVoltageKV;
       const drift = (Math.random() - 0.5) * 2 * DRIFT_STEP_KV;
       // Leve atração de volta ao valor nominal, evitando deriva acumulada.
@@ -75,7 +93,7 @@ export class TelemetrySimulator {
       );
 
       this.readings.set(station.code, next);
-      return { currentStationCode: station.code, voltageKV: next, status: classify(next) };
+      return { stationId: station.id, currentStationCode: station.code, voltageKV: next, status: classify(next) };
     });
   }
 }

@@ -21,11 +21,13 @@ const toSnapshot = (row: AlarmRow): AlarmSnapshot => ({
 });
 
 export interface CreateAlarmInput {
+  lineId: string;
   severity: AlarmSeverity;
   message: string;
 }
 
 export interface AlarmQuery {
+  lineId: string;
   limit: number;
   offset: number;
   severity?: AlarmSeverity;
@@ -53,17 +55,18 @@ const SELECT_COLUMNS = 'id, severity, message, created_at, acknowledged_by, ackn
 export class AlarmRepository {
   public static async create(input: CreateAlarmInput): Promise<AlarmSnapshot> {
     const result = await db.query<AlarmRow>(
-      `INSERT INTO alarms (severity, message) VALUES ($1, $2) RETURNING ${SELECT_COLUMNS}`,
-      [input.severity, input.message],
+      `INSERT INTO alarms (line_id, severity, message) VALUES ($1, $2, $3) RETURNING ${SELECT_COLUMNS}`,
+      [input.lineId, input.severity, input.message],
     );
     return toSnapshot(result.rows[0]);
   }
 
-  public static async list({ limit, offset, severity, acknowledged, search }: AlarmQuery): Promise<AlarmPage> {
+  public static async list({ lineId, limit, offset, severity, acknowledged, search }: AlarmQuery): Promise<AlarmPage> {
     const filter = search?.trim() ? `%${search.trim()}%` : null;
 
-    const whereClause = (severityParam: number, ackParam: number, searchParam: number) => `
-      ($${severityParam}::text IS NULL OR severity = $${severityParam})
+    const whereClause = (lineParam: number, severityParam: number, ackParam: number, searchParam: number) => `
+      line_id = $${lineParam}
+      AND ($${severityParam}::text IS NULL OR severity = $${severityParam})
       AND (
         $${ackParam}::boolean IS NULL
         OR ($${ackParam}::boolean IS TRUE AND acknowledged_at IS NOT NULL)
@@ -75,12 +78,13 @@ export class AlarmRepository {
     const [page, count] = await Promise.all([
       db.query<AlarmRow>(
         `SELECT ${SELECT_COLUMNS} FROM alarms
-         WHERE ${whereClause(3, 4, 5)}
+         WHERE ${whereClause(3, 4, 5, 6)}
          ORDER BY created_at DESC
          LIMIT $1 OFFSET $2`,
-        [limit, offset, severity ?? null, acknowledged ?? null, filter],
+        [limit, offset, lineId, severity ?? null, acknowledged ?? null, filter],
       ),
-      db.query<{ total: string }>(`SELECT COUNT(*)::text AS total FROM alarms WHERE ${whereClause(1, 2, 3)}`, [
+      db.query<{ total: string }>(`SELECT COUNT(*)::text AS total FROM alarms WHERE ${whereClause(1, 2, 3, 4)}`, [
+        lineId,
         severity ?? null,
         acknowledged ?? null,
         filter,
@@ -95,21 +99,25 @@ export class AlarmRepository {
     };
   }
 
-  public static async acknowledge(id: string, operatorId: string): Promise<AlarmSnapshot | null> {
+  /**
+   * O id do alarme é sequencial e compartilhado entre clientes, então a linha
+   * entra no WHERE: sem ela, um id chutado reconheceria o alarme de outro.
+   */
+  public static async acknowledge(lineId: string, id: string, credential: string): Promise<AlarmSnapshot | null> {
     // Estrito (não `parseInt` solto): um id como "12abc" não pode reconhecer o alarme #12 por engano.
     if (!/^\d+$/.test(id)) return null;
     const numericId = Number.parseInt(id, 10);
 
     const result = await db.query<AlarmRow>(
-      `UPDATE alarms SET acknowledged_by = $2, acknowledged_at = NOW()
-       WHERE id = $1 AND acknowledged_at IS NULL
+      `UPDATE alarms SET acknowledged_by = $3, acknowledged_at = NOW()
+       WHERE id = $1 AND line_id = $2 AND acknowledged_at IS NULL
        RETURNING ${SELECT_COLUMNS}`,
-      [numericId, operatorId],
+      [numericId, lineId, credential],
     );
     return result.rows[0] ? toSnapshot(result.rows[0]) : null;
   }
 
-  public static async stats(): Promise<AlarmStats> {
+  public static async stats(lineId: string): Promise<AlarmStats> {
     const result = await db.query<{
       total: string;
       unacknowledged: string;
@@ -121,7 +129,9 @@ export class AlarmRepository {
          COUNT(*) FILTER (WHERE acknowledged_at IS NULL)::text AS unacknowledged,
          COUNT(*) FILTER (WHERE acknowledged_at IS NULL AND severity = 'CRITICAL')::text AS critical_unacknowledged,
          COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::text AS last_24h
-       FROM alarms`,
+       FROM alarms
+       WHERE line_id = $1`,
+      [lineId],
     );
 
     const row = result.rows[0];

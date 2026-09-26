@@ -6,9 +6,8 @@ import { env } from '../../config/env';
 import { createLogger } from '../../shared/logger';
 import { createApp } from './app';
 import { registerCcoGateway } from '../websocket/cco.gateway';
-import { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
+import { SimulationRegistry } from '../../application/services/SimulationRegistry';
 import { TelemetryArchiver } from '../../application/services/TelemetryArchiver';
-import { TrainMotionSimulator } from '../../application/services/TrainMotionSimulator';
 import { runMigrations } from '../../infrastructure/database/migrations';
 import { closeDatabase, db } from '../../infrastructure/database/postgres';
 import { domainEventBus } from '../../application/events/event-bus';
@@ -16,10 +15,9 @@ import { AlarmRepository } from '../../infrastructure/database/repositories/Alar
 
 const logger = createLogger('BOOT');
 
-const simulator = new TelemetrySimulator(env.telemetryIntervalMs);
+const registry = new SimulationRegistry(env.telemetryIntervalMs, env.trainMotionIntervalMs);
 const archiver = new TelemetryArchiver(env.telemetryBucketSeconds, env.telemetryRetentionDays);
-const trainMotion = new TrainMotionSimulator(env.trainMotionIntervalMs);
-const app = createApp(simulator);
+const app = createApp(registry);
 const server = http.createServer(app);
 
 const io = new SocketIOServer(server, {
@@ -29,12 +27,14 @@ const io = new SocketIOServer(server, {
   pingInterval: 25_000,
 });
 
-registerCcoGateway(io, simulator);
+registerCcoGateway(io, registry);
 
 // Persiste todo alerta de domínio na Central de Alarmes — o feed ao vivo do painel
 // some ao recarregar a página; esta tabela é o histórico que sobrevive entre turnos.
-domainEventBus.on('system:alert', (alert) => {
-  AlarmRepository.create(alert).catch((error) => logger.error('Falha ao persistir alarme.', error));
+domainEventBus.on('system:alert', ({ lineId, payload }) => {
+  AlarmRepository.create({ lineId, severity: payload.severity, message: payload.message }).catch((error) =>
+    logger.error('Falha ao persistir alarme.', error),
+  );
 });
 
 // Sem este handler, uma porta ocupada derruba o processo com stack trace bruto.
@@ -55,8 +55,7 @@ const shutdown = async (signal: string): Promise<void> => {
   shuttingDown = true;
   logger.info(`Sinal ${signal} recebido — iniciando encerramento gracioso.`);
 
-  simulator.stop();
-  trainMotion.stop();
+  registry.stopAll();
   // Descarrega a janela pendente antes de derrubar o barramento.
   await archiver.stop().catch((error) => logger.error('Falha ao encerrar o arquivamento.', error));
   domainEventBus.removeAllListeners();
@@ -77,12 +76,12 @@ const bootstrap = async (): Promise<void> => {
 
     await runMigrations();
     archiver.start();
-    simulator.start();
-    trainMotion.start();
+    // Uma simulação por linha ativa, montada a partir do que está cadastrado.
+    await registry.startAll();
 
     server.listen(env.port, () => {
       logger.info(`RailPulse CCO (${env.nodeEnv}) ativo em http://localhost:${env.port}`);
-      logger.info(`Telemetria SCADA emitindo a cada ${env.telemetryIntervalMs}ms.`);
+      logger.info(`Telemetria SCADA emitindo a cada ${env.telemetryIntervalMs}ms em ${registry.activeLines} linha(s).`);
       logger.info(`Composições avançando uma estação a cada ${env.trainMotionIntervalMs}ms.`);
     });
   } catch (error) {
