@@ -43,9 +43,9 @@
   transition: padding var(--dur-base) var(--ease);
 }
 
-/* Doze seções podem ultrapassar a altura da janela — quando isso rolar, uma
-   trilha mais fina que o padrão global (base.css) cabe melhor nesta coluna
-   estreita; cor e track já vêm daquele estilo global via herança. */
+/* Com dezessete seções a barra pode ultrapassar a altura da janela — quando isso
+   rolar, uma trilha mais fina que o padrão global (base.css) cabe melhor nesta
+   coluna estreita; cor e track já vêm daquele estilo global via herança. */
 .rp-sidebar::-webkit-scrollbar { width: 6px; }
 
 .rp-sidebar__brand {

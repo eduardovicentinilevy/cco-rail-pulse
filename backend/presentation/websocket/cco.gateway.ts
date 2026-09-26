@@ -2,9 +2,8 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import { domainEventBus } from '../../application/events/event-bus';
 import type { LineEvent } from '../../application/events/event-bus';
-import { executeTrainCommandUseCase } from '../../application/use-cases/ExecuteTrainCommandUseCase';
+import { processTrainCommandUseCase } from '../../application/use-cases/ProcessTrainCommand';
 import { TrainRepository } from '../../infrastructure/database/repositories/TrainRepository';
-import { operatorRepository } from '../../infrastructure/repositories/pg-operator.repository';
 import { isTrainCommand } from '../../domain/entities/TrainSession';
 import type { TrainCommand } from '../../domain/entities/TrainSession';
 import { verifyOperatorToken, extractBearerToken } from '../../shared/jwt';
@@ -101,42 +100,22 @@ export const registerCcoGateway = (io: SocketIOServer, registry: SimulationRegis
       }
 
       try {
-        const snapshot = await executeTrainCommandUseCase.execute({
+        // Adquire o lock pessimista, valida, audita, executa e emite — tudo dentro do
+        // use case; ver ProcessTrainCommand.ts para o ciclo de vida completo e a
+        // mitigação de deadlock/inanição sob comandos concorrentes ao mesmo trem.
+        const { applied } = await processTrainCommandUseCase.execute({
           lineId,
+          tenantId,
           operatorCredential: operator.credential,
           trainId,
+          rawCommand,
           command,
           targetBlock,
         });
 
-        await operatorRepository.logAudit({
-          tenantId,
-          credential: operator.credential,
-          action: `EXEC_${rawCommand}`,
-          target: `TRAIN_${trainId}`,
-          status: 'EXECUTED',
-        });
-
-        domainEventBus.emit('train:updated', { lineId, payload: snapshot });
-        domainEventBus.emit('system:alert', {
-          lineId,
-          payload: {
-            severity: command === 'HALT' ? 'CRITICAL' : command === 'RESTRICT_SPEED' ? 'WARNING' : 'INFO',
-            message: `Comando ${rawCommand} executado no ${trainId} pelo operador ${operator.credential}`,
-            timestamp: new Date().toISOString(),
-          },
-        });
-
-        acknowledge('EXECUTED');
+        acknowledge('EXECUTED', applied ? undefined : `O trem ${trainId} já estava neste estado.`);
       } catch (error) {
         logger.error(`Falha ao executar ${rawCommand} em ${trainId}`, error);
-        await operatorRepository.logAudit({
-          tenantId,
-          credential: operator.credential,
-          action: `EXEC_${rawCommand}`,
-          target: `TRAIN_${trainId}`,
-          status: 'FAILED',
-        });
         acknowledge('FAILED', error instanceof Error ? error.message : undefined);
       }
     });
