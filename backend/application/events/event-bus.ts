@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import type { StationTelemetryDTO } from '../dtos/TrainDTO';
 import type { TrainSnapshot } from '../../domain/entities/TrainSession';
 import type { IncidentSnapshot } from '../../domain/entities/Incident';
+import type { WorkOrderSnapshot } from '../../domain/entities/WorkOrder';
 
 export interface SystemAlert {
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
@@ -27,6 +28,7 @@ export interface DomainEvents {
   'telemetry:updated': [LineEvent<StationTelemetryDTO[]>];
   'train:updated': [LineEvent<TrainSnapshot>];
   'incident:changed': [LineEvent<IncidentSnapshot>];
+  'workorder:changed': [LineEvent<WorkOrderSnapshot>];
   'system:alert': [LineEvent<SystemAlert>];
   /**
    * Operador desativado — o gateway WS derruba qualquer socket já aberto em nome dele.

@@ -28,6 +28,10 @@ import { AnalyticsReportsView } from './views/AnalyticsReportsView';
 import { AssetMaintenanceView } from './views/AssetMaintenanceView';
 import { TimetableDispatchView } from './views/TimetableDispatchView';
 import { IncidentsView } from './views/IncidentsView';
+import { WorkOrdersView } from './views/WorkOrdersView';
+import { WeatherView } from './views/WeatherView';
+import { FavoritesView } from './views/FavoritesView';
+import { VideoWallView } from './views/VideoWallView';
 import { AlarmsView } from './views/AlarmsView';
 import { OccupancyView } from './views/OccupancyView';
 import { CamerasView } from './views/CamerasView';
@@ -46,6 +50,7 @@ import type { ConfirmRequest } from './common/ConfirmDialog';
 import { CommandPalette } from './common/CommandPalette';
 import type { PaletteAction } from './common/CommandPalette';
 import { useCriticalAlerts } from '../hooks/useCriticalAlerts';
+import { useFavorites } from '../hooks/useFavorites';
 import type { Theme } from '../hooks/useTheme';
 import type { VoltageSample } from './TSSChartWidget';
 import { formatTime } from '../lib/format';
@@ -69,6 +74,7 @@ type TabKey =
   | 'energy'
   | 'history'
   | 'assets'
+  | 'workorders'
   | 'analytics'
   | 'timetable'
   | 'handover'
@@ -76,7 +82,10 @@ type TabKey =
   | 'procedures'
   | 'team'
   | 'status'
-  | 'settings';
+  | 'settings'
+  | 'weather'
+  | 'favorites'
+  | 'wall';
 
 /** Ordem da navegação — também define a ordem dos atalhos numéricos (1–9 e 0, até a décima seção). */
 const NAV_ORDER: readonly TabKey[] = [
@@ -97,9 +106,21 @@ const NAV_ORDER: readonly TabKey[] = [
   'procedures',
   'occupancy',
   'cameras',
+  'workorders',
+  'weather',
+  'favorites',
+  'wall',
 ];
 
 const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
+  {
+    label: 'Sala de Controle',
+    items: [{ key: 'wall', label: 'Mosaico Operacional', icon: '▦' }],
+  },
+  {
+    label: 'Atalhos',
+    items: [{ key: 'favorites', label: 'Favoritos', icon: '★' }],
+  },
   {
     label: 'Supervisão',
     items: [
@@ -109,6 +130,7 @@ const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
       { key: 'alarms', label: 'Central de Alarmes', icon: '◍' },
       { key: 'occupancy', label: 'Ocupação', icon: '◐' },
       { key: 'cameras', label: 'CFTV', icon: '◙' },
+      { key: 'weather', label: 'Clima & riscos', icon: '☂' },
     ],
   },
   {
@@ -117,6 +139,7 @@ const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
       { key: 'energy', label: 'Telemetria TSS', icon: '⚡' },
       { key: 'history', label: 'Série histórica', icon: '◫' },
       { key: 'assets', label: 'Saúde de ativos', icon: '⚙' },
+      { key: 'workorders', label: 'Ordens de serviço', icon: '🛠' },
     ],
   },
   {
@@ -173,6 +196,9 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   /** Incrementado a cada evento `incident:changed` — sinaliza recarga à aba de ocorrências. */
   const [incidentRefresh, setIncidentRefresh] = useState(0);
   const [openIncidents, setOpenIncidents] = useState(0);
+  /** Incrementado a cada evento `workorder:changed` — sinaliza recarga à aba de OSs. */
+  const [workOrderRefresh, setWorkOrderRefresh] = useState(0);
+  const [openWorkOrders, setOpenWorkOrders] = useState(0);
   /** Incrementado a cada `alert:critical` — sinaliza recarga à Central de Alarmes. */
   const [alarmRefresh, setAlarmRefresh] = useState(0);
   const [pendingAlarms, setPendingAlarms] = useState(0);
@@ -184,6 +210,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
   const [shiftStartedAt] = useState(() => Date.now());
   const alerts = useCriticalAlerts();
+  const favorites = useFavorites();
   const { notify: notifyCritical } = alerts;
   const nextAlarmId = useRef(1);
   const toastTimers = useRef(new Map<string, number>());
@@ -337,6 +364,18 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       }
     };
 
+    const handleWorkOrderChanged = (workOrder: { id: string; title: string; status: string; priority?: string }) => {
+      setWorkOrderRefresh((value) => value + 1);
+      addAlarm(
+        'MANUT',
+        `OS #${workOrder.id} (${workOrder.title}) → ${workOrder.status.replace('_', ' ').toLowerCase()}`,
+        workOrder.status === 'CONCLUÍDA' || workOrder.status === 'CANCELADA' ? 'INFO' : 'WARNING',
+      );
+      if (workOrder.priority === 'URGENTE' && workOrder.status === 'ABERTA') {
+        notifyCritical(`OS urgente #${workOrder.id}`, workOrder.title);
+      }
+    };
+
     const handleCommandAck = (ack: { trainId: string; command: string; status: string; message?: string }) => {
       setPendingCommand(null);
       if (ack.status === 'EXECUTED') {
@@ -354,6 +393,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
     socket.on('train:updated', upsertTrain);
     socket.on('alert:critical', handleCriticalAlert);
     socket.on('incident:changed', handleIncidentChanged);
+    socket.on('workorder:changed', handleWorkOrderChanged);
     socket.on('train:command:acknowledged', handleCommandAck);
 
     return () => {
@@ -365,6 +405,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       socket.off('train:updated', upsertTrain);
       socket.off('alert:critical', handleCriticalAlert);
       socket.off('incident:changed', handleIncidentChanged);
+      socket.off('workorder:changed', handleWorkOrderChanged);
       socket.off('train:command:acknowledged', handleCommandAck);
     };
   }, [session.token, addAlarm, addToast, notifyCritical, onExpireSession]);
@@ -384,6 +425,22 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       cancelled = true;
     };
   }, [session.token, incidentRefresh]);
+
+  // Contador de OSs abertas/em andamento exibido no item de navegação; recarrega a cada mudança.
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .workOrderStats(session.token)
+      .then((stats) => {
+        if (!cancelled) setOpenWorkOrders(stats.open + stats.inProgress);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session.token, workOrderRefresh]);
 
   // Contador de alarmes pendentes exibido no item de navegação; recarrega a cada novo alarme.
   useEffect(() => {
@@ -446,6 +503,16 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   }, []);
 
   const handleSelectStation = useCallback((station: Station) => setSelectedCode(station.code), []);
+
+  const handleGoToStation = useCallback((station: Station) => {
+    setSelectedCode(station.code);
+    setActiveTab('ats');
+  }, []);
+
+  const handleGoToTrain = useCallback((train: Train) => {
+    setSelectedCode(train.currentStationCode);
+    setActiveTab('ats');
+  }, []);
 
   const handleSendCommand = useCallback(
     (trainId: string, command: OperationalCommand) => {
@@ -588,10 +655,12 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         items: group.items.map((item) => {
           if (item.key === 'incidents') return { ...item, badge: openIncidents };
           if (item.key === 'alarms') return { ...item, badge: pendingAlarms };
+          if (item.key === 'workorders') return { ...item, badge: openWorkOrders };
+          if (item.key === 'favorites' && favorites.count > 0) return { ...item, badge: favorites.count };
           return item;
         }),
       })),
-    [openIncidents, pendingAlarms],
+    [openIncidents, pendingAlarms, openWorkOrders, favorites.count],
   );
 
   return (
@@ -630,6 +699,28 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       />
 
       <main className="rp-main">
+        {activeTab === 'wall' && selectedStation && (
+          <VideoWallView
+            stations={stations}
+            trains={trains}
+            alarms={alarms}
+            connectionStatus={connectionStatus}
+            selectedStation={selectedStation}
+            lineName={session.line.name}
+            onSelectStation={handleSelectStation}
+          />
+        )}
+
+        {activeTab === 'favorites' && (
+          <FavoritesView
+            stations={stations}
+            trains={trains}
+            favorites={favorites}
+            onGoToStation={handleGoToStation}
+            onGoToTrain={handleGoToTrain}
+          />
+        )}
+
         {activeTab === 'overview' && (
           <OverviewView
             stations={stations}
@@ -748,6 +839,10 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
                   station={selectedStation}
                   trains={selectedStationTrains}
                   pendingCommand={pendingCommand}
+                  isStationFavorite={favorites.isStationFavorite(selectedStation.code)}
+                  onToggleStationFavorite={favorites.toggleStationFavorite}
+                  isTrainFavorite={favorites.isTrainFavorite}
+                  onToggleTrainFavorite={favorites.toggleTrainFavorite}
                   onSendCommand={handleSendCommand}
                   onRequestConfirm={setConfirmRequest}
                   onInjectAlert={handleInjectAlert}
@@ -780,6 +875,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           />
         )}
 
+        {activeTab === 'weather' && <WeatherView stations={stations} />}
         {activeTab === 'occupancy' && <OccupancyView stations={stations} />}
         {activeTab === 'cameras' && (
           <CamerasView session={session} stations={stations} onNotify={addToast} onAuthError={onExpireSession} />
@@ -790,6 +886,15 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           <HistoryView session={session} stations={stations} onAuthError={onExpireSession} />
         )}
         {activeTab === 'assets' && <AssetMaintenanceView stations={stations} />}
+        {activeTab === 'workorders' && (
+          <WorkOrdersView
+            session={session}
+            stations={stations}
+            refreshToken={workOrderRefresh}
+            onNotify={addToast}
+            onAuthError={onExpireSession}
+          />
+        )}
         {activeTab === 'analytics' && <AnalyticsReportsView stations={stations} trains={trains} alarms={alarms} />}
         {activeTab === 'timetable' && <TimetableDispatchView trains={trains} stations={stations} />}
         {activeTab === 'handover' && (

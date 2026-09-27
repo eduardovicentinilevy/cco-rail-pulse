@@ -182,6 +182,44 @@ export const api = {
       body,
     }),
 
+  // --- Ordens de Serviço de Manutenção --------------------------------------
+
+  workOrdersMeta: (token: string) =>
+    request<{ categories: string[]; priorities: string[]; statuses: string[] }>('/api/work-orders/meta', { token }),
+
+  workOrders: (
+    token: string,
+    params: { limit: number; offset: number; status?: string; priority?: string; search?: string },
+  ) => {
+    const query = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+    if (params.status) query.set('status', params.status);
+    if (params.priority) query.set('priority', params.priority);
+    if (params.search?.trim()) query.set('search', params.search.trim());
+    return request<{ items: unknown[]; total: number; limit: number; offset: number }>(
+      `/api/work-orders?${query.toString()}`,
+      { token },
+    );
+  },
+
+  workOrderStats: (token: string) =>
+    request<{
+      open: number;
+      inProgress: number;
+      completed: number;
+      overdue: number;
+      averageCompletionMinutes: number | null;
+    }>('/api/work-orders/stats', { token }),
+
+  createWorkOrder: (token: string, body: Record<string, unknown>) =>
+    request<Record<string, unknown>>('/api/work-orders', { method: 'POST', token, body }),
+
+  changeWorkOrderStatus: (token: string, id: string, body: { status: string; completionNote?: string }) =>
+    request<Record<string, unknown>>(`/api/work-orders/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      token,
+      body,
+    }),
+
   // --- Equipe --------------------------------------------------------------
 
   team: (token: string) =>

@@ -191,3 +191,18 @@ O que mudou entre o desenho e o que foi entregue:
   título do procedimento, que era único no banco inteiro, passou a ser único
   dentro da linha — senão dois clientes não poderiam ter o mesmo procedimento no
   seu manual. Quem já rodou aquela versão é convertido no boot, como as demais.
+
+- **Ordens de Serviço entrou depois, pela mesma regra.** A master ganhou a seção
+  de OS com a tabela `work_orders` sem noção de cliente. A ordem de serviço é
+  manutenção num ativo da linha (cita estação e equipamento da própria malha),
+  então pende de `line_id`, e a linha entra no `WHERE` junto do id: a numeração é
+  `SERIAL`, compartilhada entre clientes, e sem ela um id chutado abriria — ou
+  cancelaria — a OS do vizinho. Quem já rodou aquela versão é convertido no boot.
+
+- **O risco de alagamento no painel de Clima deixou de nomear duas estações
+  fixas.** O painel classificava como suscetíveis os códigos `FGO` e `SMA`, o
+  trecho que cruza a faixa do Rio Tietê: na malha de qualquer outro cliente
+  aqueles códigos não existem e o painel nunca acusaria risco. A suscetibilidade
+  passou a sair do hash do código da estação, estável entre recargas e válida em
+  qualquer malha. Onde o trecho sensível é real, quem o nomeia é o procedimento
+  de METEOROLOGIA daquela linha, que é dado semeado por linha.

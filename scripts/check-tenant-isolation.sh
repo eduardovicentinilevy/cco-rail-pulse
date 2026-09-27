@@ -156,4 +156,35 @@ if grep -q 'frenagem de emergência' <<<"$PROCEDIMENTOS_OUTRO"; then
 fi
 echo "  Alarme, comunicação e manual ficaram na linha de origem."
 
+# --- Ordens de serviço ------------------------------------------------------
+# A OS é manutenção num ativo da linha e tem id sequencial compartilhado entre
+# clientes, então o vizinho não pode nem listá-la nem abri-la pelo id.
+OS_UNI="$(curl -sf -X POST "$BASE_URL/api/work-orders" \
+  -H "Authorization: Bearer $TOKEN_UNI" -H 'Content-Type: application/json' \
+  -d "{\"title\":\"$MARCA — disjuntor da TSS\",\"description\":\"Ordem de verificação do isolamento.\",\"category\":\"TSS_SUBESTACAO\",\"priority\":\"ALTA\"}")" \
+  || fail "não foi possível abrir a ordem de serviço de verificação em linha-uni"
+
+OS_ID="$(sed -n 's/.*"id":"\{0,1\}\([0-9]\{1,\}\)"\{0,1\}.*/\1/p' <<<"$OS_UNI" | head -1)"
+[ -n "$OS_ID" ] || fail "não foi possível ler o id da ordem de serviço criada"
+
+ORDENS_OUTRO="$(get "$TOKEN_OUTRO" '/api/work-orders?limit=50')"
+if grep -q "$MARCA" <<<"$ORDENS_OUTRO"; then fail "ordem de serviço de linha-uni vazou para a sessão de metro-ci"; fi
+
+# Chutar o id não atravessa a fronteira: a linha entra no WHERE junto do id.
+STATUS="$(curl -s -o /dev/null -w '%{http_code}' \
+  -H "Authorization: Bearer $TOKEN_OUTRO" "$BASE_URL/api/work-orders/$OS_ID")"
+[ "$STATUS" = "404" ] || fail "leitura da OS #$OS_ID pelo vizinho devolveu HTTP $STATUS, esperado 404"
+
+# E nem pelo caminho de escrita.
+STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$BASE_URL/api/work-orders/$OS_ID/status" \
+  -H "Authorization: Bearer $TOKEN_OUTRO" -H 'Content-Type: application/json' \
+  -d '{"status":"CANCELADA"}')"
+[ "$STATUS" = "404" ] || fail "tratativa da OS #$OS_ID pelo vizinho devolveu HTTP $STATUS, esperado 404"
+
+# O painel de OS do vizinho continua zerado.
+ESTATISTICAS_OUTRO="$(get "$TOKEN_OUTRO" /api/work-orders/stats)"
+grep -q '"open":0' <<<"$ESTATISTICAS_OUTRO" \
+  || fail "as estatísticas de OS de metro-ci contaram ordem de outro cliente: $ESTATISTICAS_OUTRO"
+echo "  Ordem de serviço #$OS_ID ficou invisível e intocável para o outro cliente."
+
 echo "OK: os dois clientes coexistem sem enxergar a operação um do outro."

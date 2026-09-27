@@ -120,6 +120,25 @@ const OPERATIONAL_DDL = `
     resolved_at      TIMESTAMPTZ
   );
 
+  CREATE TABLE IF NOT EXISTS work_orders (
+    id               SERIAL PRIMARY KEY,
+    line_id          UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    title            VARCHAR(120) NOT NULL,
+    description      TEXT NOT NULL,
+    asset_code       VARCHAR(80),
+    station_code     VARCHAR(10),
+    category         VARCHAR(40) NOT NULL,
+    priority         VARCHAR(20) NOT NULL,
+    status           VARCHAR(20) NOT NULL DEFAULT 'ABERTA',
+    opened_by        VARCHAR(50) NOT NULL,
+    assigned_to      VARCHAR(50),
+    completion_note  TEXT,
+    opened_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at     TIMESTAMPTZ,
+    due_at           TIMESTAMPTZ
+  );
+
   -- Série histórica agregada por janela: uma linha por estação por janela,
   -- em vez de uma linha por leitura (que geraria 5 escritas por segundo).
   CREATE TABLE IF NOT EXISTS telemetry_samples (
@@ -179,6 +198,8 @@ const INDEX_DDL = `
   CREATE INDEX IF NOT EXISTS idx_audit_logs_operator ON audit_logs (tenant_id, operator_id);
   CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents (line_id, status, opened_at DESC);
   CREATE INDEX IF NOT EXISTS idx_incidents_station ON incidents (line_id, station_code);
+  CREATE INDEX IF NOT EXISTS idx_work_orders_status ON work_orders (line_id, status, opened_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_work_orders_station ON work_orders (line_id, station_code);
   CREATE INDEX IF NOT EXISTS idx_telemetry_bucket ON telemetry_samples (station_id, bucket_at DESC);
   CREATE INDEX IF NOT EXISTS idx_alarms_created_at ON alarms (line_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_communications_created_at ON communications (line_id, created_at DESC);
@@ -386,10 +407,10 @@ const upgradeLegacySchema = async (tenantId: string, lineId: string): Promise<vo
     logger.info('telemetry_samples migrada: série amarrada à estação da linha.');
   }
 
-  // As três tabelas abaixo nasceram junto com as seções de Alarmes, Comunicações
-  // e Procedimentos, antes de existir noção de cliente: num banco que já rodou
-  // aquela versão elas existem sem `line_id`.
-  for (const table of ['alarms', 'communications'] as const) {
+  // As tabelas abaixo nasceram junto com as seções de Alarmes, Comunicações,
+  // Procedimentos e Ordens de Serviço, antes de existir noção de cliente: num banco
+  // que já rodou aquela versão elas existem sem `line_id`.
+  for (const table of ['alarms', 'communications', 'work_orders'] as const) {
     if (await hasColumn(table, 'line_id')) continue;
     await withTransaction(async (client) => {
       await client.query(`ALTER TABLE ${table} ADD COLUMN line_id UUID`);

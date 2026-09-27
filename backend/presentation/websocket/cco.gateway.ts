@@ -80,8 +80,9 @@ export const registerCcoGateway = (io: SocketIOServer, registry: SimulationRegis
   });
 
   // Uma assinatura por processo, com roteamento por sala. Antes cada socket
-  // registrava quatro listeners próprios no barramento e recebia tudo.
-  const relay = <T>(event: 'telemetry:batch' | 'alert:critical' | 'train:updated' | 'incident:changed') =>
+  // registrava um listener próprio por evento no barramento e recebia tudo.
+  const relay =
+    <T>(event: 'telemetry:batch' | 'alert:critical' | 'train:updated' | 'incident:changed' | 'workorder:changed') =>
     ({ lineId, payload }: LineEvent<T>) => {
       io.to(roomFor(lineId)).emit(event, payload);
     };
@@ -90,6 +91,7 @@ export const registerCcoGateway = (io: SocketIOServer, registry: SimulationRegis
   domainEventBus.on('system:alert', relay('alert:critical'));
   domainEventBus.on('train:updated', relay('train:updated'));
   domainEventBus.on('incident:changed', relay('incident:changed'));
+  domainEventBus.on('workorder:changed', relay('workorder:changed'));
 
   // Também uma única vez para o gateway inteiro: desativar um operador em `Equipe`
   // derruba qualquer socket já aberto em nome dele, na hora — sem isso, uma sessão de

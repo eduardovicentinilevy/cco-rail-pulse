@@ -111,6 +111,10 @@ jobs:
           curl -sf http://localhost:3333/api/alarms/meta -H "Authorization: Bearer $TOKEN" | grep -q 'CRITICAL'
           curl -sf http://localhost:3333/api/communications/meta -H "Authorization: Bearer $TOKEN" | grep -q 'RADIO_TREM'
           curl -sf http://localhost:3333/api/procedures -H "Authorization: Bearer $TOKEN" | grep -q 'EMERGENCIA'
+          # Ordens de Serviço: a tabela nasce amarrada à linha, então a rota só
+          # responde com o escopo da sessão resolvido.
+          curl -sf http://localhost:3333/api/work-orders/meta -H "Authorization: Bearer $TOKEN" | grep -q 'TSS_SUBESTACAO'
+          curl -sf http://localhost:3333/api/work-orders/stats -H "Authorization: Bearer $TOKEN" | grep -q '"open":0'
           kill $SERVER_PID
 
       - name: Isolamento entre clientes

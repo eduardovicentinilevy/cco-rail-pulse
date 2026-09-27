@@ -1,5 +1,6 @@
 // backend/infrastructure/database/repositories/IncidentRepository.ts
 import { db } from '../postgres';
+import { serialId } from '../../../shared/http';
 import { Incident } from '../../../domain/entities/Incident';
 import type {
   IncidentCategory,
@@ -114,9 +115,8 @@ export class IncidentRepository {
   }
 
   public static async findById(lineId: string, id: string): Promise<Incident | null> {
-    // O id é SERIAL: uma entrada não numérica nunca casa e não deve chegar ao banco.
-    const numericId = Number.parseInt(id, 10);
-    if (!Number.isFinite(numericId)) return null;
+    const numericId = serialId(id);
+    if (numericId === null) return null;
 
     const result = await db.query<IncidentRow>(
       `SELECT ${SELECT_COLUMNS} FROM incidents WHERE line_id = $1 AND id = $2`,
