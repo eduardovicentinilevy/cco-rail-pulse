@@ -46,6 +46,7 @@ import type { ConfirmRequest } from './common/ConfirmDialog';
 import { CommandPalette } from './common/CommandPalette';
 import type { PaletteAction } from './common/CommandPalette';
 import { useCriticalAlerts } from '../hooks/useCriticalAlerts';
+import type { Theme } from '../hooks/useTheme';
 import type { VoltageSample } from './TSSChartWidget';
 import { formatTime } from '../lib/format';
 
@@ -54,6 +55,8 @@ interface CCODashboardProps {
   onUpdateAvatar: (url: string) => Promise<void>;
   onExpireSession: (reason: string) => void;
   onLogout: () => void;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
 type TabKey =
@@ -152,6 +155,8 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   onUpdateAvatar,
   onExpireSession,
   onLogout,
+  theme,
+  onToggleTheme,
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
@@ -615,6 +620,8 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         shiftStartedAt={shiftStartedAt}
         criticalAlarms={criticalAlarms}
         alerts={alerts}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
         onOpenPalette={() => setIsPaletteOpen(true)}
         onUpdateAvatar={onUpdateAvatar}
         onOpenAuditLogs={() => setIsAuditOpen(true)}
@@ -809,7 +816,15 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         {activeTab === 'status' && (
           <SystemStatusView connectionStatus={connectionStatus} lineName={session.line.name} />
         )}
-        {activeTab === 'settings' && <SettingsView session={session} alerts={alerts} onAuthError={onExpireSession} />}
+        {activeTab === 'settings' && (
+          <SettingsView
+            session={session}
+            alerts={alerts}
+            onAuthError={onExpireSession}
+            theme={theme}
+            onToggleTheme={onToggleTheme}
+          />
+        )}
         </main>
       </div>
 

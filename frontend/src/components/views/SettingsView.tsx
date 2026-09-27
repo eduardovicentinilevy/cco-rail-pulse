@@ -2,6 +2,7 @@
 import React from 'react';
 import type { OperatorSession } from '../../types';
 import type { CriticalAlerts } from '../../hooks/useCriticalAlerts';
+import type { Theme } from '../../hooks/useTheme';
 import { roleLabel } from '../../lib/permissions';
 import { MfaSettingsCard } from './MfaSettingsCard';
 
@@ -9,6 +10,8 @@ interface SettingsViewProps {
   session: OperatorSession;
   alerts: CriticalAlerts;
   onAuthError: (message: string) => void;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
 const SHORTCUTS: ReadonlyArray<{ keys: string[]; description: string }> = [
@@ -34,7 +37,7 @@ const DESKTOP_PERMISSION_HINT: Record<CriticalAlerts['notificationPermission'], 
  * soam, o que cada atalho faz — em um lugar consultável, em vez de exigir
  * que o próximo operador do turno redescubra tudo sozinho.
  */
-export const SettingsView: React.FC<SettingsViewProps> = ({ session, alerts, onAuthError }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ session, alerts, onAuthError, theme, onToggleTheme }) => {
   const desktopHint = DESKTOP_PERMISSION_HINT[alerts.notificationPermission];
   const desktopDisabled = alerts.notificationPermission === 'unsupported' || alerts.notificationPermission === 'denied';
 
@@ -68,6 +71,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ session, alerts, onA
               <span>{roleLabel(session.role)}</span>
             </div>
             <p className="rp-hint">Para trocar o avatar, use o menu de perfil no cabeçalho do console.</p>
+          </div>
+        </section>
+
+        <section className="rp-card">
+          <header className="rp-card__header">
+            <h3 className="rp-card__title">Aparência</h3>
+          </header>
+
+          <div className="rp-option-row">
+            <div>
+              <p className="rp-option-row__title">Tema escuro</p>
+              <p className="rp-hint">Reduz o brilho do console para operação em ambientes com pouca luz</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={theme === 'dark'}
+              aria-label="Alternar tema escuro"
+              className="rp-switch"
+              onClick={onToggleTheme}
+            />
           </div>
         </section>
 
