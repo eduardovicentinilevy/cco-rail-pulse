@@ -45,6 +45,17 @@ export const env = {
   telemetryIntervalMs: toInt(process.env.TELEMETRY_INTERVAL_MS, 3000),
   /** Intervalo entre avanços de uma estação na simulação de deslocamento das composições. */
   trainMotionIntervalMs: toInt(process.env.TRAIN_MOTION_INTERVAL_MS, 4000),
+  /**
+   * Cliente assumido quando a requisição não traz slug (subdomínio, header ou
+   * corpo do login). É o que mantém uma instalação de um cliente só funcionando
+   * sem que ninguém precise digitar o cliente na tela de acesso.
+   */
+  defaultTenantSlug: (process.env.DEFAULT_TENANT_SLUG ?? 'linha-uni').trim().toLowerCase(),
+  /**
+   * Domínio base das instalações multi-cliente. Com ele definido, o subdomínio do
+   * Host vira o slug do cliente: `cliente.railpulse.app` → `cliente`.
+   */
+  tenantBaseDomain: (process.env.TENANT_BASE_DOMAIN ?? '').trim().toLowerCase(),
   seedOperatorId: process.env.SEED_OPERATOR_ID ?? 'EDP-042',
   seedOperatorName: process.env.SEED_OPERATOR_NAME ?? 'Eduardo Vicentini Levy',
   seedOperatorPassword: process.env.SEED_OPERATOR_PASSWORD ?? '123456',

@@ -3,6 +3,7 @@ import { domainEventBus } from '../events/event-bus';
 import { TelemetryRepository } from '../../infrastructure/database/repositories/TelemetryRepository';
 import type { TelemetryBucket } from '../../infrastructure/database/repositories/TelemetryRepository';
 import { createLogger } from '../../shared/logger';
+import type { LineEvent } from '../events/event-bus';
 import type { StationTelemetryDTO } from '../dtos/TrainDTO';
 
 const logger = createLogger('TELEMETRY-ARCHIVE');
@@ -20,6 +21,9 @@ interface Accumulator {
  * Gravar cada leitura geraria ~5 escritas por segundo; em vez disso as leituras
  * são acumuladas em memória por janela (padrão: 60 s) e descarregadas em uma
  * única escrita em lote por janela, com poda periódica do período de retenção.
+ *
+ * Continua sendo um só para o processo, mesmo com várias linhas: as leituras são
+ * acumuladas por estação, e a estação já identifica a linha a que pertence.
  */
 export class TelemetryArchiver {
   private readonly accumulators = new Map<string, Accumulator>();
@@ -35,7 +39,7 @@ export class TelemetryArchiver {
     private readonly retentionDays: number,
   ) {}
 
-  private readonly onTelemetry = (batch: StationTelemetryDTO[]): void => {
+  private readonly onTelemetry = ({ payload }: LineEvent<StationTelemetryDTO[]>): void => {
     const bucketAt = this.bucketFor(new Date());
 
     if (this.currentBucketAt && bucketAt.getTime() !== this.currentBucketAt.getTime()) {
@@ -45,15 +49,15 @@ export class TelemetryArchiver {
 
     this.currentBucketAt = bucketAt;
 
-    for (const reading of batch) {
-      const accumulator = this.accumulators.get(reading.currentStationCode);
+    for (const reading of payload) {
+      const accumulator = this.accumulators.get(reading.stationId);
       if (accumulator) {
         accumulator.min = Math.min(accumulator.min, reading.voltageKV);
         accumulator.max = Math.max(accumulator.max, reading.voltageKV);
         accumulator.sum += reading.voltageKV;
         accumulator.count += 1;
       } else {
-        this.accumulators.set(reading.currentStationCode, {
+        this.accumulators.set(reading.stationId, {
           min: reading.voltageKV,
           max: reading.voltageKV,
           sum: reading.voltageKV,
@@ -87,8 +91,8 @@ export class TelemetryArchiver {
   private async flush(bucketAt: Date): Promise<void> {
     if (this.accumulators.size === 0) return;
 
-    const buckets: TelemetryBucket[] = Array.from(this.accumulators.entries()).map(([stationCode, acc]) => ({
-      stationCode,
+    const buckets: TelemetryBucket[] = Array.from(this.accumulators.entries()).map(([stationId, acc]) => ({
+      stationId,
       bucketAt,
       minKV: Number(acc.min.toFixed(2)),
       avgKV: Number((acc.sum / acc.count).toFixed(2)),

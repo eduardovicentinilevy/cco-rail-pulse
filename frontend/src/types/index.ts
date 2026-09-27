@@ -4,16 +4,33 @@ export type StationStatus = 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO';
 export type TrainStatus = 'NORMAL' | 'ATENÇÃO' | 'EMERGÊNCIA';
 export type AlarmLevel = 'INFO' | 'WARNING' | 'CRITICAL';
 
+/** Cliente dono da instalação, devolvido junto com a sessão e com a malha. */
+export interface TenantIdentity {
+  id: string;
+  name: string;
+}
+
+/** Linha em operação na sessão. Substitui as menções fixas à Linha 6-Laranja. */
+export interface LineIdentity {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface Station {
-  /** Ordem física no traçado (1 = Brasilândia). */
-  order: number;
+  /** Ordem física no traçado (1 = primeiro terminal da linha). */
+  position: number;
   code: string;
   name: string;
   substation: string;
   nominalVoltageKV: number;
   voltageKV: number;
   status: StationStatus;
-  headway: string;
+  /** Intervalo entre composições, em segundos; `null` quando não cadastrado. */
+  headwaySeconds: number | null;
+  /** Posição normalizada (0–1) no traçado esquemático desenhado pelo mapa. */
+  mapX: number | null;
+  mapY: number | null;
 }
 
 /** Estado de uma composição, espelhando `TrainSnapshot` do backend. */
@@ -41,6 +58,9 @@ export interface OperatorSession {
   role: 'OPERADOR' | 'SUPERVISOR' | 'ADMIN';
   token: string;
   avatarUrl?: string;
+  /** Cliente e linha da sessão: é daqui que a interface tira os nomes que exibe. */
+  tenant: TenantIdentity;
+  line: LineIdentity;
 }
 
 export interface AuditLogEntry {

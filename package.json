@@ -1,7 +1,7 @@
 {
   "name": "cco-rail-pulse",
   "version": "1.0.0",
-  "description": "RailPulse CCO \u2014 Centro de Controle Operacional da Linha 6-Laranja (backend Node/Express + PostgreSQL)",
+  "description": "RailPulse CCO \u2014 Centro de Controle Operacional ferroviário multi-cliente (backend Node/Express + PostgreSQL)",
   "main": "backend/dist/presentation/http/server.js",
   "scripts": {
     "dev": "tsx watch backend/presentation/http/server.ts",
@@ -12,7 +12,8 @@
     "frontend:build": "npm --prefix frontend run build",
     "frontend:lint": "npm --prefix frontend run lint",
     "check": "npm run typecheck && npm test && npm run frontend:lint && npm run frontend:build",
-    "test": "tsx --test backend/tests/*.test.ts"
+    "test": "tsx --test backend/tests/*.test.ts",
+    "check:isolation": "bash scripts/check-tenant-isolation.sh"
   },
   "keywords": [],
   "author": "",

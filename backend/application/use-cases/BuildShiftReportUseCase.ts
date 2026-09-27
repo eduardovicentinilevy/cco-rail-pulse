@@ -1,6 +1,6 @@
 // backend/application/use-cases/BuildShiftReportUseCase.ts
 import { db } from '../../infrastructure/database/postgres';
-import { LINE_STATIONS, findStation } from '../../domain/line';
+import type { LineCatalog } from '../../domain/line';
 import { ValidationError } from '../../shared/errors';
 
 export interface ShiftCommand {
@@ -90,9 +90,12 @@ const INCIDENT_COLUMNS = 'id, title, severity, status, station_code, opened_by, 
  * Consolida, para a janela do turno, o que o operador que assume precisa saber:
  * comandos emitidos, ocorrências abertas/resolvidas/pendentes e o comportamento
  * da tensão na malha. Tudo vem das mesmas fontes auditáveis usadas na operação.
+ *
+ * O relatório é sempre de uma linha: o catálogo dá o escopo das consultas e os
+ * nomes das estações, que antes vinham da constante global da malha.
  */
 export class BuildShiftReportUseCase {
-  public async execute(since: Date): Promise<ShiftReport> {
+  public async execute(catalog: LineCatalog, since: Date): Promise<ShiftReport> {
     const until = new Date();
 
     if (Number.isNaN(since.getTime())) {
@@ -107,66 +110,70 @@ export class BuildShiftReportUseCase {
       throw new ValidationError(`O relatório cobre no máximo ${MAX_WINDOW_HOURS} horas de turno.`);
     }
 
+    const lineId = catalog.id;
+    const tenantId = catalog.tenantId;
+
     const [commands, operators, opened, resolved, pending, voltage] = await Promise.all([
       db.query<{ action: string; status: string; count: string }>(
         `SELECT action, status, COUNT(*)::text AS count
          FROM audit_logs
-         WHERE created_at >= $1 AND action LIKE 'EXEC\\_%'
+         WHERE tenant_id = $1 AND created_at >= $2 AND action LIKE 'EXEC\\_%'
          GROUP BY action, status
          ORDER BY COUNT(*) DESC`,
-        [since],
+        [tenantId, since],
       ),
       db.query<{ operator_id: string }>(
         `SELECT DISTINCT operator_id
          FROM audit_logs
-         WHERE created_at >= $1 AND action = 'LOGIN_SUCCESS' AND operator_id IS NOT NULL
+         WHERE tenant_id = $1 AND created_at >= $2
+           AND action = 'LOGIN_SUCCESS' AND operator_id IS NOT NULL
          ORDER BY operator_id`,
-        [since],
+        [tenantId, since],
       ),
       db.query<IncidentRow>(
-        `SELECT ${INCIDENT_COLUMNS} FROM incidents WHERE opened_at >= $1 ORDER BY opened_at DESC`,
-        [since],
+        `SELECT ${INCIDENT_COLUMNS} FROM incidents
+         WHERE line_id = $1 AND opened_at >= $2 ORDER BY opened_at DESC`,
+        [lineId, since],
       ),
       db.query<IncidentRow>(
-        `SELECT ${INCIDENT_COLUMNS} FROM incidents WHERE resolved_at >= $1 ORDER BY resolved_at DESC`,
-        [since],
+        `SELECT ${INCIDENT_COLUMNS} FROM incidents
+         WHERE line_id = $1 AND resolved_at >= $2 ORDER BY resolved_at DESC`,
+        [lineId, since],
       ),
       // Pendências não se limitam ao turno: quem assume herda tudo que segue aberto.
       db.query<IncidentRow>(
         `SELECT ${INCIDENT_COLUMNS} FROM incidents
-         WHERE status <> 'RESOLVIDA'
+         WHERE line_id = $1 AND status <> 'RESOLVIDA'
          ORDER BY
            CASE severity WHEN 'CRÍTICA' THEN 0 WHEN 'ALTA' THEN 1 WHEN 'MÉDIA' THEN 2 ELSE 3 END,
            opened_at ASC`,
+        [lineId],
       ),
       db.query<{ station_code: string; min_kv: string; avg_kv: string; max_kv: string; degraded: string }>(
-        `SELECT station_code,
-                MIN(min_kv)::text AS min_kv,
-                AVG(avg_kv)::text AS avg_kv,
-                MAX(max_kv)::text AS max_kv,
-                COUNT(*) FILTER (WHERE min_kv < $2)::text AS degraded
-         FROM telemetry_samples
-         WHERE bucket_at >= $1
-         GROUP BY station_code`,
-        [since, WARNING_THRESHOLD_KV],
+        `SELECT s.code AS station_code,
+                MIN(t.min_kv)::text AS min_kv,
+                AVG(t.avg_kv)::text AS avg_kv,
+                MAX(t.max_kv)::text AS max_kv,
+                COUNT(*) FILTER (WHERE t.min_kv < $3)::text AS degraded
+         FROM telemetry_samples t
+         JOIN stations s ON s.id = t.station_id
+         WHERE s.line_id = $1 AND t.bucket_at >= $2
+         GROUP BY s.code`,
+        [lineId, since, WARNING_THRESHOLD_KV],
       ),
     ]);
 
     const voltageExtremes = voltage.rows
       .map((row) => ({
         stationCode: row.station_code,
-        stationName: findStation(row.station_code)?.name ?? row.station_code,
+        stationName: catalog.find(row.station_code)?.name ?? row.station_code,
         minKV: Number(row.min_kv),
         avgKV: Number(Number(row.avg_kv).toFixed(2)),
         maxKV: Number(row.max_kv),
         degradedBuckets: Number(row.degraded),
       }))
       // A ordem da malha é mais útil na leitura do que a alfabética.
-      .sort(
-        (a, b) =>
-          LINE_STATIONS.findIndex((s) => s.code === a.stationCode) -
-          LINE_STATIONS.findIndex((s) => s.code === b.stationCode),
-      );
+      .sort((a, b) => catalog.indexOf(a.stationCode) - catalog.indexOf(b.stationCode));
 
     const commandRows = commands.rows.map((row) => ({
       action: row.action.replace(/^EXEC_/, ''),

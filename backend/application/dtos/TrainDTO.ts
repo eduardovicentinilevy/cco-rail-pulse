@@ -17,6 +17,8 @@ export interface ExecuteCommandDTO {
 }
 
 export interface StationTelemetryDTO {
+  /** Chave da estação na malha — é por ela que a série histórica é gravada. */
+  stationId: string;
   currentStationCode: string;
   voltageKV: number;
   status: 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO';

@@ -1,5 +1,6 @@
 // frontend/src/services/api.ts
 import { apiUrl } from '../config/env';
+import type { LineIdentity, TenantIdentity } from '../types';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -64,10 +65,13 @@ export const request = async <T>(path: string, { token, body, headers, ...init }
 
 export interface LoginSession {
   token: string;
+  /** Crachá do operador. A chave interna do cadastro nunca sai do backend. */
   operatorId: string;
   name: string;
   role: string;
   avatarUrl: string | null;
+  tenant: TenantIdentity;
+  line: LineIdentity;
 }
 
 export interface LoginMfaRequired {
@@ -80,8 +84,15 @@ export type LoginResult = LoginSession | LoginMfaRequired;
 export const isMfaRequired = (result: LoginResult): result is LoginMfaRequired => 'mfaRequired' in result;
 
 export const api = {
-  login: (operatorId: string, password: string) =>
-    request<LoginResult>('/api/auth/login', { method: 'POST', body: { operatorId, password } }),
+  /**
+   * `tenantSlug` identifica o cliente. Quando omitido, o backend resolve pelo
+   * subdomínio (em produção) ou cai no cliente padrão da instalação.
+   */
+  login: (operatorId: string, password: string, tenantSlug?: string) =>
+    request<LoginResult>('/api/auth/login', {
+      method: 'POST',
+      body: tenantSlug ? { operatorId, password, tenantSlug } : { operatorId, password },
+    }),
 
   loginMfa: (challengeToken: string, code: string) =>
     request<LoginSession>('/api/auth/login/mfa', { method: 'POST', body: { challengeToken, code } }),
@@ -104,7 +115,6 @@ export const api = {
   health: () =>
     request<{
       service: string;
-      line: string;
       environment: string;
       architecture: string;
       status: string;
@@ -130,7 +140,10 @@ export const api = {
     }),
 
   stations: (token: string) =>
-    request<{ line: string; stations: Array<Record<string, unknown>> }>('/api/network/stations', { token }),
+    request<{ tenant: TenantIdentity; line: LineIdentity; stations: Array<Record<string, unknown>> }>(
+      '/api/network/stations',
+      { token },
+    ),
 
   trains: (token: string) => request<Array<Record<string, unknown>>>('/api/network/trains', { token }),
 
