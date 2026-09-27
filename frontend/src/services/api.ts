@@ -63,7 +63,10 @@ export const request = async <T>(path: string, { token, body, headers, ...init }
 };
 
 export interface LoginSession {
-  token: string;
+  accessToken: string;
+  refreshToken: string;
+  /** Validade do access token, em segundos. */
+  expiresIn: number;
   operatorId: string;
   name: string;
   role: string;
@@ -75,16 +78,41 @@ export interface LoginMfaRequired {
   challengeToken: string;
 }
 
-export type LoginResult = LoginSession | LoginMfaRequired;
+/** Primeiro acesso ou senha redefinida por um supervisor: não há sessão até a troca. */
+export interface LoginPasswordChangeRequired {
+  passwordChangeRequired: true;
+  changeToken: string;
+  minPasswordLength: number;
+}
+
+export type LoginResult = LoginSession | LoginMfaRequired | LoginPasswordChangeRequired;
 
 export const isMfaRequired = (result: LoginResult): result is LoginMfaRequired => 'mfaRequired' in result;
+
+export const isPasswordChangeRequired = (result: LoginResult): result is LoginPasswordChangeRequired =>
+  'passwordChangeRequired' in result;
 
 export const api = {
   login: (operatorId: string, password: string) =>
     request<LoginResult>('/api/auth/login', { method: 'POST', body: { operatorId, password } }),
 
   loginMfa: (challengeToken: string, code: string) =>
-    request<LoginSession>('/api/auth/login/mfa', { method: 'POST', body: { challengeToken, code } }),
+    request<LoginResult>('/api/auth/login/mfa', { method: 'POST', body: { challengeToken, code } }),
+
+  /** Renova o par de tokens. O refresh token apresentado é queimado na troca. */
+  refresh: (refreshToken: string) =>
+    request<LoginSession>('/api/auth/refresh', { method: 'POST', body: { refreshToken } }),
+
+  /** Define a senha definitiva no primeiro acesso, usando o token emitido no login. */
+  setInitialPassword: (changeToken: string, newPassword: string) =>
+    request<LoginSession>('/api/auth/password/initial', { method: 'POST', body: { changeToken, newPassword } }),
+
+  /** Troca de senha com a sessão aberta: encerra as demais sessões e devolve um par novo. */
+  changePassword: (token: string, currentPassword: string, newPassword: string) =>
+    request<LoginSession>('/api/auth/password', { method: 'POST', token, body: { currentPassword, newPassword } }),
+
+  logoutAll: (token: string) =>
+    request<{ revokedSessions: number }>('/api/auth/logout/all', { method: 'POST', token }),
 
   validateSession: (token: string) => request<{ valid: boolean }>('/api/auth/session', { token }),
 

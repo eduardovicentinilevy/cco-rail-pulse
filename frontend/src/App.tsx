@@ -13,6 +13,7 @@ const AppContent: React.FC = () => {
     sessionNotice,
     login,
     completeMfaLogin,
+    completePasswordChange,
     logout,
     expireSession,
     updateAvatar,
@@ -37,6 +38,7 @@ const AppContent: React.FC = () => {
       <LoginScreen
         onLogin={login}
         onSubmitMfaCode={completeMfaLogin}
+        onSubmitNewPassword={completePasswordChange}
         notice={sessionNotice}
         onDismissNotice={dismissNotice}
       />
