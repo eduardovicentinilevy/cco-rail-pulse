@@ -17,6 +17,7 @@ export const SOCKET_URL: string = API_URL;
 export const STORAGE_KEYS = {
   session: '@RailPulse:session',
   preferences: '@RailPulse:preferences',
+  theme: '@RailPulse:theme',
 } as const;
 
 export { AVATAR_PLACEHOLDER as DEFAULT_AVATAR_URL } from '../assets/avatar-placeholder';

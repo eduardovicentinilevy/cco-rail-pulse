@@ -5,6 +5,7 @@ import { UserProfileModal } from '../modals/UserProfileModal';
 import { useClock, useElapsed } from '../../hooks/useClock';
 import { DEFAULT_AVATAR_URL } from '../../config/env';
 import type { CriticalAlerts } from '../../hooks/useCriticalAlerts';
+import type { Theme } from '../../hooks/useTheme';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
@@ -14,6 +15,8 @@ interface HeaderProps {
   shiftStartedAt: number;
   criticalAlarms: number;
   alerts: CriticalAlerts;
+  theme: Theme;
+  onToggleTheme: () => void;
   onOpenPalette: () => void;
   onUpdateAvatar: (url: string) => Promise<void>;
   onOpenAuditLogs: () => void;
@@ -33,6 +36,8 @@ export const Header: React.FC<HeaderProps> = ({
   shiftStartedAt,
   criticalAlarms,
   alerts,
+  theme,
+  onToggleTheme,
   onOpenPalette,
   onUpdateAvatar,
   onOpenAuditLogs,
@@ -92,6 +97,16 @@ export const Header: React.FC<HeaderProps> = ({
             title={alerts.preferences.sound ? 'Silenciar alertas sonoros' : 'Ativar alertas sonoros'}
           >
             {alerts.preferences.sound ? '🔔' : '🔇'}
+          </button>
+
+          <button
+            type="button"
+            className="rp-icon-btn"
+            onClick={onToggleTheme}
+            aria-pressed={theme === 'dark'}
+            title={theme === 'dark' ? 'Alternar para o modo claro' : 'Alternar para o modo escuro'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
           </button>
 
           <button type="button" className="rp-btn" onClick={onOpenAuditLogs}>
