@@ -11,27 +11,32 @@
   --uni-bg-void: #050b1a;
   --uni-bg-primary: #081022;
   --uni-bg-secondary: #0c1830;
-  --uni-bg-card: #0c1830;
-  --uni-bg-elevated: #122043;
-  --uni-border: #1c2f56;
-  --uni-border-strong: #2a4570;
-  --uni-text-main: #e8edf7;
-  --uni-text-muted: #93a3c4;
-  --uni-text-dim: #62729a;
+  --uni-bg-card: #0d1a35;
+  --uni-bg-elevated: #142544;
+  --uni-border: #1e3159;
+  --uni-border-strong: #2f4a7c;
+  --uni-text-main: #eef1fa;
+  --uni-text-muted: #94a4c6;
+  --uni-text-dim: #5f709a;
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --grad-surface: linear-gradient(160deg, rgba(255, 255, 255, 0.035), transparent 62%);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --grad-surface: linear-gradient(160deg, rgba(255, 255, 255, 0.04), transparent 62%);
 
   color-scheme: dark;
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
   padding: var(--sp-4);
-  background: radial-gradient(ellipse 1200px 700px at 50% -10%, rgba(54, 98, 194, 0.14), transparent 60%), var(--uni-bg-void);
+  background:
+    radial-gradient(ellipse 1200px 700px at 50% -10%, rgba(54, 98, 194, 0.16), transparent 60%),
+    radial-gradient(ellipse 800px 500px at 100% 100%, rgba(242, 135, 26, 0.06), transparent 60%),
+    var(--uni-bg-void);
   border-radius: var(--radius-xl);
   color: var(--uni-text-main);
 }
+
+/* --- Cabeçalho ------------------------------------------------------------- */
 
 .rp-wall__header {
   display: flex;
@@ -84,51 +89,89 @@
   font-weight: 700;
   color: var(--uni-orange-bright);
   letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
 }
+
+/* --- Faixa de indicadores ---------------------------------------------------
+   Números grandes, no estilo de um telão de operação — o mesmo dado que já
+   aparece em outras páginas, aqui pensado para ser lido a distância. */
+
+.rp-wall__stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3);
+}
+
+.rp-wall__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: var(--sp-3) var(--sp-4);
+  background-color: var(--uni-bg-card);
+  background-image: var(--grad-surface);
+  border: 1px solid var(--uni-border);
+  border-left: 3px solid var(--rp-status, var(--uni-border-strong));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm), var(--shadow-inset);
+}
+
+.rp-wall__stat-value {
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  color: var(--rp-status, var(--uni-text-main));
+  font-variant-numeric: tabular-nums;
+}
+
+.rp-wall__stat-label {
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--uni-text-dim);
+}
+
+/* --- Corpo: sinalização + coluna lateral (câmeras + eventos) --------------- */
 
 .rp-wall__body {
-  display: flex;
-  gap: var(--sp-4);
-  flex: 1;
-  min-height: 0;
-}
-
-.rp-wall__side {
-  flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
 }
 
+.rp-wall__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+
 .rp-wall__panel {
   background-color: var(--uni-bg-card);
-  background-image: var(--grad-surface);
+  background-image:
+    linear-gradient(rgba(148, 164, 198, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 164, 198, 0.05) 1px, transparent 1px),
+    var(--grad-surface);
+  background-size: 28px 28px, 28px 28px, auto;
   border: 1px solid var(--uni-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm), var(--shadow-inset);
   padding: var(--sp-4);
   min-width: 0;
-  min-height: 0;
 }
 
 .rp-wall__panel--schematic {
-  flex: 2;
-  display: flex;
-  align-items: center;
+  padding-block: var(--sp-6);
 }
 
 .rp-wall__panel--cams {
-  flex: none;
-  max-height: 17rem;
-  overflow-y: auto;
+  flex: 2;
 }
 
 .rp-wall__panel--ticker {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 12rem;
+  min-height: 11rem;
+  max-height: 22rem;
 }
 
 .rp-wall__panel-title {
@@ -140,9 +183,11 @@
   color: var(--uni-text-muted);
 }
 
+/* --- Mosaico de câmeras ------------------------------------------------------ */
+
 .rp-wall__cam-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
   gap: var(--sp-2);
 }
 
@@ -150,11 +195,17 @@
   position: relative;
   aspect-ratio: 4 / 3;
   overflow: hidden;
-  border: 1px solid var(--uni-border);
+  border: 1px solid var(--uni-border-strong);
   border-radius: var(--radius-sm);
-  background: #04070f;
+  background: radial-gradient(ellipse at 30% 20%, #0e1a33, #040711 75%);
   cursor: pointer;
   padding: 0;
+  transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+
+.rp-wall__cam-tile:hover {
+  border-color: var(--uni-orange-bright);
+  transform: translateY(-1px);
 }
 
 .rp-wall__cam-tile[aria-pressed='true'] {
@@ -165,26 +216,48 @@
 .rp-wall__cam-noise {
   position: absolute;
   inset: 0;
-  background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0px, transparent 1px, transparent 3px);
-  opacity: 0.6;
+  background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0px, transparent 1px, transparent 3px);
+  opacity: 0.5;
+  animation: rp-wall-scan 9s linear infinite;
+}
+
+@keyframes rp-wall-scan {
+  from { background-position-y: 0; }
+  to { background-position-y: -240px; }
+}
+
+.rp-wall__cam-crosshair {
+  position: absolute;
+  inset: 0.5rem;
+  border: 1px solid rgba(148, 164, 198, 0.18);
 }
 
 .rp-wall__cam-tile[data-online='false'] .rp-wall__cam-noise {
-  background-image: repeating-linear-gradient(45deg, rgba(214, 58, 58, 0.12) 0px, transparent 2px, transparent 6px);
+  animation: none;
+  background-image: repeating-linear-gradient(45deg, rgba(214, 58, 58, 0.16) 0px, transparent 2px, transparent 7px);
+}
+
+.rp-wall__cam-tile[data-online='false'] {
+  background: radial-gradient(ellipse at 30% 20%, #2a1010, #04070f 75%);
 }
 
 .rp-wall__cam-code {
   position: absolute;
-  top: 0.25rem;
-  left: 0.35rem;
+  top: 0.3rem;
+  left: 0.4rem;
   font-size: var(--fs-2xs);
-  color: var(--uni-text-dim);
+  font-weight: 600;
+  color: var(--uni-text-muted);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 .rp-wall__cam-live {
   position: absolute;
-  bottom: 0.3rem;
+  bottom: 0.35rem;
   right: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font-size: 0.55rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -194,13 +267,18 @@
 .rp-wall__cam-offline {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
   font-size: 0.55rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--uni-danger);
+  background-color: rgba(214, 58, 58, 0.08);
 }
+
+/* --- Ticker de eventos ------------------------------------------------------- */
 
 .rp-wall__ticker {
   flex: 1;
@@ -208,21 +286,47 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
 }
 
 .rp-wall__ticker-item {
-  display: grid;
-  grid-template-columns: 4.5rem 3rem 1fr;
-  gap: var(--sp-2);
-  padding: 0.3rem 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: 0.4rem 0.1rem;
   font-size: var(--fs-xs);
-  color: var(--uni-text-muted);
   border-bottom: 1px solid var(--uni-border);
+  border-left: 2px solid var(--uni-border-strong);
+  padding-left: var(--sp-2);
 }
 
-.rp-wall__ticker-item[data-level='CRITICAL'] { color: var(--uni-danger); }
-.rp-wall__ticker-item[data-level='WARNING'] { color: var(--uni-warning); }
+.rp-wall__ticker-item:last-child { border-bottom: none; }
+
+.rp-wall__ticker-time {
+  flex: 0 0 auto;
+  color: var(--uni-text-dim);
+}
+
+.rp-wall__ticker-source {
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  color: var(--uni-text-muted);
+}
+
+.rp-wall__ticker-message {
+  flex: 1;
+  min-width: 0;
+  color: var(--uni-text-main);
+}
+
+.rp-wall__ticker-item[data-level='CRITICAL'] {
+  border-left-color: var(--uni-danger);
+}
+.rp-wall__ticker-item[data-level='CRITICAL'] .rp-wall__ticker-message { color: var(--uni-danger); }
+
+.rp-wall__ticker-item[data-level='WARNING'] {
+  border-left-color: var(--uni-warning);
+}
+.rp-wall__ticker-item[data-level='WARNING'] .rp-wall__ticker-message { color: var(--uni-warning); }
 
 .rp-wall__empty {
   color: var(--uni-text-dim);
@@ -230,7 +334,15 @@
 }
 
 @media (max-width: 1100px) {
-  .rp-wall__body {
+  .rp-wall__stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rp-wall__row {
     flex-direction: column;
+  }
+
+  .rp-wall__row > * {
+    width: 100%;
   }
 }

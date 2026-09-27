@@ -5,6 +5,7 @@ import type { ConnectionStatus } from '../layout/Header';
 import { TrackSchematic } from '../dashboard/TrackSchematic';
 import { useClock } from '../../hooks/useClock';
 import { hashString } from '../../lib/hash';
+import { formatNumber } from '../../lib/format';
 
 interface VideoWallViewProps {
   stations: Station[];
@@ -21,7 +22,6 @@ const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
   offline: 'CORE OFFLINE',
 };
 
-/** Câmera de plataforma por estação — uma por bloco, como os segmentos do painel físico. */
 const CAMERA_OFFLINE_CHANCE = 0.08;
 
 interface WallCamera {
@@ -53,8 +53,27 @@ export const VideoWallView: React.FC<VideoWallViewProps> = ({
     [statusFingerprint],
   );
 
-  const recentAlarms = alarms.slice(0, 10);
+  const recentAlarms = alarms.slice(0, 12);
   const criticalCount = alarms.filter((alarm) => alarm.level === 'CRITICAL' && !alarm.acknowledged).length;
+  const onlineCameras = cameras.filter((camera) => camera.online).length;
+
+  const attentionStations = stations.filter((station) => station.status !== 'NORMAL').length;
+  const avgSpeed = trains.length === 0 ? 0 : trains.reduce((sum, train) => sum + train.speedKmH, 0) / trains.length;
+
+  const stats = [
+    { label: 'Composições em marcha', value: String(trains.length), status: 'INFO' },
+    {
+      label: 'Estações em atenção',
+      value: String(attentionStations),
+      status: attentionStations > 0 ? 'ATENÇÃO' : 'NORMAL',
+    },
+    { label: 'Velocidade média', value: `${formatNumber(avgSpeed, 0)} km/h`, status: 'INFO' },
+    {
+      label: 'Câmeras online',
+      value: `${onlineCameras}/${cameras.length}`,
+      status: onlineCameras === cameras.length ? 'NORMAL' : 'ATENÇÃO',
+    },
+  ] as const;
 
   return (
     <div className="rp-wall">
@@ -68,10 +87,23 @@ export const VideoWallView: React.FC<VideoWallViewProps> = ({
             <span className="rp-dot rp-dot--pulse" aria-hidden="true" />
             {CONNECTION_LABEL[connectionStatus]}
           </span>
-          {criticalCount > 0 && <span className="rp-wall__badge" data-status="offline">{criticalCount} CRÍTICOS</span>}
+          {criticalCount > 0 && (
+            <span className="rp-wall__badge" data-status="offline">
+              {criticalCount} CRÍTICOS
+            </span>
+          )}
           <span className="rp-wall__clock mono">{clock}</span>
         </div>
       </header>
+
+      <div className="rp-wall__stats">
+        {stats.map((stat) => (
+          <div key={stat.label} className="rp-wall__stat" data-status={stat.status}>
+            <span className="rp-wall__stat-value mono">{stat.value}</span>
+            <span className="rp-wall__stat-label">{stat.label}</span>
+          </div>
+        ))}
+      </div>
 
       <div className="rp-wall__body">
         <section className="rp-wall__panel rp-wall__panel--schematic" aria-label="Painel de sinalização">
@@ -83,8 +115,9 @@ export const VideoWallView: React.FC<VideoWallViewProps> = ({
           />
         </section>
 
-        <div className="rp-wall__side">
+        <div className="rp-wall__row">
           <section className="rp-wall__panel rp-wall__panel--cams" aria-label="Mosaico de câmeras CFTV">
+            <h3 className="rp-wall__panel-title">CFTV — plataformas</h3>
             <div className="rp-wall__cam-grid">
               {cameras.map(({ station, online }) => (
                 <button
@@ -93,14 +126,21 @@ export const VideoWallView: React.FC<VideoWallViewProps> = ({
                   className="rp-wall__cam-tile"
                   data-online={online}
                   aria-pressed={station.code === selectedStation.code}
+                  title={`${station.code} — ${station.name}`}
                   onClick={() => onSelectStation(station)}
                 >
                   <span className="rp-wall__cam-noise" aria-hidden="true" />
+                  <span className="rp-wall__cam-crosshair" aria-hidden="true" />
                   <span className="rp-wall__cam-code mono">{station.code}</span>
                   {online ? (
-                    <span className="rp-wall__cam-live">● LIVE</span>
+                    <span className="rp-wall__cam-live">
+                      <span className="rp-dot rp-dot--pulse" aria-hidden="true" />
+                      LIVE
+                    </span>
                   ) : (
-                    <span className="rp-wall__cam-offline">SEM SINAL</span>
+                    <span className="rp-wall__cam-offline">
+                      <span aria-hidden="true">⚠</span> SEM SINAL
+                    </span>
                   )}
                 </button>
               ))}
@@ -115,9 +155,9 @@ export const VideoWallView: React.FC<VideoWallViewProps> = ({
               <ul className="rp-wall__ticker" role="log" aria-live="polite">
                 {recentAlarms.map((alarm) => (
                   <li key={alarm.id} className="rp-wall__ticker-item" data-level={alarm.level}>
-                    <span className="mono">{alarm.timestamp}</span>
-                    <span className="mono">{alarm.stationCode}</span>
-                    <span className="truncate">{alarm.message}</span>
+                    <span className="rp-wall__ticker-time mono">{alarm.timestamp}</span>
+                    <span className="rp-wall__ticker-source mono">{alarm.stationCode}</span>
+                    <span className="rp-wall__ticker-message truncate">{alarm.message}</span>
                   </li>
                 ))}
               </ul>
