@@ -5,14 +5,17 @@
   "main": "backend/dist/presentation/http/server.js",
   "scripts": {
     "dev": "tsx watch backend/presentation/http/server.ts",
-    "build": "rimraf backend/dist && tsc -p backend/tsconfig.json",
+    "build": "rimraf backend/dist && tsc -p backend/tsconfig.json && node scripts/copy-sql.mjs",
     "start": "node backend/dist/presentation/http/server.js",
+    "migrate": "tsx backend/infrastructure/database/migrate.cli.ts up",
+    "migrate:status": "tsx backend/infrastructure/database/migrate.cli.ts status",
+    "seed": "tsx backend/infrastructure/database/migrate.cli.ts seed",
     "typecheck": "tsc -p backend/tsconfig.test.json",
+    "test": "tsx --test backend/tests/*.test.ts",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
     "frontend:lint": "npm --prefix frontend run lint",
-    "check": "npm run typecheck && npm test && npm run frontend:lint && npm run frontend:build",
-    "test": "tsx --test backend/tests/*.test.ts"
+    "check": "npm run typecheck && npm test && npm run frontend:lint && npm run frontend:build"
   },
   "keywords": [],
   "author": "",
