@@ -390,13 +390,13 @@
 }
 
 .rp-map__river {
-  stroke: rgba(90, 112, 145, 0.32);
+  stroke: var(--map-river-stroke);
   stroke-width: 14;
   stroke-linecap: round;
 }
 
 .rp-map__river-label {
-  fill: rgba(70, 92, 125, 0.65);
+  fill: var(--map-river-label);
   font-size: 13px;
   font-style: italic;
   font-family: var(--uni-font);

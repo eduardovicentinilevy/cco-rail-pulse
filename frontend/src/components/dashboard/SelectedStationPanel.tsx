@@ -8,6 +8,10 @@ interface SelectedStationPanelProps {
   station: Station;
   trains: Train[];
   pendingCommand: string | null;
+  isStationFavorite: boolean;
+  onToggleStationFavorite: (code: string) => void;
+  isTrainFavorite: (id: string) => boolean;
+  onToggleTrainFavorite: (id: string) => void;
   onSendCommand: (trainId: string, command: OperationalCommand) => void;
   onRequestConfirm: (request: ConfirmRequest) => void;
   onInjectAlert: () => void;
@@ -18,6 +22,10 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
   station,
   trains,
   pendingCommand,
+  isStationFavorite,
+  onToggleStationFavorite,
+  isTrainFavorite,
+  onToggleTrainFavorite,
   onSendCommand,
   onRequestConfirm,
   onInjectAlert,
@@ -59,7 +67,18 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
   return (
     <aside className="rp-card rp-stack" aria-label={`Terminal de controle — ${station.name}`}>
       <div className="rp-terminal__header">
-        <span className="rp-eyebrow">Terminal de controle</span>
+        <span className="rp-row rp-row--between">
+          <span className="rp-eyebrow">Terminal de controle</span>
+          <button
+            type="button"
+            className="rp-icon-btn"
+            onClick={() => onToggleStationFavorite(station.code)}
+            aria-pressed={isStationFavorite}
+            title={isStationFavorite ? 'Remover estação dos favoritos' : 'Adicionar estação aos favoritos'}
+          >
+            {isStationFavorite ? '★' : '☆'}
+          </button>
+        </span>
         <h2 className="rp-card__title">{station.name}</h2>
         <span className="rp-card__subtitle mono">
           Código ATS: {station.code} • {station.substation}
@@ -92,19 +111,35 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
           Composição alvo no bloco
         </label>
         {hasTrain ? (
-          <select
-            id="target-train"
-            className="rp-input"
-            value={targetTrain!.trainId}
-            onChange={(event) => setSelectedTrainId(event.target.value)}
-            disabled={isBusy}
-          >
-            {trains.map((train) => (
-              <option key={train.trainId} value={train.trainId}>
-                {train.trainId} — {train.speedKmH} km/h ({train.status})
-              </option>
-            ))}
-          </select>
+          <span className="rp-row">
+            <select
+              id="target-train"
+              className="rp-input"
+              value={targetTrain!.trainId}
+              onChange={(event) => setSelectedTrainId(event.target.value)}
+              disabled={isBusy}
+              style={{ flex: 1 }}
+            >
+              {trains.map((train) => (
+                <option key={train.trainId} value={train.trainId}>
+                  {train.trainId} — {train.speedKmH} km/h ({train.status})
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="rp-icon-btn"
+              onClick={() => onToggleTrainFavorite(targetTrain!.trainId)}
+              aria-pressed={isTrainFavorite(targetTrain!.trainId)}
+              title={
+                isTrainFavorite(targetTrain!.trainId)
+                  ? 'Remover composição dos favoritos'
+                  : 'Adicionar composição aos favoritos'
+              }
+            >
+              {isTrainFavorite(targetTrain!.trainId) ? '★' : '☆'}
+            </button>
+          </span>
         ) : (
           <p className="rp-hint">Nenhuma composição neste bloco no momento.</p>
         )}

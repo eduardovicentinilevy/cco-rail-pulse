@@ -1,0 +1,236 @@
+/* ==========================================================================
+   RailPulse CCO — Mosaico Operacional (telão da sala de controle)
+   Paleta fixa, escura, independente do tema claro/escuro do operador — como o
+   telão físico de uma sala de controle, que não segue a preferência de cada
+   estação de trabalho. Reaproveita os tokens --uni-* redefinindo-os apenas
+   neste escopo, então os componentes reutilizados (TrackSchematic) herdam o
+   visual sem precisar de nenhuma variante própria.
+   ========================================================================== */
+
+.rp-wall {
+  --uni-bg-void: #050b1a;
+  --uni-bg-primary: #081022;
+  --uni-bg-secondary: #0c1830;
+  --uni-bg-card: #0c1830;
+  --uni-bg-elevated: #122043;
+  --uni-border: #1c2f56;
+  --uni-border-strong: #2a4570;
+  --uni-text-main: #e8edf7;
+  --uni-text-muted: #93a3c4;
+  --uni-text-dim: #62729a;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --grad-surface: linear-gradient(160deg, rgba(255, 255, 255, 0.035), transparent 62%);
+
+  color-scheme: dark;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  background: radial-gradient(ellipse 1200px 700px at 50% -10%, rgba(54, 98, 194, 0.14), transparent 60%), var(--uni-bg-void);
+  border-radius: var(--radius-xl);
+  color: var(--uni-text-main);
+}
+
+.rp-wall__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--uni-border);
+}
+
+.rp-wall__eyebrow {
+  display: block;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--uni-orange-bright);
+}
+
+.rp-wall__title h2 {
+  margin: 0.15rem 0 0;
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  color: var(--uni-text-main);
+}
+
+.rp-wall__status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.rp-wall__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.42rem 0.72rem;
+  border: 1px solid var(--rp-status, var(--uni-border-strong));
+  background-color: var(--rp-status-soft, var(--uni-bg-elevated));
+  color: var(--rp-status, var(--uni-text-main));
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.rp-wall__clock {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--uni-orange-bright);
+  letter-spacing: 0.03em;
+}
+
+.rp-wall__body {
+  display: flex;
+  gap: var(--sp-4);
+  flex: 1;
+  min-height: 0;
+}
+
+.rp-wall__side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.rp-wall__panel {
+  background-color: var(--uni-bg-card);
+  background-image: var(--grad-surface);
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm), var(--shadow-inset);
+  padding: var(--sp-4);
+  min-width: 0;
+  min-height: 0;
+}
+
+.rp-wall__panel--schematic {
+  flex: 2;
+  display: flex;
+  align-items: center;
+}
+
+.rp-wall__panel--cams {
+  flex: none;
+  max-height: 17rem;
+  overflow-y: auto;
+}
+
+.rp-wall__panel--ticker {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 12rem;
+}
+
+.rp-wall__panel-title {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--uni-text-muted);
+}
+
+.rp-wall__cam-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  gap: var(--sp-2);
+}
+
+.rp-wall__cam-tile {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--uni-border);
+  border-radius: var(--radius-sm);
+  background: #04070f;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rp-wall__cam-tile[aria-pressed='true'] {
+  border-color: var(--uni-orange);
+  box-shadow: 0 0 0 2px var(--uni-orange-soft);
+}
+
+.rp-wall__cam-noise {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0px, transparent 1px, transparent 3px);
+  opacity: 0.6;
+}
+
+.rp-wall__cam-tile[data-online='false'] .rp-wall__cam-noise {
+  background-image: repeating-linear-gradient(45deg, rgba(214, 58, 58, 0.12) 0px, transparent 2px, transparent 6px);
+}
+
+.rp-wall__cam-code {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.35rem;
+  font-size: var(--fs-2xs);
+  color: var(--uni-text-dim);
+}
+
+.rp-wall__cam-live {
+  position: absolute;
+  bottom: 0.3rem;
+  right: 0.4rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--uni-success);
+}
+
+.rp-wall__cam-offline {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--uni-danger);
+}
+
+.rp-wall__ticker {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.rp-wall__ticker-item {
+  display: grid;
+  grid-template-columns: 4.5rem 3rem 1fr;
+  gap: var(--sp-2);
+  padding: 0.3rem 0;
+  font-size: var(--fs-xs);
+  color: var(--uni-text-muted);
+  border-bottom: 1px solid var(--uni-border);
+}
+
+.rp-wall__ticker-item[data-level='CRITICAL'] { color: var(--uni-danger); }
+.rp-wall__ticker-item[data-level='WARNING'] { color: var(--uni-warning); }
+
+.rp-wall__empty {
+  color: var(--uni-text-dim);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 1100px) {
+  .rp-wall__body {
+    flex-direction: column;
+  }
+}

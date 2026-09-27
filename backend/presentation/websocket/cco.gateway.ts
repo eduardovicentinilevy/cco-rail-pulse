@@ -89,11 +89,13 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
     const onCriticalAlert = (alert: unknown) => socket.emit('alert:critical', alert);
     const onTrainUpdated = (train: unknown) => socket.emit('train:updated', train);
     const onIncidentChanged = (incident: unknown) => socket.emit('incident:changed', incident);
+    const onWorkOrderChanged = (workOrder: unknown) => socket.emit('workorder:changed', workOrder);
 
     domainEventBus.on('telemetry:updated', onTelemetryBatch);
     domainEventBus.on('system:alert', onCriticalAlert);
     domainEventBus.on('train:updated', onTrainUpdated);
     domainEventBus.on('incident:changed', onIncidentChanged);
+    domainEventBus.on('workorder:changed', onWorkOrderChanged);
 
     // Carga inicial: o painel já abre com o estado corrente da malha.
     socket.emit('telemetry:batch', simulator.snapshot());
@@ -157,6 +159,7 @@ export const registerCcoGateway = (io: SocketIOServer, simulator: TelemetrySimul
       domainEventBus.off('system:alert', onCriticalAlert);
       domainEventBus.off('train:updated', onTrainUpdated);
       domainEventBus.off('incident:changed', onIncidentChanged);
+      domainEventBus.off('workorder:changed', onWorkOrderChanged);
       logger.info(`Painel desconectado: ${socket.id} (${reason})`);
     });
   });

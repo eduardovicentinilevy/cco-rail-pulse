@@ -109,6 +109,51 @@
   --sidebar-width: 15.5rem;
   --sidebar-rail: 4.25rem;
   --content-gutter: clamp(0.875rem, 2.2vw, 1.75rem);
+
+  /* --- Fundo do body (tons sutis sobre a superfície) --------------------- */
+  --body-tint-orange: rgba(242, 135, 26, 0.06);
+  --body-tint-navy: rgba(28, 43, 74, 0.04);
+
+  /* --- Traçado do mapa de linha ------------------------------------------ */
+  --map-river-stroke: rgba(90, 112, 145, 0.32);
+  --map-river-label: rgba(70, 92, 125, 0.65);
+}
+
+/* --- Tema escuro --------------------------------------------------------
+   Mesma identidade Linha Uni (azul-marinho + laranja), com as superfícies
+   invertidas para um console de baixo brilho. Laranja, azul-marinho e as
+   cores de status permanecem idênticos ao tema claro: --uni-badge--solid
+   usa texto branco fixo sobre essas cores, então escurecê-las ou clareá-las
+   quebraria o contraste do badge em um dos dois temas.
+   ========================================================================== */
+:root[data-theme='dark'] {
+  --uni-bg-void: #0b0f1a;
+  --uni-bg-primary: #101625;
+  --uni-bg-secondary: #161d2f;
+  --uni-bg-card: #161d2f;
+  --uni-bg-elevated: #1d2740;
+
+  --uni-border: #2a3450;
+  --uni-border-strong: #3a4568;
+
+  --uni-text-main: #eef1f8;
+  --uni-text-muted: #a3aac2;
+  --uni-text-dim: #767e99;
+
+  /* Sombras mais escuras e um realce de topo bem mais discreto que no
+     tema claro, onde o "brilho" vem de um card branco sobre fundo cinza. */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38);
+  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.5);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  --grad-surface: linear-gradient(160deg, rgba(255, 255, 255, 0.035), transparent 62%);
+
+  --body-tint-orange: rgba(242, 135, 26, 0.08);
+  --body-tint-navy: rgba(47, 74, 124, 0.16);
+
+  --map-river-stroke: rgba(130, 152, 190, 0.35);
+  --map-river-label: rgba(150, 170, 205, 0.75);
 }
 
 /* Respeita a preferência do sistema por menos animação (WCAG 2.3.3). */

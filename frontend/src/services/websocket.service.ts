@@ -2,7 +2,7 @@
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { SOCKET_URL } from '../config/env';
-import type { CommandAck, Incident, StationTelemetry, SystemAlert, Train } from '../types';
+import type { CommandAck, Incident, StationTelemetry, SystemAlert, Train, WorkOrder } from '../types';
 
 /** Eventos emitidos pelo gateway do CCO em direção ao painel. */
 export interface ServerEvents {
@@ -10,6 +10,7 @@ export interface ServerEvents {
   'train:sync': (trains: Train[]) => void;
   'train:updated': (train: Train) => void;
   'incident:changed': (incident: Incident) => void;
+  'workorder:changed': (workOrder: WorkOrder) => void;
   'alert:critical': (alert: SystemAlert) => void;
   'train:command:acknowledged': (ack: CommandAck) => void;
 }
