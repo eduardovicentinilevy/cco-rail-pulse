@@ -2,6 +2,7 @@
 import React from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
+import { useTheme } from './hooks/useTheme';
 import { LoginScreen } from './components/LoginScreen';
 import { CCODashboard } from './components/CCODashboard';
 
@@ -18,6 +19,7 @@ const AppContent: React.FC = () => {
     updateAvatar,
     dismissNotice,
   } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   // Enquanto a sessão restaurada é validada, evita piscar a tela de login.
   if (isRestoring) {
@@ -49,6 +51,8 @@ const AppContent: React.FC = () => {
       onUpdateAvatar={updateAvatar}
       onExpireSession={expireSession}
       onLogout={logout}
+      theme={theme}
+      onToggleTheme={toggleTheme}
     />
   );
 };

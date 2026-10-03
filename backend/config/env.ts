@@ -59,7 +59,10 @@ export const env = {
   nodeEnv,
   isProduction,
   port: toInt(process.env.PORT, 3333),
-  jwtSecret: process.env.JWT_SECRET ?? DEV_JWT_SECRET,
+  // `||`, não `??`: JWT_SECRET='' (ex.: .env.example copiado sem edição) é falsy mas
+  // não nullish — com `??` esse vazio passaria adiante e o jsonwebtoken rejeitaria a
+  // assinatura em runtime ("secretOrPrivateKey must have a value") no primeiro login.
+  jwtSecret: process.env.JWT_SECRET || DEV_JWT_SECRET,
   /** Validade do access token. Curta de propósito: a renovação é feita pelo refresh token. */
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '15m',
   /** Validade do desafio emitido entre a senha e o código do autenticador. */

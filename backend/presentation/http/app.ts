@@ -8,6 +8,7 @@ import { operatorRouter } from './routes/operator.routes';
 import { auditRouter } from './routes/audit.routes';
 import { createNetworkRouter } from './routes/network.routes';
 import { incidentRouter } from './routes/incident.routes';
+import { workOrderRouter } from './routes/work-order.routes';
 import { teamRouter } from './routes/team.routes';
 import { shiftRouter } from './routes/shift.routes';
 import { healthRouter } from './routes/health.routes';
@@ -69,6 +70,7 @@ export const createApp = (simulator: TelemetrySimulator): Express => {
   app.use('/api/audit-logs', auditRouter);
   app.use('/api/network', createNetworkRouter(simulator));
   app.use('/api/incidents', incidentRouter);
+  app.use('/api/work-orders', workOrderRouter);
   app.use('/api/team', teamRouter);
   app.use('/api/shift', shiftRouter);
   app.use('/api/alarms', alarmRouter);

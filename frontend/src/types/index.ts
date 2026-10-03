@@ -133,6 +133,54 @@ export interface IncidentStats {
   averageResolutionMinutes: number | null;
 }
 
+// --- Ordens de Serviço de Manutenção -----------------------------------------
+
+export const WORK_ORDER_PRIORITIES = ['BAIXA', 'MÉDIA', 'ALTA', 'URGENTE'] as const;
+export type WorkOrderPriority = (typeof WORK_ORDER_PRIORITIES)[number];
+
+export const WORK_ORDER_STATUSES = ['ABERTA', 'EM_ANDAMENTO', 'CONCLUÍDA', 'CANCELADA'] as const;
+export type WorkOrderStatus = (typeof WORK_ORDER_STATUSES)[number];
+
+export const WORK_ORDER_CATEGORIES = [
+  'TSS_SUBESTACAO',
+  'VIA_PERMANENTE',
+  'SINALIZACAO_ATS',
+  'MATERIAL_RODANTE',
+  'INFRAESTRUTURA_ESTACAO',
+  'OUTROS',
+] as const;
+export type WorkOrderCategory = (typeof WORK_ORDER_CATEGORIES)[number];
+
+export interface WorkOrder {
+  id: string;
+  title: string;
+  description: string;
+  assetCode: string | null;
+  stationCode: string | null;
+  category: WorkOrderCategory;
+  priority: WorkOrderPriority;
+  status: WorkOrderStatus;
+  openedBy: string;
+  openedByName?: string;
+  assignedTo: string | null;
+  assignedToName?: string | null;
+  completionNote: string | null;
+  openedAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  dueAt: string | null;
+  completionMinutes: number | null;
+  isOverdue: boolean;
+}
+
+export interface WorkOrderStats {
+  open: number;
+  inProgress: number;
+  completed: number;
+  overdue: number;
+  averageCompletionMinutes: number | null;
+}
+
 // --- Central de Alarmes -----------------------------------------------------
 
 /** Alarme persistido — histórico entre turnos, diferente do feed ao vivo (sessão apenas). */
