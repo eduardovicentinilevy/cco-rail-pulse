@@ -2,16 +2,17 @@
 import { Router } from 'express';
 import { buildShiftReportUseCase } from '../../../application/use-cases/BuildShiftReportUseCase';
 import { ValidationError } from '../../../shared/errors';
-import { verifyJwt } from '../middlewares/auth.middleware';
+import { verifyJwt, withLineCatalog } from '../middlewares/auth.middleware';
+import type { ScopedRequest } from '../middlewares/auth.middleware';
 
 export const shiftRouter: Router = Router();
 
-shiftRouter.use(verifyJwt);
+shiftRouter.use(verifyJwt, withLineCatalog);
 
 /** Janela padrão quando o painel não informa o início do turno. */
 const DEFAULT_WINDOW_HOURS = 8;
 
-shiftRouter.get('/report', async (req, res) => {
+shiftRouter.get('/report', async (req: ScopedRequest, res) => {
   const raw = req.query.since;
   let since: Date;
 
@@ -24,5 +25,5 @@ shiftRouter.get('/report', async (req, res) => {
     since = new Date(Date.now() - DEFAULT_WINDOW_HOURS * 3600_000);
   }
 
-  res.status(200).json(await buildShiftReportUseCase.execute(since));
+  res.status(200).json(await buildShiftReportUseCase.execute(req.catalog!, since));
 });

@@ -9,7 +9,12 @@ import { domainEventBus } from '../events/event-bus';
 import type { TrainCommand, TrainSnapshot, TrainStatus } from '../../domain/entities/TrainSession';
 
 export interface ProcessCommandRequest {
-  operatorId: string;
+  /** Linha em que a composição circula — a numeração só é única dentro dela. */
+  lineId: string;
+  /** Cliente da sessão: é dele a trilha de auditoria que este comando alimenta. */
+  tenantId: string;
+  /** Crachá do operador, não o id interno: é o que a trilha registra. */
+  operatorCredential: string;
   trainId: string;
   /** Nome bruto do comando como o painel o expõe (ex.: EMERGENCY_BRAKE_OVERRIDE) — só para auditoria. */
   rawCommand: string;
@@ -104,7 +109,7 @@ export const isLockTimeout = (error: unknown): boolean =>
  */
 export class ProcessTrainCommandUseCase {
   public async execute(request: ProcessCommandRequest): Promise<ProcessCommandResult> {
-    const { operatorId, trainId, rawCommand, command, targetBlock } = request;
+    const { lineId, tenantId, operatorCredential, trainId, rawCommand, command, targetBlock } = request;
     const auditAction = `EXEC_${rawCommand}`;
     const auditTarget = `TRAIN_${trainId}_BLOCK_${targetBlock ?? '?'}`;
 
@@ -116,7 +121,7 @@ export class ProcessTrainCommandUseCase {
         //    interpolar valor nenhum, mesmo que a configuração venha de env em vez de
         //    entrada do operador.
         await client.query(`SELECT set_config('lock_timeout', $1, true)`, [String(env.trainCommandLockTimeoutMs)]);
-        const train = await TrainRepository.findByIdWithLock(trainId, client);
+        const train = await TrainRepository.findByIdWithLock(lineId, trainId, client);
 
         // 2. Validar estado.
         if (!train) {
@@ -126,17 +131,20 @@ export class ProcessTrainCommandUseCase {
 
         // 3. Persistir na auditoria — atômico com o passo 4 (mesma transação/client).
         await operatorRepository.logAudit(
-          operatorId,
-          auditAction,
-          auditTarget,
-          applied ? 'EXECUTED' : 'NO_OP',
+          {
+            tenantId,
+            credential: operatorCredential,
+            action: auditAction,
+            target: auditTarget,
+            status: applied ? 'EXECUTED' : 'NO_OP',
+          },
           client,
         );
 
         // 4. Executar.
         if (applied) {
           train.applyCommand(command);
-          await TrainRepository.save(train, client);
+          await TrainRepository.save(lineId, train, client);
         }
 
         return { snapshot: train.toSnapshot(), applied };
@@ -144,13 +152,23 @@ export class ProcessTrainCommandUseCase {
       });
 
       // 6. Emitir — só depois do commit, e só quando algo de fato mudou.
-      AuditLogger.record({ operatorId, action: auditAction, targetResource: auditTarget, severity: SEVERITY[command] });
+      AuditLogger.record({
+        operatorId: operatorCredential,
+        action: auditAction,
+        targetResource: auditTarget,
+        severity: SEVERITY[command],
+      });
       if (result.applied) {
-        domainEventBus.emit('train:updated', result.snapshot);
+        // Carimbado com a linha de origem: o gateway entrega por sala, então o
+        // evento só alcança os painéis desta linha.
+        domainEventBus.emit('train:updated', { lineId, payload: result.snapshot });
         domainEventBus.emit('system:alert', {
-          severity: SEVERITY[command],
-          message: `Comando ${rawCommand} executado no ${trainId} pelo operador ${operatorId}`,
-          timestamp: new Date().toISOString(),
+          lineId,
+          payload: {
+            severity: SEVERITY[command],
+            message: `Comando ${rawCommand} executado no ${trainId} pelo operador ${operatorCredential}`,
+            timestamp: new Date().toISOString(),
+          },
         });
       }
 
@@ -164,7 +182,13 @@ export class ProcessTrainCommandUseCase {
 
       // Best-effort: uma tentativa recusada/falha também é um evento de auditoria válido,
       // mas não pode, por si só, mascarar o erro original caso a própria escrita falhe.
-      await operatorRepository.logAudit(operatorId, auditAction, auditTarget, 'FAILED');
+      await operatorRepository.logAudit({
+        tenantId,
+        credential: operatorCredential,
+        action: auditAction,
+        target: auditTarget,
+        status: 'FAILED',
+      });
 
       throw publicError;
     }

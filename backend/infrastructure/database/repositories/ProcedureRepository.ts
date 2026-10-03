@@ -21,6 +21,7 @@ const toSnapshot = (row: ProcedureRow): ProcedureSnapshot => ({
 });
 
 export interface ProcedureQuery {
+  lineId: string;
   category?: ProcedureCategory;
   search?: string;
 }
@@ -29,15 +30,16 @@ const SELECT_COLUMNS = 'id, category, title, summary, steps, updated_at';
 
 /** Biblioteca de referência: pequena e majoritariamente estática, não precisa de paginação. */
 export class ProcedureRepository {
-  public static async list({ category, search }: ProcedureQuery): Promise<ProcedureSnapshot[]> {
+  public static async list({ lineId, category, search }: ProcedureQuery): Promise<ProcedureSnapshot[]> {
     const filter = search?.trim() ? `%${search.trim()}%` : null;
 
     const result = await db.query<ProcedureRow>(
       `SELECT ${SELECT_COLUMNS} FROM procedures
-       WHERE ($1::text IS NULL OR category = $1)
-         AND ($2::text IS NULL OR title ILIKE $2 OR summary ILIKE $2)
+       WHERE line_id = $1
+         AND ($2::text IS NULL OR category = $2)
+         AND ($3::text IS NULL OR title ILIKE $3 OR summary ILIKE $3)
        ORDER BY category, title`,
-      [category ?? null, filter],
+      [lineId, category ?? null, filter],
     );
 
     return result.rows.map(toSnapshot);

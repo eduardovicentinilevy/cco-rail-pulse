@@ -426,3 +426,27 @@ uma correção de código.
 
 Suíte após as correções: 91 testes (era 82 no início da sessão de correções), typecheck,
 lint e build de produção — todos limpos.
+
+---
+
+## Nota de integração multi-cliente
+
+As correções acima foram escritas antes de o produto passar a atender mais de um
+cliente na mesma instalação. Ao integrar as duas coisas, duas delas precisaram de
+ajuste para continuarem valendo o que prometem:
+
+- **#1 (revogação de acesso).** A revalidação do `verifyJwt` e a do handshake do
+  WebSocket buscam o operador pelo cliente do token, não só pela chave interna. E o
+  evento `operator:deactivated` passou a carregar a chave interna (UUID) em vez do
+  crachá: o socket se identifica por ela, e o crachá se repete entre clientes — do
+  jeito anterior o socket simplesmente não seria derrubado, e um casamento por crachá
+  derrubaria a sessão do operador homônimo de outro cliente.
+
+- **#2 (rate limiter de login).** O limitador independente de IP é chaveado por
+  `cliente:credencial`, não pela credencial solta. Com a chave solta, duas instalações
+  com a mesma credencial dividiriam a mesma cota, e tentativas contra um cliente
+  trancariam a conta do outro — uma negação de serviço atravessando a fronteira que o
+  multi-cliente existe para manter.
+
+O resto das correções não depende do cliente: são por operador (chave interna, única na
+instalação) ou globais ao processo.

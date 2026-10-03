@@ -11,6 +11,8 @@ type HealthSnapshot = Awaited<ReturnType<typeof api.health>>;
 
 interface SystemStatusViewProps {
   connectionStatus: ConnectionStatus;
+  /** Linha da sessão. /health é anônimo e por isso não nomeia mais a linha. */
+  lineName: string;
 }
 
 const CHECK_INTERVAL_MS = 15_000;
@@ -28,7 +30,7 @@ const GATEWAY_STATUS: Record<ConnectionStatus, { status: string; label: string }
  * WebSocket já mantido pelo painel principal — dando ao operador uma visão
  * de infraestrutura sem depender de um APM externo.
  */
-export const SystemStatusView: React.FC<SystemStatusViewProps> = ({ connectionStatus }) => {
+export const SystemStatusView: React.FC<SystemStatusViewProps> = ({ connectionStatus, lineName }) => {
   const loadHealth = useCallback(() => api.health(), []);
   const { data: health, error, isLoading, reload } = useResource<HealthSnapshot>('health', loadHealth);
 
@@ -66,7 +68,7 @@ export const SystemStatusView: React.FC<SystemStatusViewProps> = ({ connectionSt
         <article className="rp-metric" data-status={overallStatus}>
           <span className="rp-metric__label">Status geral</span>
           <span className="rp-metric__value">{overallLabel}</span>
-          <span className="rp-metric__hint">{health?.line ?? 'Linha 6-Laranja (Linha Uni)'}</span>
+          <span className="rp-metric__hint">{lineName}</span>
         </article>
         <article className="rp-metric" data-status={apiOk ? 'NORMAL' : 'CRÍTICO'}>
           <span className="rp-metric__label">Tempo ativo da API</span>

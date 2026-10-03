@@ -7,7 +7,11 @@ export type TrainStatus = (typeof TRAIN_STATUSES)[number];
 export const TRAIN_COMMANDS = ['HALT', 'RESTRICT_SPEED', 'RELEASE'] as const;
 export type TrainCommand = (typeof TRAIN_COMMANDS)[number];
 
-/** Velocidade máxima homologada para a Linha 6-Laranja, em km/h. */
+/**
+ * Teto de velocidade aceito pela plataforma, em km/h.
+ * Limite de sanidade da telemetria, não a homologação de uma linha específica:
+ * a velocidade homologada por linha ainda não é dado cadastrado.
+ */
 export const MAX_SPEED_KMH = 80;
 /** Velocidade imposta por restrição operacional (V.R.), em km/h. */
 export const RESTRICTED_SPEED_KMH = 20;

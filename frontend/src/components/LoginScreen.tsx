@@ -1,8 +1,13 @@
 // frontend/src/components/LoginScreen.tsx
 import React, { useCallback, useRef, useState } from 'react';
+import { TENANT_PROMPT } from '../config/env';
 
 interface LoginScreenProps {
-  onLogin: (operatorId: string, password: string) => Promise<{ mfaRequired: boolean; challengeToken?: string }>;
+  onLogin: (
+    operatorId: string,
+    password: string,
+    tenantSlug?: string,
+  ) => Promise<{ mfaRequired: boolean; challengeToken?: string }>;
   onSubmitMfaCode: (challengeToken: string, code: string) => Promise<void>;
   /** Aviso da sessão anterior (expiração, revogação). */
   notice?: string | null;
@@ -12,6 +17,8 @@ interface LoginScreenProps {
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSubmitMfaCode, notice, onDismissNotice }) => {
   const [operatorId, setOperatorId] = useState('');
   const [password, setPassword] = useState('');
+  // Só aparece onde não há subdomínio para identificar o cliente.
+  const [tenantSlug, setTenantSlug] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +43,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSubmitMfaCo
       onDismissNotice?.();
 
       try {
-        const result = await onLogin(trimmedOperatorId, password);
+        const result = await onLogin(trimmedOperatorId, password, tenantSlug.trim() || undefined);
         if (result.mfaRequired && result.challengeToken) {
           setChallengeToken(result.challengeToken);
           window.setTimeout(() => mfaCodeRef.current?.focus(), 0);
@@ -50,7 +57,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSubmitMfaCo
         setIsLoading(false);
       }
     },
-    [canSubmit, onLogin, onDismissNotice, trimmedOperatorId, password],
+    [canSubmit, onLogin, onDismissNotice, trimmedOperatorId, password, tenantSlug],
   );
 
   const handleMfaSubmit = useCallback(
@@ -86,7 +93,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSubmitMfaCo
         <header className="rp-login__header">
           <span className="rp-login__tag">Acesso restrito</span>
           <h1 className="rp-login__title">RailPulse CCO</h1>
-          <p className="rp-login__subtitle">Centro de Controle Operacional • Linha 6-Laranja (Linha Uni)</p>
+          <p className="rp-login__subtitle">Centro de Controle Operacional</p>
         </header>
 
         {notice && (
@@ -146,6 +153,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSubmitMfaCo
           </form>
         ) : (
           <form className="rp-stack" onSubmit={handleSubmit} noValidate>
+            {TENANT_PROMPT && (
+              <div className="rp-field">
+                <label className="rp-label" htmlFor="tenantSlug">
+                  Cliente
+                </label>
+                <input
+                  id="tenantSlug"
+                  name="tenantSlug"
+                  className="rp-input mono"
+                  type="text"
+                  autoComplete="organization"
+                  value={tenantSlug}
+                  onChange={(event) => {
+                    setTenantSlug(event.target.value.toLowerCase());
+                    if (error) setError(null);
+                  }}
+                  placeholder="Ex: linha-uni"
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+
             <div className="rp-field">
               <label className="rp-label" htmlFor="operatorId">
                 Credencial do operador

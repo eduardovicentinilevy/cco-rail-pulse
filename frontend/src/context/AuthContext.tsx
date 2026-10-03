@@ -13,8 +13,13 @@ const readStoredSession = (): OperatorSession | null => {
 
   try {
     const parsed = JSON.parse(raw) as Partial<OperatorSession>;
-    // Descarta payloads corrompidos ou de versões antigas do app.
-    if (!parsed?.token || !parsed.operatorId) throw new Error('sessão inválida');
+    // Descarta payloads corrompidos ou de versões antigas do app. Uma sessão
+    // gravada antes do multi-tenant não tem cliente nem linha, e o painel não
+    // tem como adivinhá-los: melhor pedir um login novo do que exibir a malha
+    // errada.
+    if (!parsed?.token || !parsed.operatorId || !parsed.tenant?.id || !parsed.line?.id) {
+      throw new Error('sessão inválida');
+    }
     return parsed as OperatorSession;
   } catch {
     localStorage.removeItem(STORAGE_KEYS.session);
@@ -87,14 +92,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         role: data.role as OperatorSession['role'],
         token: data.token,
         avatarUrl: data.avatarUrl ?? DEFAULT_AVATAR_URL,
+        tenant: data.tenant,
+        line: data.line,
       });
     },
     [persist],
   );
 
   const login = useCallback(
-    async (operatorId: string, password: string) => {
-      const result = await api.login(operatorId, password);
+    async (operatorId: string, password: string, tenantSlug?: string) => {
+      const result = await api.login(operatorId, password, tenantSlug);
       if (isMfaRequired(result)) return { mfaRequired: true, challengeToken: result.challengeToken };
 
       finalizeLogin(result);

@@ -1,5 +1,5 @@
 // backend/application/services/TrainMotionSimulator.ts
-import { LINE_STATION_CODES } from '../../domain/line';
+import type { LineCatalog } from '../../domain/line';
 import { withTransaction } from '../../infrastructure/database/postgres';
 import { TrainRepository } from '../../infrastructure/database/repositories/TrainRepository';
 import { domainEventBus } from '../events/event-bus';
@@ -41,6 +41,10 @@ export const jitteredDelay = (baseMs: number, random = Math.random): number => {
  * (parada por comando do operador) permanece onde está até ser liberada; o
  * sentido e o relógio de cada trem vivem só em memória — não são dados de
  * domínio persistidos, apenas o estado interno desta simulação.
+ *
+ * Existe uma instância por linha ativa, criada pelo `SimulationRegistry`: a
+ * ordem das estações e as composições vêm do catálogo da linha, não mais de uma
+ * constante global.
  */
 export class TrainMotionSimulator {
   private timer: NodeJS.Timeout | null = null;
@@ -48,7 +52,14 @@ export class TrainMotionSimulator {
   private readonly nextAdvanceAt = new Map<string, number>();
   private isTicking = false;
 
-  constructor(private readonly intervalMs: number) {}
+  constructor(
+    private readonly catalog: LineCatalog,
+    private readonly intervalMs: number,
+  ) {}
+
+  public get lineId(): string {
+    return this.catalog.id;
+  }
 
   public get isRunning(): boolean {
     return this.timer !== null;
@@ -79,7 +90,7 @@ export class TrainMotionSimulator {
 
     try {
       const now = Date.now();
-      const trains = await TrainRepository.findAll();
+      const trains = await TrainRepository.findAll(this.catalog.id);
 
       for (const train of trains) {
         const dueAt = this.nextAdvanceAt.get(train.trainId);
@@ -111,22 +122,24 @@ export class TrainMotionSimulator {
   /** Lock pessimista: um comando do operador para o mesmo trem não pode ser sobrescrito por este avanço. */
   private async advance(trainId: string): Promise<void> {
     const snapshot = await withTransaction(async (client) => {
-      const train = await TrainRepository.findByIdWithLock(trainId, client);
+      const train = await TrainRepository.findByIdWithLock(this.catalog.id, trainId, client);
       if (!train || train.status === 'EMERGÊNCIA') return null;
 
-      const currentIndex = LINE_STATION_CODES.indexOf(train.currentStationCode);
+      const currentIndex = this.catalog.indexOf(train.currentStationCode);
       if (currentIndex === -1) return null;
 
-      const maxIndex = LINE_STATION_CODES.length - 1;
+      const maxIndex = this.catalog.size - 1;
       const direction = nextDirection(currentIndex, maxIndex, this.directions.get(trainId) ?? 1);
+      const nextStation = this.catalog.at(currentIndex + direction);
+      if (!nextStation) return null;
 
       this.directions.set(trainId, direction);
-      train.moveTo(LINE_STATION_CODES[currentIndex + direction]);
-      await TrainRepository.save(train, client);
+      train.moveTo(nextStation.code);
+      await TrainRepository.save(this.catalog.id, train, client);
 
       return train.toSnapshot();
     });
 
-    if (snapshot) domainEventBus.emit('train:updated', snapshot);
+    if (snapshot) domainEventBus.emit('train:updated', { lineId: this.catalog.id, payload: snapshot });
   }
 }

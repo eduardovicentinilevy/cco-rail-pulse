@@ -9,18 +9,20 @@ import {
   isWorkOrderPriority,
   isWorkOrderStatus,
 } from '../../../domain/entities/WorkOrder';
-import { isKnownStation } from '../../../domain/line';
 import { WorkOrderRepository } from '../../../infrastructure/database/repositories/WorkOrderRepository';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
 import { domainEventBus } from '../../../application/events/event-bus';
 import { NotFoundError, ValidationError } from '../../../shared/errors';
 import { routeParam, toBoundedInt } from '../../../shared/http';
-import { verifyJwt } from '../middlewares/auth.middleware';
-import type { AuthenticatedRequest } from '../middlewares/auth.middleware';
+import { verifyJwt, withLineCatalog } from '../middlewares/auth.middleware';
+import type { ScopedRequest } from '../middlewares/auth.middleware';
 
 export const workOrderRouter: Router = Router();
 
-workOrderRouter.use(verifyJwt);
+// A ordem de serviço é manutenção num ativo da linha, então nenhuma rota daqui
+// existe fora do escopo da sessão — inclusive a leitura por id, cuja numeração é
+// sequencial e compartilhada entre clientes.
+workOrderRouter.use(verifyJwt, withLineCatalog);
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -47,11 +49,11 @@ workOrderRouter.get('/meta', (_req, res) => {
   });
 });
 
-workOrderRouter.get('/stats', async (_req, res) => {
-  res.status(200).json(await WorkOrderRepository.stats());
+workOrderRouter.get('/stats', async (req: ScopedRequest, res) => {
+  res.status(200).json(await WorkOrderRepository.stats(req.catalog!.id));
 });
 
-workOrderRouter.get('/', async (req, res) => {
+workOrderRouter.get('/', async (req: ScopedRequest, res) => {
   const limit = toBoundedInt(req.query.limit, DEFAULT_LIMIT, 1, MAX_LIMIT);
   const offset = toBoundedInt(req.query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
   const status = isWorkOrderStatus(req.query.status) ? req.query.status : undefined;
@@ -59,8 +61,8 @@ workOrderRouter.get('/', async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search : undefined;
 
   const [page, names] = await Promise.all([
-    WorkOrderRepository.list({ limit, offset, status, priority, search }),
-    operatorRepository.namesById(),
+    WorkOrderRepository.list({ lineId: req.catalog!.id, limit, offset, status, priority, search }),
+    operatorRepository.namesByCredential(req.operator!.tenantId),
   ]);
 
   res.status(200).json({
@@ -75,7 +77,9 @@ workOrderRouter.get('/', async (req, res) => {
   });
 });
 
-workOrderRouter.post('/', async (req: AuthenticatedRequest, res) => {
+workOrderRouter.post('/', async (req: ScopedRequest, res) => {
+  const catalog = req.catalog!;
+  const { tenantId } = req.operator!;
   const body = req.body ?? {};
 
   const title = WorkOrder.assertTitle(body.title);
@@ -90,19 +94,19 @@ workOrderRouter.post('/', async (req: AuthenticatedRequest, res) => {
   }
 
   const stationCode = optionalText(body.stationCode)?.toUpperCase() ?? null;
-  if (stationCode && !isKnownStation(stationCode)) {
-    throw new ValidationError(`A estação "${stationCode}" não pertence à malha da Linha 6-Laranja.`);
-  }
+  // A malha da linha é quem diz se o código existe — a mensagem de erro nomeia a linha.
+  if (stationCode) catalog.requireStation(stationCode);
 
   const assignedTo = optionalText(body.assignedTo)?.toUpperCase() ?? null;
-  if (assignedTo && !(await operatorRepository.exists(assignedTo))) {
+  if (assignedTo && !(await operatorRepository.exists(tenantId, assignedTo))) {
     throw new ValidationError(`O operador "${assignedTo}" não existe no cadastro.`);
   }
 
   const dueAt = optionalDate(body.dueAt);
 
-  const openedBy = req.operator!.operatorId;
+  const openedBy = req.operator!.credential;
   const workOrder = await WorkOrderRepository.create({
+    lineId: catalog.id,
     title,
     description,
     assetCode,
@@ -114,29 +118,39 @@ workOrderRouter.post('/', async (req: AuthenticatedRequest, res) => {
     dueAt,
   });
 
-  await operatorRepository.logAudit(openedBy, 'WORKORDER_OPENED', `WORKORDER_${workOrder.id}`, workOrder.priority);
+  await operatorRepository.logAudit({
+    tenantId,
+    credential: openedBy,
+    action: 'WORKORDER_OPENED',
+    target: `WORKORDER_${workOrder.id}`,
+    status: workOrder.priority,
+  });
 
   const snapshot = workOrder.toSnapshot();
-  domainEventBus.emit('workorder:changed', snapshot);
+  domainEventBus.emit('workorder:changed', { lineId: catalog.id, payload: snapshot });
   domainEventBus.emit('system:alert', {
-    severity: workOrder.priority === 'URGENTE' ? 'CRITICAL' : workOrder.priority === 'ALTA' ? 'WARNING' : 'INFO',
-    message: `OS #${workOrder.id} aberta por ${openedBy}: ${workOrder.title}`,
-    timestamp: new Date().toISOString(),
+    lineId: catalog.id,
+    payload: {
+      severity: workOrder.priority === 'URGENTE' ? 'CRITICAL' : workOrder.priority === 'ALTA' ? 'WARNING' : 'INFO',
+      message: `OS #${workOrder.id} aberta por ${openedBy}: ${workOrder.title}`,
+      timestamp: new Date().toISOString(),
+    },
   });
 
   res.status(201).json(snapshot);
 });
 
-workOrderRouter.get('/:id', async (req, res) => {
+workOrderRouter.get('/:id', async (req: ScopedRequest, res) => {
   const id = routeParam(req.params.id);
-  const workOrder = await WorkOrderRepository.findById(id);
+  const workOrder = await WorkOrderRepository.findById(req.catalog!.id, id);
   if (!workOrder) throw new NotFoundError(`OS ${id} não encontrada.`);
   res.status(200).json(workOrder.toSnapshot());
 });
 
-workOrderRouter.patch('/:id/status', async (req: AuthenticatedRequest, res) => {
+workOrderRouter.patch('/:id/status', async (req: ScopedRequest, res) => {
+  const catalog = req.catalog!;
   const id = routeParam(req.params.id);
-  const workOrder = await WorkOrderRepository.findById(id);
+  const workOrder = await WorkOrderRepository.findById(catalog.id, id);
   if (!workOrder) throw new NotFoundError(`OS ${id} não encontrada.`);
 
   const body = req.body ?? {};
@@ -144,17 +158,23 @@ workOrderRouter.patch('/:id/status', async (req: AuthenticatedRequest, res) => {
     throw new ValidationError(`Status inválido. Use um de: ${WORK_ORDER_STATUSES.join(', ')}.`);
   }
 
-  const operatorId = req.operator!.operatorId;
+  const { credential, tenantId } = req.operator!;
   // Ao assumir o serviço, o operador vira responsável se ninguém estiver designado.
   const assignedTo =
-    body.status === 'EM_ANDAMENTO' && !workOrder.assignedTo ? operatorId : undefined;
+    body.status === 'EM_ANDAMENTO' && !workOrder.assignedTo ? credential : undefined;
 
   workOrder.transitionTo(body.status, { assignedTo, note: body.completionNote });
-  await WorkOrderRepository.save(workOrder);
-  await operatorRepository.logAudit(operatorId, `WORKORDER_${body.status}`, `WORKORDER_${workOrder.id}`, 'EXECUTED');
+  await WorkOrderRepository.save(catalog.id, workOrder);
+  await operatorRepository.logAudit({
+    tenantId,
+    credential,
+    action: `WORKORDER_${body.status}`,
+    target: `WORKORDER_${workOrder.id}`,
+    status: 'EXECUTED',
+  });
 
   const snapshot = workOrder.toSnapshot();
-  domainEventBus.emit('workorder:changed', snapshot);
+  domainEventBus.emit('workorder:changed', { lineId: catalog.id, payload: snapshot });
 
   res.status(200).json(snapshot);
 });

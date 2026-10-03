@@ -8,9 +8,10 @@ export const healthRouter: Router = Router();
 const startedAt = Date.now();
 
 healthRouter.get('/health', async (_req, res) => {
+  // Sem nome de linha: /health é anônimo e a instalação pode servir vários
+  // clientes. Quem quer saber a linha da sessão pede GET /api/network/stations.
   const base = {
     service: 'railpulse-cco',
-    line: 'Linha 6-Laranja (Linha Uni)',
     environment: env.nodeEnv,
     architecture: 'Event-Driven (EDA)',
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),

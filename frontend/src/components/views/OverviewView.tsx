@@ -11,6 +11,7 @@ interface OverviewViewProps {
   trains: Train[];
   alarms: AlarmEvent[];
   connectionStatus: ConnectionStatus;
+  lineName: string;
   onNavigate: (tab: 'ats' | 'energy' | 'assets') => void;
   onSelectStation: (station: Station) => void;
 }
@@ -26,6 +27,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   trains,
   alarms,
   connectionStatus,
+  lineName,
   onNavigate,
   onSelectStation,
 }) => {
@@ -75,7 +77,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       <section className="rp-card rp-row rp-row--between" aria-label="Situação geral da malha">
         <div>
           <span className="rp-eyebrow">Painel executivo</span>
-          <h2 className="rp-page-header__title">Visão geral da malha — Linha 6-Laranja</h2>
+          <h2 className="rp-page-header__title">Visão geral da malha — {lineName}</h2>
           <p className="rp-page-header__subtitle">{CONNECTION_LABEL[connectionStatus]}</p>
         </div>
         <span className="rp-dot rp-dot--lg rp-dot--pulse" data-status={connectionStatus} aria-hidden="true" />
