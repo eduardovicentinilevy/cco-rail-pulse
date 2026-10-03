@@ -2,6 +2,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { extractBearerToken, verifyOperatorToken } from '../../../shared/jwt';
 import type { OperatorTokenPayload } from '../../../shared/jwt';
+import { authSessionService } from '../../../infrastructure/auth/session-service';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
 import { can } from '../../../domain/roles';
 import type { Permission } from '../../../domain/roles';
@@ -11,13 +12,14 @@ export interface AuthenticatedRequest extends Request {
 }
 
 /**
- * Valida a assinatura do token E revalida o operador contra o estado atual do banco.
+ * Autentica pelo access token, confere se a sessão continua viva e revalida o
+ * operador contra o estado atual do banco.
  *
- * Um JWT válido só prova que o servidor o assinou uma vez — não prova que a conta segue
- * ativa nem que o perfil embutido nele ainda é o vigente. Sem esta segunda checagem,
- * desativar um operador ou rebaixar seu perfil em `Equipe` não teria efeito algum sobre
- * uma sessão já aberta até o token expirar sozinho (até `JWT_EXPIRES_IN`, um turno
- * inteiro por padrão) — a funcionalidade de "revogar credencial" seria só decorativa.
+ * A assinatura sozinha não prova nada além de que o servidor assinou o token uma vez:
+ * um logout, uma troca de senha, um rebaixamento de perfil ou a desativação da conta
+ * precisam valer na hora, e não só quando o token vencer. São duas checagens porque
+ * cobrem coisas diferentes — a sessão responde por "este token ainda vale", e a leitura
+ * do operador responde por "esta conta ainda existe com este perfil".
  * `operatorRepository.findById` já filtra `is_active = TRUE`, então um operador
  * desativado simplesmente não é encontrado aqui.
  */
@@ -36,6 +38,11 @@ export const verifyJwt = async (req: AuthenticatedRequest, res: Response, next: 
     return;
   }
 
+  if (!(await authSessionService.isActive(payload.sessionId))) {
+    res.status(401).json({ error: 'Sessão encerrada. Autentique-se novamente.', code: 'SESSION_REVOKED' });
+    return;
+  }
+
   const operator = await operatorRepository.findById(payload.operatorId);
 
   if (!operator) {
@@ -45,7 +52,7 @@ export const verifyJwt = async (req: AuthenticatedRequest, res: Response, next: 
 
   // O perfil vem sempre fresco do banco — nunca do token, que pode carregar um perfil
   // já trocado desde que foi assinado.
-  req.operator = { operatorId: operator.id, role: operator.role };
+  req.operator = { operatorId: operator.id, role: operator.role, sessionId: payload.sessionId };
   next();
 };
 
