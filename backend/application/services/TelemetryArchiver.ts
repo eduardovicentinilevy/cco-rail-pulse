@@ -48,15 +48,15 @@ export class TelemetryArchiver {
     for (const reading of batch) {
       const accumulator = this.accumulators.get(reading.currentStationCode);
       if (accumulator) {
-        accumulator.min = Math.min(accumulator.min, reading.voltageKV);
-        accumulator.max = Math.max(accumulator.max, reading.voltageKV);
-        accumulator.sum += reading.voltageKV;
+        accumulator.min = Math.min(accumulator.min, reading.voltageV);
+        accumulator.max = Math.max(accumulator.max, reading.voltageV);
+        accumulator.sum += reading.voltageV;
         accumulator.count += 1;
       } else {
         this.accumulators.set(reading.currentStationCode, {
-          min: reading.voltageKV,
-          max: reading.voltageKV,
-          sum: reading.voltageKV,
+          min: reading.voltageV,
+          max: reading.voltageV,
+          sum: reading.voltageV,
           count: 1,
         });
       }
@@ -90,9 +90,9 @@ export class TelemetryArchiver {
     const buckets: TelemetryBucket[] = Array.from(this.accumulators.entries()).map(([stationCode, acc]) => ({
       stationCode,
       bucketAt,
-      minKV: Number(acc.min.toFixed(2)),
-      avgKV: Number((acc.sum / acc.count).toFixed(2)),
-      maxKV: Number(acc.max.toFixed(2)),
+      minV: Number(acc.min.toFixed(1)),
+      avgV: Number((acc.sum / acc.count).toFixed(1)),
+      maxV: Number(acc.max.toFixed(1)),
       readings: acc.count,
     }));
 

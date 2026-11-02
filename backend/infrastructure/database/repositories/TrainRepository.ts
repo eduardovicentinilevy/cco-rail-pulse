@@ -8,7 +8,7 @@ interface TrainRow {
   train_id: string;
   current_station_code: string;
   speed_kmh: string | number;
-  voltage_kv: string | number;
+  voltage_v: string | number;
   status: string;
   updated_at: Date;
 }
@@ -19,7 +19,7 @@ const toEntity = (row: TrainRow): TrainSession =>
     row.train_id,
     row.current_station_code,
     Number(row.speed_kmh),
-    Number(row.voltage_kv),
+    Number(row.voltage_v),
     row.status as TrainStatus,
     new Date(row.updated_at),
   );
@@ -29,7 +29,7 @@ type Queryable = Pick<PoolClient, 'query'>;
 export class TrainRepository {
   public static async findAll(): Promise<TrainSession[]> {
     const result = await db.query<TrainRow>(
-      `SELECT train_id, current_station_code, speed_kmh, voltage_kv, status, updated_at
+      `SELECT train_id, current_station_code, speed_kmh, voltage_v, status, updated_at
        FROM trains
        ORDER BY train_id ASC`,
     );
@@ -42,7 +42,7 @@ export class TrainRepository {
    */
   public static async findByIdWithLock(trainId: string, client: Queryable): Promise<TrainSession | null> {
     const result = await client.query<TrainRow>(
-      `SELECT train_id, current_station_code, speed_kmh, voltage_kv, status, updated_at
+      `SELECT train_id, current_station_code, speed_kmh, voltage_v, status, updated_at
        FROM trains
        WHERE train_id = $1
        FOR UPDATE`,
@@ -53,15 +53,15 @@ export class TrainRepository {
 
   public static async save(train: TrainSession, client: Queryable = db): Promise<void> {
     await client.query(
-      `INSERT INTO trains (train_id, current_station_code, speed_kmh, voltage_kv, status, updated_at)
+      `INSERT INTO trains (train_id, current_station_code, speed_kmh, voltage_v, status, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (train_id) DO UPDATE
        SET current_station_code = EXCLUDED.current_station_code,
            speed_kmh = EXCLUDED.speed_kmh,
-           voltage_kv = EXCLUDED.voltage_kv,
+           voltage_v = EXCLUDED.voltage_v,
            status = EXCLUDED.status,
            updated_at = EXCLUDED.updated_at`,
-      [train.trainId, train.currentStationCode, train.speedKmH, train.voltageKV, train.status, train.updatedAt],
+      [train.trainId, train.currentStationCode, train.speedKmH, train.voltageV, train.status, train.updatedAt],
     );
   }
 }

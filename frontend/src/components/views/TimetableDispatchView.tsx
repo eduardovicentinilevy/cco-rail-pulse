@@ -12,8 +12,8 @@ interface TimetableDispatchViewProps {
 
 type DispatchStatus = 'EM_HORA' | 'ATRASADO' | 'ANTECIPADO';
 
-/** Headway alvo da Linha 6 em operação normal, em segundos. */
-const TARGET_HEADWAY_SEC = 180;
+/** Headway alvo da Linha 2 no pico, em segundos. */
+const TARGET_HEADWAY_SEC = 135;
 /** Velocidade de referência para a marcha em tabela, em km/h. */
 const REFERENCE_SPEED_KMH = 45;
 

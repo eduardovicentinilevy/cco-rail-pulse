@@ -5,9 +5,9 @@
 /* --- Cartão ---------------------------------------------------------------- */
 .rp-card {
   position: relative;
-  background-color: var(--uni-bg-secondary);
+  background-color: var(--cco-bg-secondary);
   background-image: var(--grad-surface);
-  border: 1px solid var(--uni-border);
+  border: 1px solid var(--cco-border);
   border-radius: var(--radius-lg);
   padding: var(--sp-5);
   box-shadow: var(--shadow-sm), var(--shadow-inset);
@@ -15,7 +15,7 @@
 
 .rp-card--flush { padding: 0; overflow: hidden; }
 
-/* Fio laranja no topo — usado em cards que abrem uma seção. */
+/* Fio verde no topo — usado em cards que abrem uma seção. */
 .rp-card--accent::before {
   content: '';
   position: absolute;
@@ -38,12 +38,12 @@
 .rp-card__title {
   font-size: var(--fs-md);
   font-weight: 700;
-  color: var(--uni-text-main);
+  color: var(--cco-text-main);
 }
 
 .rp-card__subtitle {
   font-size: var(--fs-xs);
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
 /* --- Rótulo de seção ------------------------------------------------------- */
@@ -52,7 +52,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--uni-orange);
+  color: var(--cco-green-ink);
 }
 
 .rp-section-title {
@@ -60,7 +60,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
 /* --- Botões ---------------------------------------------------------------- */
@@ -69,10 +69,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  border: 1px solid var(--uni-border);
-  background-color: var(--uni-bg-card);
+  border: 1px solid var(--cco-border);
+  background-color: var(--cco-bg-card);
   background-image: var(--grad-surface);
-  color: var(--uni-text-main);
+  color: var(--cco-text-main);
   border-radius: var(--radius-md);
   padding: 0.55rem 0.9rem;
   font-size: var(--fs-xs);
@@ -86,8 +86,8 @@
 }
 
 .rp-btn:hover:not(:disabled) {
-  background-color: var(--uni-bg-elevated);
-  border-color: var(--uni-border-strong);
+  background-color: var(--cco-bg-elevated);
+  border-color: var(--cco-border-strong);
 }
 
 .rp-btn:active:not(:disabled) { transform: translateY(1px); }
@@ -98,40 +98,40 @@
 }
 
 .rp-btn--primary {
-  /* Botões primários totalmente arredondados, como os CTAs do site institucional. */
+  /* Botões primários totalmente arredondados, em verde chapado da Linha 2. */
   border-radius: var(--radius-pill);
   padding-inline: 1.3rem;
   background: var(--grad-accent);
-  border-color: var(--uni-orange);
+  border-color: var(--cco-green);
   color: #fff;
-  box-shadow: 0 8px 22px -10px var(--uni-orange-glow), var(--shadow-inset);
+  box-shadow: 0 8px 22px -10px var(--cco-green-glow), var(--shadow-inset);
 }
 
 .rp-btn--primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--uni-orange-bright) 0%, var(--uni-orange) 100%);
-  border-color: var(--uni-orange-bright);
+  background: linear-gradient(135deg, var(--cco-green-bright) 0%, var(--cco-green) 100%);
+  border-color: var(--cco-green-bright);
 }
 
 .rp-btn--outline {
   background-color: transparent;
-  border-color: var(--uni-orange);
-  color: var(--uni-orange);
+  border-color: var(--cco-green);
+  color: var(--cco-green-ink);
 }
 
 .rp-btn--outline:hover:not(:disabled) {
-  background-color: var(--uni-orange-soft);
-  border-color: var(--uni-orange);
+  background-color: var(--cco-green-soft);
+  border-color: var(--cco-green);
 }
 
 .rp-btn--ghost {
   background-color: transparent;
   border-color: transparent;
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
 .rp-btn--ghost:hover:not(:disabled) {
-  background-color: var(--uni-bg-card);
-  color: var(--uni-text-main);
+  background-color: var(--cco-bg-card);
+  color: var(--cco-text-main);
   border-color: transparent;
 }
 
@@ -139,7 +139,7 @@
   background: none;
   border: none;
   padding: 0;
-  color: var(--uni-orange);
+  color: var(--cco-green-ink);
   font-size: var(--fs-xs);
 }
 
@@ -161,25 +161,25 @@
 }
 
 .rp-btn--danger {
-  background-color: var(--uni-danger-soft);
-  border-color: var(--uni-danger);
-  color: var(--uni-danger);
+  background-color: var(--cco-danger-soft);
+  border-color: var(--cco-danger);
+  color: var(--cco-danger);
 }
 
 .rp-btn--danger:hover:not(:disabled) {
-  background-color: rgba(214, 58, 58, 0.22);
-  border-color: var(--uni-danger);
+  background-color: rgba(209, 58, 54, 0.22);
+  border-color: var(--cco-danger);
 }
 
 .rp-btn--warning {
-  background-color: var(--uni-warning-soft);
-  border-color: var(--uni-warning);
-  color: var(--uni-warning);
+  background-color: var(--cco-warning-soft);
+  border-color: var(--cco-warning);
+  color: var(--cco-warning);
 }
 
 .rp-btn--warning:hover:not(:disabled) {
-  background-color: rgba(201, 122, 10, 0.22);
-  border-color: var(--uni-warning);
+  background-color: rgba(194, 118, 6, 0.22);
+  border-color: var(--cco-warning);
 }
 
 .rp-icon-btn {
@@ -189,9 +189,9 @@
   width: 1.9rem;
   height: 1.9rem;
   flex-shrink: 0;
-  border: 1px solid var(--uni-border);
+  border: 1px solid var(--cco-border);
   background-color: transparent;
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
   border-radius: var(--radius-sm);
   font-size: var(--fs-xs);
   line-height: 1;
@@ -199,8 +199,8 @@
 }
 
 .rp-icon-btn:hover {
-  color: var(--uni-orange);
-  border-color: var(--uni-orange);
+  color: var(--cco-green-ink);
+  border-color: var(--cco-green);
 }
 
 /* --- Spinner --------------------------------------------------------------- */
@@ -223,38 +223,38 @@
 .rp-label {
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
 .rp-hint {
   font-size: var(--fs-2xs);
-  color: var(--uni-text-dim);
+  color: var(--cco-text-dim);
 }
 
 .rp-input {
   width: 100%;
-  background-color: var(--uni-bg-void);
-  border: 1px solid var(--uni-border);
+  background-color: var(--cco-bg-void);
+  border: 1px solid var(--cco-border);
   border-radius: var(--radius-md);
   padding: 0.68rem 0.8rem;
-  color: var(--uni-text-main);
+  color: var(--cco-text-main);
   font-size: var(--fs-sm);
   outline: none;
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
-.rp-input::placeholder { color: var(--uni-text-dim); }
+.rp-input::placeholder { color: var(--cco-text-dim); }
 
-.rp-input:hover:not(:disabled) { border-color: var(--uni-border-strong); }
+.rp-input:hover:not(:disabled) { border-color: var(--cco-border-strong); }
 
 .rp-input:focus {
-  border-color: var(--uni-orange);
-  box-shadow: 0 0 0 3px var(--uni-orange-soft);
+  border-color: var(--cco-green);
+  box-shadow: 0 0 0 3px var(--cco-green-soft);
 }
 
 .rp-input[aria-invalid='true'] {
-  border-color: var(--uni-danger);
-  box-shadow: 0 0 0 3px var(--uni-danger-soft);
+  border-color: var(--cco-danger);
+  box-shadow: 0 0 0 3px var(--cco-danger-soft);
 }
 
 .rp-input:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -271,7 +271,7 @@
   position: absolute;
   left: 0.75rem;
   font-size: var(--fs-sm);
-  color: var(--uni-text-dim);
+  color: var(--cco-text-dim);
   pointer-events: none;
 }
 
@@ -282,34 +282,34 @@
   right: 0.5rem;
   border: none;
   background: transparent;
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
   font-size: var(--fs-xs);
   padding: 0.25rem;
   line-height: 1;
   border-radius: var(--radius-sm);
 }
 
-.rp-search__clear:hover { color: var(--uni-orange); }
+.rp-search__clear:hover { color: var(--cco-green-ink); }
 
 /* --- Badges e pílulas de status -------------------------------------------- */
 .rp-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-family: var(--uni-font-mono);
+  font-family: var(--cco-font-mono);
   font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.02em;
   padding: 0.2rem 0.45rem;
   border-radius: var(--radius-sm);
-  background-color: var(--rp-status-soft, var(--uni-bg-card));
-  color: var(--rp-status, var(--uni-text-muted));
+  background-color: var(--rp-status-soft, var(--cco-bg-card));
+  color: var(--rp-status, var(--cco-text-muted));
   white-space: nowrap;
 }
 
 .rp-badge--outline {
   background-color: transparent;
-  border: 1px solid var(--rp-status, var(--uni-border));
+  border: 1px solid var(--rp-status, var(--cco-border));
 }
 
 /* Pílula sólida — o padrão do quadro de status de linhas do site institucional
@@ -318,13 +318,13 @@
   padding: 0.3rem 0.7rem;
   font-size: var(--fs-2xs);
   border-radius: var(--radius-pill);
-  background-color: var(--rp-status, var(--uni-text-muted));
+  background-color: var(--rp-status, var(--cco-text-muted));
   color: #fff;
 }
 
 .rp-badge--code {
-  color: var(--uni-orange);
-  background-color: var(--uni-orange-soft);
+  color: var(--cco-green-ink);
+  background-color: var(--cco-green-soft);
 }
 
 /* Ponto de status pulsante (conexão, telemetria ao vivo). */
@@ -333,7 +333,7 @@
   height: 0.5rem;
   border-radius: 50%;
   flex-shrink: 0;
-  background-color: var(--rp-status, var(--uni-text-muted));
+  background-color: var(--rp-status, var(--cco-text-muted));
   box-shadow: 0 0 8px var(--rp-status, transparent);
 }
 
@@ -346,8 +346,8 @@
 [data-status='EM_HORA'],
 [data-status='SUCCESS'],
 [data-status='online'] {
-  --rp-status: var(--uni-success);
-  --rp-status-soft: var(--uni-success-soft);
+  --rp-status: var(--cco-success);
+  --rp-status-soft: var(--cco-success-soft);
 }
 
 [data-status='ATENÇÃO'],
@@ -355,8 +355,8 @@
 [data-status='MANUTENÇÃO_PREVENTIVA'],
 [data-status='ANTECIPADO'],
 [data-status='connecting'] {
-  --rp-status: var(--uni-warning);
-  --rp-status-soft: var(--uni-warning-soft);
+  --rp-status: var(--cco-warning);
+  --rp-status-soft: var(--cco-warning-soft);
 }
 
 [data-status='CRÍTICO'],
@@ -366,22 +366,22 @@
 [data-status='ATRASADO'],
 [data-status='FAILED'],
 [data-status='offline'] {
-  --rp-status: var(--uni-danger);
-  --rp-status-soft: var(--uni-danger-soft);
+  --rp-status: var(--cco-danger);
+  --rp-status-soft: var(--cco-danger-soft);
 }
 
 [data-status='INFO'] {
-  --rp-status: var(--uni-info);
-  --rp-status-soft: var(--uni-info-soft);
+  --rp-status: var(--cco-info);
+  --rp-status-soft: var(--cco-info-soft);
 }
 
-.rp-status-text { color: var(--rp-status, var(--uni-text-main)); font-weight: 700; }
+.rp-status-text { color: var(--rp-status, var(--cco-text-main)); font-weight: 700; }
 
 /* --- Chips de filtro -------------------------------------------------------- */
 .rp-chip {
-  border: 1px solid var(--uni-border);
-  background-color: var(--uni-bg-void);
-  color: var(--uni-text-muted);
+  border: 1px solid var(--cco-border);
+  background-color: var(--cco-bg-void);
+  color: var(--cco-text-muted);
   font-size: var(--fs-2xs);
   font-weight: 600;
   padding: 0.3rem 0.7rem;
@@ -389,13 +389,23 @@
   transition: all var(--dur-fast) var(--ease);
 }
 
-.rp-chip:hover { color: var(--uni-text-main); border-color: var(--uni-border-strong); }
+.rp-chip:hover { color: var(--cco-text-main); border-color: var(--cco-border-strong); }
 
 .rp-chip[aria-pressed='true'] {
-  border-color: var(--uni-orange);
-  color: var(--uni-orange);
-  background-color: var(--uni-orange-soft);
-  box-shadow: 0 0 14px -6px var(--uni-orange-glow);
+  border-color: var(--cco-green);
+  color: var(--cco-green-ink);
+  background-color: var(--cco-green-soft);
+  box-shadow: 0 0 14px -6px var(--cco-green-glow);
+}
+
+/* Amostra da cor da série no chip — o chip vira a legenda do gráfico. */
+.rp-chip__swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 3px;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  border-radius: 2px;
 }
 
 .rp-chip-row {
@@ -411,7 +421,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
-  color: var(--uni-text-dim);
+  color: var(--cco-text-dim);
 }
 
 /* --- Métricas e KPIs -------------------------------------------------------- */
@@ -421,9 +431,9 @@
   flex-direction: column;
   gap: var(--sp-1);
   overflow: hidden;
-  background-color: var(--uni-bg-secondary);
+  background-color: var(--cco-bg-secondary);
   background-image: var(--grad-surface);
-  border: 1px solid var(--uni-border);
+  border: 1px solid var(--cco-border);
   border-radius: var(--radius-lg);
   padding: var(--sp-5);
   box-shadow: var(--shadow-sm), var(--shadow-inset);
@@ -440,12 +450,12 @@
   inset-block: 0;
   left: 0;
   width: 3px;
-  background: var(--rp-status, var(--uni-orange));
+  background: var(--rp-status, var(--cco-green));
   opacity: 0.85;
 }
 
 .rp-metric:hover {
-  border-color: var(--uni-border-strong);
+  border-color: var(--cco-border-strong);
   transform: translateY(-3px);
   box-shadow: var(--shadow-md), var(--shadow-inset);
 }
@@ -455,20 +465,20 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
 .rp-metric__value {
-  font-family: var(--uni-font-mono);
+  font-family: var(--cco-font-mono);
   font-size: var(--fs-3xl);
   font-weight: 800;
   line-height: 1.1;
-  color: var(--rp-status, var(--uni-text-main));
+  color: var(--rp-status, var(--cco-text-main));
 }
 
 .rp-metric__hint {
   font-size: var(--fs-2xs);
-  color: var(--uni-text-dim);
+  color: var(--cco-text-dim);
 }
 
 .rp-metric-row {
@@ -477,16 +487,16 @@
   justify-content: space-between;
   gap: var(--sp-3);
   font-size: var(--fs-xs);
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
-.rp-metric-row strong { color: var(--uni-text-main); }
+.rp-metric-row strong { color: var(--cco-text-main); }
 
 /* --- Barra de progresso ----------------------------------------------------- */
 .rp-progress {
   width: 100%;
   height: 6px;
-  background-color: var(--uni-bg-primary);
+  background-color: var(--cco-bg-primary);
   border-radius: var(--radius-pill);
   overflow: hidden;
 }
@@ -494,14 +504,14 @@
 .rp-progress__fill {
   height: 100%;
   border-radius: inherit;
-  background-color: var(--rp-status, var(--uni-orange));
+  background-color: var(--rp-status, var(--cco-green));
   transition: width var(--dur-slow) var(--ease);
 }
 
 /* --- Tabelas ---------------------------------------------------------------- */
 .rp-table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--uni-border);
+  border: 1px solid var(--cco-border);
   border-radius: var(--radius-md);
 }
 
@@ -514,28 +524,28 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background-color: var(--uni-bg-void);
+  background-color: var(--cco-bg-void);
   padding: 0.75rem 1rem;
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--uni-border);
+  border-bottom: 1px solid var(--cco-border);
 }
 
 .rp-table td {
   padding: 0.7rem 1rem;
   font-size: var(--fs-xs);
-  color: var(--uni-text-main);
-  border-bottom: 1px solid var(--uni-border);
+  color: var(--cco-text-main);
+  border-bottom: 1px solid var(--cco-border);
 }
 
 .rp-table tbody tr { transition: background-color var(--dur-fast) var(--ease); }
-.rp-table tbody tr:hover { background-color: var(--uni-orange-softer); }
+.rp-table tbody tr:hover { background-color: var(--cco-green-softer); }
 .rp-table tbody tr:last-child td { border-bottom: none; }
 
-.rp-table__accent { color: var(--uni-orange); font-family: var(--uni-font-mono); }
+.rp-table__accent { color: var(--cco-green-ink); font-family: var(--cco-font-mono); }
 
 /* --- Estados vazios / carregamento ------------------------------------------ */
 .rp-empty {
@@ -545,16 +555,16 @@
   gap: var(--sp-2);
   padding: var(--sp-8) var(--sp-4);
   text-align: center;
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
   font-size: var(--fs-sm);
 }
 
 .rp-empty__icon { font-size: 1.6rem; opacity: 0.7; }
-.rp-empty__hint { font-size: var(--fs-xs); color: var(--uni-text-dim); }
+.rp-empty__hint { font-size: var(--fs-xs); color: var(--cco-text-dim); }
 
 .rp-skeleton {
   border-radius: var(--radius-md);
-  background: linear-gradient(90deg, var(--uni-bg-card) 25%, var(--uni-bg-elevated) 50%, var(--uni-bg-card) 75%);
+  background: linear-gradient(90deg, var(--cco-bg-card) 25%, var(--cco-bg-elevated) 50%, var(--cco-bg-card) 75%);
   background-size: 640px 100%;
   animation: rp-shimmer 1.4s linear infinite;
 }
@@ -582,8 +592,8 @@
   max-height: min(88dvh, 60rem);
   overflow-y: auto;
   padding: var(--sp-6);
-  background-color: var(--uni-bg-secondary);
-  border: 1px solid var(--uni-border);
+  background-color: var(--cco-bg-secondary);
+  border: 1px solid var(--cco-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
 }
@@ -596,19 +606,19 @@
   justify-content: space-between;
   gap: var(--sp-4);
   padding-bottom: var(--sp-3);
-  border-bottom: 1px solid var(--uni-border);
+  border-bottom: 1px solid var(--cco-border);
 }
 
 .rp-modal__title {
   font-size: var(--fs-lg);
   font-weight: 700;
-  color: var(--uni-text-main);
+  color: var(--cco-text-main);
 }
 
 .rp-modal__subtitle {
   margin-top: var(--sp-1);
   font-size: var(--fs-xs);
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
 .rp-modal__body {
@@ -643,8 +653,8 @@
   align-items: center;
   gap: var(--sp-3);
   padding: 0.8rem 0.9rem;
-  background-color: var(--uni-bg-secondary);
-  border: 1px solid var(--rp-status, var(--uni-border));
+  background-color: var(--cco-bg-secondary);
+  border: 1px solid var(--rp-status, var(--cco-border));
   border-left-width: 3px;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
@@ -669,11 +679,11 @@
   max-width: 34rem;
   max-height: 60vh;
   overflow: hidden;
-  background-color: var(--uni-bg-secondary);
+  background-color: var(--cco-bg-secondary);
   background-image: var(--grad-surface);
-  border: 1px solid var(--uni-border-strong);
+  border: 1px solid var(--cco-border-strong);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg), var(--glow-orange);
+  box-shadow: var(--shadow-lg), var(--glow-green);
   animation: rp-fade-in var(--dur-base) var(--ease-out);
 }
 
@@ -682,8 +692,8 @@
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-4);
-  border-bottom: 1px solid var(--uni-border);
-  color: var(--uni-text-dim);
+  border-bottom: 1px solid var(--cco-border);
+  color: var(--cco-text-dim);
 }
 
 .rp-palette__input {
@@ -691,12 +701,12 @@
   min-width: 0;
   border: none;
   background: transparent;
-  color: var(--uni-text-main);
+  color: var(--cco-text-main);
   font-size: var(--fs-lg);
   outline: none;
 }
 
-.rp-palette__input::placeholder { color: var(--uni-text-dim); }
+.rp-palette__input::placeholder { color: var(--cco-text-dim); }
 
 .rp-palette__list {
   flex: 1;
@@ -710,7 +720,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
-  color: var(--uni-text-dim);
+  color: var(--cco-text-dim);
 }
 
 .rp-palette__item {
@@ -724,8 +734,8 @@
 }
 
 .rp-palette__item[aria-selected='true'] {
-  background-color: var(--uni-orange-soft);
-  color: var(--uni-orange);
+  background-color: var(--cco-green-soft);
+  color: var(--cco-green-ink);
 }
 
 .rp-palette__icon {
@@ -740,18 +750,18 @@
 
 .rp-palette__hint {
   flex-shrink: 0;
-  font-family: var(--uni-font-mono);
+  font-family: var(--cco-font-mono);
   font-size: var(--fs-2xs);
-  color: var(--uni-text-dim);
+  color: var(--cco-text-dim);
 }
 
 .rp-palette__footer {
   display: flex;
   gap: var(--sp-4);
   padding: var(--sp-2) var(--sp-4);
-  border-top: 1px solid var(--uni-border);
+  border-top: 1px solid var(--cco-border);
   font-size: var(--fs-2xs);
-  color: var(--uni-text-dim);
+  color: var(--cco-text-dim);
 }
 
 .rp-kbd {
@@ -760,12 +770,12 @@
   min-width: 1.3rem;
   padding: 0.05rem 0.3rem;
   margin-inline: 1px;
-  background-color: var(--uni-bg-void);
-  border: 1px solid var(--uni-border-strong);
+  background-color: var(--cco-bg-void);
+  border: 1px solid var(--cco-border-strong);
   border-radius: 4px;
-  font-family: var(--uni-font-mono);
+  font-family: var(--cco-font-mono);
   font-size: var(--fs-2xs);
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
 /* --- Bloco de assinatura da passagem de turno -------------------------------- */
@@ -778,7 +788,7 @@
 .rp-signature__line {
   margin-top: var(--sp-6);
   padding-top: var(--sp-2);
-  border-top: 1px solid var(--uni-border-strong);
+  border-top: 1px solid var(--cco-border-strong);
   font-size: var(--fs-md);
   font-weight: 600;
   min-height: 2.2rem;
@@ -791,13 +801,13 @@
   justify-content: space-between;
   gap: var(--sp-5);
   padding: var(--sp-4) 0;
-  border-bottom: 1px solid var(--uni-border);
+  border-bottom: 1px solid var(--cco-border);
 }
 
 .rp-option-row:last-child { border-bottom: none; padding-bottom: 0; }
 .rp-option-row:first-child { padding-top: 0; }
 
-.rp-option-row__title { font-size: var(--fs-md); font-weight: 600; color: var(--uni-text-main); }
+.rp-option-row__title { font-size: var(--fs-md); font-weight: 600; color: var(--cco-text-main); }
 
 .rp-switch {
   position: relative;
@@ -805,8 +815,8 @@
   width: 2.75rem;
   height: 1.5rem;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--uni-border-strong);
-  background-color: var(--uni-bg-void);
+  border: 1px solid var(--cco-border-strong);
+  background-color: var(--cco-bg-void);
   cursor: pointer;
   transition: background-color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease);
 }
@@ -819,14 +829,14 @@
   width: 1.15rem;
   height: 1.15rem;
   border-radius: 50%;
-  background-color: var(--uni-text-muted);
+  background-color: var(--cco-text-muted);
   transition: transform var(--dur-base) var(--ease-out), background-color var(--dur-base) var(--ease);
 }
 
-.rp-switch[aria-checked='true'] { background-color: var(--uni-orange-soft); border-color: var(--uni-orange); }
-.rp-switch[aria-checked='true']::after { transform: translateX(1.25rem); background-color: var(--uni-orange); }
+.rp-switch[aria-checked='true'] { background-color: var(--cco-green-soft); border-color: var(--cco-green); }
+.rp-switch[aria-checked='true']::after { transform: translateX(1.25rem); background-color: var(--cco-green); }
 .rp-switch:disabled { opacity: 0.5; cursor: not-allowed; }
-.rp-switch:focus-visible { outline: 2px solid var(--uni-orange); outline-offset: 2px; }
+.rp-switch:focus-visible { outline: 2px solid var(--cco-green); outline-offset: 2px; }
 
 /* --- Lista de verificações de sistema (Status do Sistema) ------------------- */
 .rp-check-list { display: flex; flex-direction: column; }
@@ -836,7 +846,7 @@
   align-items: center;
   gap: var(--sp-4);
   padding: var(--sp-4) var(--sp-5);
-  border-bottom: 1px solid var(--uni-border);
+  border-bottom: 1px solid var(--cco-border);
 }
 
 .rp-check-item:last-child { border-bottom: none; }
@@ -848,9 +858,48 @@
   height: 2.25rem;
   flex-shrink: 0;
   border-radius: var(--radius-md);
-  background-color: var(--uni-bg-elevated);
+  background-color: var(--cco-bg-elevated);
   font-size: var(--fs-lg);
 }
 
 .rp-check-item__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.rp-check-item__title { font-weight: 600; color: var(--uni-text-main); font-size: var(--fs-sm); }
+.rp-check-item__title { font-weight: 600; color: var(--cco-text-main); font-size: var(--fs-sm); }
+
+/* --- Integrações com outras linhas ------------------------------------------
+   Círculo com o número da linha, na cor oficial dela — o mesmo código visual
+   das placas de integração nas estações do Metrô. */
+.rp-connections {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.rp-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--fs-xs);
+  color: var(--cco-text-muted);
+}
+
+.rp-connection__mark {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.2rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1;
+  /* Anel da cor da superfície: o círculo não se funde a fundos da mesma cor. */
+  box-shadow: 0 0 0 1.5px var(--cco-bg-card);
+}
+
+.rp-connection[data-variant='full'] {
+  padding: 0.15rem 0.5rem 0.15rem 0.2rem;
+  border: 1px solid var(--cco-border);
+  border-radius: var(--radius-pill);
+  background-color: var(--cco-bg-void);
+}

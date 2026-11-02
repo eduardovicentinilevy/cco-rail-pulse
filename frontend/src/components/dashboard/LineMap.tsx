@@ -1,6 +1,8 @@
 // frontend/src/components/dashboard/LineMap.tsx
 import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
+import { formatVoltage } from '../../lib/format';
+import { LINE_NAME } from '../../data/stations';
 import { buildCurveSegments, curveToPath } from '../../lib/curve';
 import type { Point } from '../../lib/curve';
 import { useTrainMotion } from '../../hooks/useTrainMotion';
@@ -16,32 +18,33 @@ const VIEW_WIDTH = 1000;
 const VIEW_HEIGHT = 440;
 
 /**
- * Coordenadas aproximadas do traçado da Linha 6-Laranja no sentido
- * noroeste → centro (Brasilândia a São Joaquim). Não é cartografia exata:
- * preserva a forma e a proporção do eixo para leitura operacional.
+ * Traçado da Linha 2-Verde, de Vila Madalena (oeste) a Vila Prudente (leste),
+ * projetado a partir das coordenadas geográficas das estações. O eixo vertical
+ * é comprimido para caber no painel: preserva a forma — o trecho sob a
+ * Av. Paulista, a descida ao Ipiranga e a volta para o norte em Vila Prudente —
+ * sem pretender ser cartografia exata.
  */
 const ROUTE: Record<string, { x: number; y: number }> = {
-  BRA: { x: 70, y: 52 },
-  MAR: { x: 132, y: 84 },
-  ITA: { x: 194, y: 116 },
-  JPI: { x: 252, y: 152 },
-  FGO: { x: 312, y: 190 },
-  SMA: { x: 384, y: 218 },
-  AGB: { x: 456, y: 240 },
-  POM: { x: 528, y: 256 },
-  PDZ: { x: 600, y: 270 },
-  PUC: { x: 665, y: 284 },
-  FAA: { x: 726, y: 302 },
-  HGM: { x: 786, y: 322 },
-  '14B': { x: 844, y: 346 },
-  BLV: { x: 900, y: 370 },
-  SJQ: { x: 952, y: 396 },
+  VMD: { x: 70, y: 70 },
+  SUM: { x: 177, y: 92 },
+  CLI: { x: 232, y: 111 },
+  CNS: { x: 309, y: 129 },
+  TRI: { x: 338, y: 149 },
+  BGD: { x: 395, y: 188 },
+  PSO: { x: 461, y: 226 },
+  ANR: { x: 482, y: 256 },
+  CKB: { x: 552, y: 316 },
+  SIM: { x: 612, y: 337 },
+  AIP: { x: 683, y: 370 },
+  SAC: { x: 761, y: 365 },
+  TTI: { x: 866, y: 319 },
+  VPT: { x: 930, y: 269 },
 };
 
 const STATUS_COLOR: Record<Station['status'], string> = {
-  NORMAL: 'var(--uni-success)',
-  'ATENÇÃO': 'var(--uni-warning)',
-  'CRÍTICO': 'var(--uni-danger)',
+  NORMAL: 'var(--cco-success)',
+  'ATENÇÃO': 'var(--cco-warning)',
+  'CRÍTICO': 'var(--cco-danger)',
 };
 
 export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStation, onSelectStation }) => {
@@ -60,13 +63,18 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
   // sobre a curva do trilho, simulando o deslocamento estação a estação.
   const animatedPositions = useTrainMotion(trains, stationIndex, points, segments);
 
-  const trainMarkers = useMemo(
-    () =>
-      trains
-        .map((train) => ({ train, position: animatedPositions.get(train.trainId) }))
-        .filter((marker): marker is { train: Train; position: Point } => marker.position != null),
-    [trains, animatedPositions],
-  );
+  const trainMarkers = useMemo(() => {
+    // Composições na mesma estação empilham as etiquetas em vez de sobrepô-las.
+    const perStation = new Map<string, number>();
+    return trains
+      .map((train) => ({ train, position: animatedPositions.get(train.trainId) }))
+      .filter((marker): marker is { train: Train; position: Point } => marker.position != null)
+      .map((marker) => {
+        const stack = perStation.get(marker.train.currentStationCode) ?? 0;
+        perStation.set(marker.train.currentStationCode, stack + 1);
+        return { ...marker, stack };
+      });
+  }, [trains, animatedPositions]);
 
   /** Onde há composição, a etiqueta do trem ocupa o espaço acima do nó. */
   const occupiedAbove = useMemo(
@@ -80,12 +88,12 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
         viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
         className="rp-map__canvas"
         role="img"
-        aria-label="Mapa da Linha 6-Laranja com a posição das composições"
+        aria-label={`Mapa da ${LINE_NAME} com a posição das composições`}
       >
         <defs>
           <linearGradient id="rp-rail-gradient" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="var(--uni-orange-bright)" />
-            <stop offset="100%" stopColor="var(--uni-orange-deep)" />
+            <stop offset="0%" stopColor="var(--cco-green-bright)" />
+            <stop offset="100%" stopColor="var(--cco-green-deep)" />
           </linearGradient>
           <filter id="rp-rail-glow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="6" result="blur" />
@@ -96,29 +104,42 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
           </filter>
         </defs>
 
-        {/* Referência geográfica: faixa do Rio Tietê, cruzado entre FGO e SMA. */}
+        {/* Referências urbanas: o eixo da Av. Paulista (CNS–PSO) e o Rio
+            Tamanduateí, cruzado entre Sacomã e Tamanduateí. */}
+        <path d="M 292 120 L 421 202" className="rp-map__avenue" fill="none" />
+        <text x="318" y="196" className="rp-map__avenue-label" transform="rotate(32.4 318 196)">
+          Av. Paulista
+        </text>
         <path
-          d="M 250 268 C 340 218, 430 176, 560 148 S 820 110, 990 96"
+          d="M 1014 516 C 960 450, 905 388, 835 334 S 720 220, 671 173 S 600 100, 562 61"
           className="rp-map__river"
           fill="none"
         />
-        <text x="596" y="140" className="rp-map__river-label">
-          Rio Tietê
+        <text x="742" y="214" className="rp-map__river-label" transform="rotate(43 742 214)">
+          Rio Tamanduateí
         </text>
 
         {/* Halo do trilho, depois o trilho sólido por cima. */}
         <path d={path} className="rp-map__rail-glow" fill="none" filter="url(#rp-rail-glow)" />
         <path d={path} className="rp-map__rail" fill="none" stroke="url(#rp-rail-gradient)" />
 
-        {trainMarkers.map(({ train, position }) => (
+        {trainMarkers.map(({ train, position, stack }) => (
           <g
             key={train.trainId}
             className="rp-map__train"
             style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
           >
             <circle r="13" className="rp-map__train-halo" data-status={train.status} />
-            <rect x="-20" y="-30" width="40" height="15" rx="4" className="rp-map__train-tag" data-status={train.status} />
-            <text y="-19" className="rp-map__train-label">
+            <rect
+              x="-20"
+              y={-30 - stack * 18}
+              width="40"
+              height="15"
+              rx="4"
+              className="rp-map__train-tag"
+              data-status={train.status}
+            />
+            <text y={-19 - stack * 18} className="rp-map__train-label">
               {train.trainId}
             </text>
           </g>
@@ -129,6 +150,12 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
           // Rótulos alternam acima e abaixo para não colidirem entre si; onde há
           // composição, o rótulo desce para não ser coberto pela etiqueta do trem.
           const labelAbove = index % 2 === 0 && !occupiedAbove.has(station.code);
+          // O terminal leste fica no fim de uma subida: o rótulo vai à direita
+          // do nó, longe do trilho e da etiqueta de trem.
+          const isEastTerminal = index === points.length - 1;
+          const label = isEastTerminal
+            ? { x: x + 13, y: y + 4, anchor: 'start' as const }
+            : { x, y: labelAbove ? y - 16 : y + 26, anchor: index === 0 ? ('start' as const) : ('middle' as const) };
 
           return (
             <g
@@ -138,7 +165,7 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
               data-selected={isSelected}
               role="button"
               tabIndex={0}
-              aria-label={`Estação ${station.name}, status ${station.status}, ${station.voltageKV.toFixed(2)} kV`}
+              aria-label={`Estação ${station.name}, status ${station.status}, ${formatVoltage(station.voltageV)}`}
               aria-pressed={isSelected}
               onClick={() => onSelectStation(station)}
               onKeyDown={(event) => {
@@ -154,12 +181,7 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
                 <circle cx={x} cy={y} r="14" className="rp-map__alert-ring" fill={STATUS_COLOR[station.status]} />
               )}
               <circle cx={x} cy={y} r={isSelected ? 9 : 6.5} className="rp-map__node" />
-              <text
-                x={x}
-                y={labelAbove ? y - 16 : y + 26}
-                className="rp-map__label"
-                textAnchor={index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'}
-              >
+              <text x={label.x} y={label.y} className="rp-map__label" textAnchor={label.anchor}>
                 {station.code}
               </text>
             </g>

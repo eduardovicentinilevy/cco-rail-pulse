@@ -6,6 +6,7 @@ import { TrackSchematic } from '../dashboard/TrackSchematic';
 import { useClock } from '../../hooks/useClock';
 import { hashString } from '../../lib/hash';
 import { formatNumber } from '../../lib/format';
+import { LINE_NAME } from '../../data/stations';
 
 interface VideoWallViewProps {
   stations: Station[];
@@ -79,7 +80,7 @@ export const VideoWallView: React.FC<VideoWallViewProps> = ({
     <div className="rp-wall">
       <header className="rp-wall__header">
         <div className="rp-wall__title">
-          <span className="rp-wall__eyebrow">Sala de Controle — Linha 6-Laranja</span>
+          <span className="rp-wall__eyebrow">Sala de Controle — {LINE_NAME}</span>
           <h2>Mosaico Operacional</h2>
         </div>
         <div className="rp-wall__status">

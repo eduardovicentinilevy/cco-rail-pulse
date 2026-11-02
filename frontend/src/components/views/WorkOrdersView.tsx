@@ -30,9 +30,10 @@ interface WorkOrdersViewProps {
 const PAGE_SIZE = 20;
 
 const CATEGORY_LABELS: Record<string, string> = {
-  TSS_SUBESTACAO: 'Subestação (TSS)',
+  SUBESTACAO_SR: 'Subestação retificadora (SR)',
+  TERCEIRO_TRILHO: 'Terceiro trilho',
   VIA_PERMANENTE: 'Via permanente',
-  SINALIZACAO_ATS: 'Sinalização / ATS',
+  SINALIZACAO_ATS: 'Sinalização / CBTC',
   MATERIAL_RODANTE: 'Material rodante',
   INFRAESTRUTURA_ESTACAO: 'Infraestrutura da estação',
   OUTROS: 'Outros',
@@ -379,7 +380,7 @@ interface CreateWorkOrderModalProps {
 const CreateWorkOrderModal: React.FC<CreateWorkOrderModalProps> = ({ session, stations, onClose, onCreated, onAuthError }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<string>('TSS_SUBESTACAO');
+  const [category, setCategory] = useState<string>('SUBESTACAO_SR');
   const [priority, setPriority] = useState<string>('MÉDIA');
   const [stationCode, setStationCode] = useState('');
   const [assetCode, setAssetCode] = useState('');
@@ -441,7 +442,7 @@ const CreateWorkOrderModal: React.FC<CreateWorkOrderModalProps> = ({ session, st
             className="rp-input"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Ex: Substituir disjuntor da TSS Freguesia do Ó"
+            placeholder="Ex: Substituir disjuntor extrarrápido da SR-06 Alto do Ipiranga"
             maxLength={120}
             required
           />
@@ -514,7 +515,7 @@ const CreateWorkOrderModal: React.FC<CreateWorkOrderModalProps> = ({ session, st
               className="rp-input"
               value={assetCode}
               onChange={(event) => setAssetCode(event.target.value)}
-              placeholder="Ex: Escada rolante 2, TSS-FGO…"
+              placeholder="Ex: Escada rolante 2, SR-06…"
               maxLength={80}
             />
           </div>
@@ -675,13 +676,13 @@ const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
 
       <div className="rp-field">
         <span className="rp-label">Descrição</span>
-        <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--uni-text-muted)' }}>{workOrder.description}</p>
+        <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--cco-text-muted)' }}>{workOrder.description}</p>
       </div>
 
       {workOrder.completionNote && (
         <div className="rp-field">
           <span className="rp-label">Serviço executado</span>
-          <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--uni-text-muted)' }}>
+          <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--cco-text-muted)' }}>
             {workOrder.completionNote}
           </p>
         </div>

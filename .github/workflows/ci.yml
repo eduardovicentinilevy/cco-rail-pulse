@@ -113,6 +113,10 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3333/api/auth/password/initial \
             -H 'Content-Type: application/json' \
             -d "{\"changeToken\":\"$CHANGE_TOKEN\",\"newPassword\":\"123456\"}")" = "400"
+          # Uma senha formalmente forte, mas feita de termos da própria linha, também.
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3333/api/auth/password/initial \
+            -H 'Content-Type: application/json' \
+            -d "{\"changeToken\":\"$CHANGE_TOKEN\",\"newPassword\":\"Linha2Verde#9k\"}")" = "400"
 
           SESSION=$(curl -sf -X POST http://localhost:3333/api/auth/password/initial \
             -H 'Content-Type: application/json' \

@@ -165,7 +165,7 @@ export const AlarmsView: React.FC<AlarmsViewProps> = ({
           <span className="rp-eyebrow">Central de Alarmes</span>
           <h2 className="rp-page-header__title">Histórico de alarmes da malha</h2>
           <p className="rp-page-header__subtitle">
-            Registro persistido entre turnos — o feed ao vivo da Malha ATS mostra só a sessão atual
+            Registro persistido entre turnos — o feed ao vivo da Via CBTC mostra só a sessão atual
           </p>
         </div>
         <button type="button" className="rp-btn" onClick={handleExport} disabled={alarms.length === 0}>

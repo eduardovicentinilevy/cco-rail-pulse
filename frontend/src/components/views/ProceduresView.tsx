@@ -143,7 +143,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({ session, onAuthE
                   {isExpanded && (
                     <ol className="rp-stack rp-stack--tight" style={{ marginTop: 'var(--sp-4)', paddingLeft: '1.25rem' }}>
                       {procedure.steps.map((step, index) => (
-                        <li key={index} style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--uni-text-muted)' }}>
+                        <li key={index} style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--cco-text-muted)' }}>
                           {step}
                         </li>
                       ))}

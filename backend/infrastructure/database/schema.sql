@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS trains (
     train_id VARCHAR(20) PRIMARY KEY,                 -- Ex: 'T-01'
     current_station_code VARCHAR(10) NOT NULL,        -- Código ATS de 3 caracteres
     speed_kmh NUMERIC(5, 1) NOT NULL,
-    voltage_kv NUMERIC(5, 2) NOT NULL,
+    voltage_v NUMERIC(6, 1) NOT NULL,                 -- Terceiro trilho, em Vcc
     status VARCHAR(20) NOT NULL,                      -- NORMAL | ATENÇÃO | EMERGÊNCIA
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

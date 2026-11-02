@@ -4,7 +4,8 @@ import type { AlarmEvent, Station, Train } from '../../types';
 import type { ConnectionStatus } from '../layout/Header';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
-import { formatNumber } from '../../lib/format';
+import { formatVoltage } from '../../lib/format';
+import { classifyVoltage, LINE_NAME, TRACTION_NOMINAL_V, VOLTAGE_WARNING_V } from '../../data/stations';
 
 interface OverviewViewProps {
   stations: Station[];
@@ -35,7 +36,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       attentionStations: attention,
       criticalCount: attention.filter((station) => station.status === 'CRÍTICO').length,
       avgVoltage:
-        stations.length === 0 ? 0 : stations.reduce((sum, station) => sum + station.voltageKV, 0) / stations.length,
+        stations.length === 0 ? 0 : stations.reduce((sum, station) => sum + station.voltageV, 0) / stations.length,
       haltedTrains: trains.filter((train) => train.status === 'EMERGÊNCIA'),
     };
   }, [stations, trains]);
@@ -48,10 +49,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       hint: criticalCount > 0 ? `${criticalCount} em estado crítico` : 'Malha dentro dos parâmetros',
     },
     {
-      label: 'Tensão média da catenária',
-      value: `${formatNumber(avgVoltage, 2)} kV`,
-      status: avgVoltage < 23.5 ? 'ATENÇÃO' : 'NORMAL',
-      hint: 'Faixa nominal: 23,5 – 25,0 kV',
+      label: 'Tensão média do terceiro trilho',
+      value: formatVoltage(avgVoltage),
+      status: classifyVoltage(avgVoltage),
+      hint: `Nominal ${TRACTION_NOMINAL_V} Vcc • atenção abaixo de ${VOLTAGE_WARNING_V} V`,
     },
     {
       label: 'Composições em circulação',
@@ -75,7 +76,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       <section className="rp-card rp-row rp-row--between" aria-label="Situação geral da malha">
         <div>
           <span className="rp-eyebrow">Painel executivo</span>
-          <h2 className="rp-page-header__title">Visão geral da malha — Linha 6-Laranja</h2>
+          <h2 className="rp-page-header__title">
+            Visão geral da malha — <span className="rp-nowrap">{LINE_NAME}</span>
+          </h2>
           <p className="rp-page-header__subtitle">{CONNECTION_LABEL[connectionStatus]}</p>
         </div>
         <span className="rp-dot rp-dot--lg rp-dot--pulse" data-status={connectionStatus} aria-hidden="true" />
@@ -96,7 +99,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <header className="rp-card__header">
             <h3 className="rp-card__title">Estações que exigem atenção</h3>
             <button type="button" className="rp-btn rp-btn--link" onClick={() => onNavigate('ats')}>
-              Ver malha ATS →
+              Ver via CBTC →
             </button>
           </header>
 
@@ -108,7 +111,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 <li key={station.code} className="rp-feed__item" data-status={station.status}>
                   <span className="rp-feed__source">{station.code}</span>
                   <span className="rp-feed__message truncate">{station.name}</span>
-                  <span className="mono text-muted">{station.voltageKV.toFixed(2)} kV</span>
+                  <span className="mono text-muted">{formatVoltage(station.voltageV)}</span>
                   <StatusPill status={station.status} solid />
                   <button
                     type="button"

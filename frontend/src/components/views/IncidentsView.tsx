@@ -33,7 +33,7 @@ const PAGE_SIZE = 20;
 
 const CATEGORY_LABELS: Record<string, string> = {
   ENERGIA: 'Energia de tração',
-  SINALIZACAO: 'Sinalização / ATS',
+  SINALIZACAO: 'Sinalização / CBTC',
   VIA_PERMANENTE: 'Via permanente',
   MATERIAL_RODANTE: 'Material rodante',
   PASSAGEIRO: 'Atendimento a passageiro',
@@ -448,7 +448,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
             className="rp-input"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Ex: Sobrecorrente no pantógrafo do T-04"
+            placeholder="Ex: Sobrecorrente na sapata coletora do T-04"
             maxLength={120}
             required
           />
@@ -676,7 +676,7 @@ const IncidentDetailModal: React.FC<IncidentDetailModalProps> = ({
 
       <div className="rp-field">
         <span className="rp-label">Descrição</span>
-        <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--uni-text-muted)' }}>
+        <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--cco-text-muted)' }}>
           {incident.description}
         </p>
       </div>
@@ -684,7 +684,7 @@ const IncidentDetailModal: React.FC<IncidentDetailModalProps> = ({
       {incident.resolutionNote && (
         <div className="rp-field">
           <span className="rp-label">Tratativa aplicada</span>
-          <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--uni-text-muted)' }}>
+          <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--cco-text-muted)' }}>
             {incident.resolutionNote}
           </p>
         </div>

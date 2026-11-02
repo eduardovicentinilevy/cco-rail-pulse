@@ -1,5 +1,6 @@
 // frontend/src/components/layout/Sidebar.tsx
 import React, { useEffect, useRef } from 'react';
+import { LINE_NAME } from '../../data/stations';
 
 export interface NavItem<T extends string> {
   key: T;
@@ -60,12 +61,13 @@ export const Sidebar = <T extends string>({
   return (
     <nav className="rp-sidebar" aria-label="Navegação principal" onKeyDown={handleKeyDown}>
       <div className="rp-sidebar__brand">
+        {/* O número da linha num círculo verde, como na sinalização do Metrô. */}
         <span className="rp-sidebar__mark" aria-hidden="true">
-          L06
+          2
         </span>
         <span className="rp-sidebar__wordmark">
           <span className="rp-sidebar__name">RailPulse CCO</span>
-          <span className="rp-sidebar__line">Linha 6-Laranja</span>
+          <span className="rp-sidebar__line">{LINE_NAME}</span>
         </span>
       </div>
 

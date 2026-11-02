@@ -5,7 +5,7 @@ interface StatusPillProps {
   status: string;
   label?: string;
   outline?: boolean;
-  /** Fundo saturado + texto branco — o padrão do quadro de status do site institucional. */
+  /** Fundo saturado + texto branco — como o quadro de status das linhas nas estações. */
   solid?: boolean;
   withDot?: boolean;
 }

@@ -1,11 +1,12 @@
 // frontend/src/components/views/HistoryView.tsx
 import React, { useCallback, useMemo, useState } from 'react';
-import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { HistorySample, HistorySummaryRow, OperatorSession, Station } from '../../types';
 import { api } from '../../services/api';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
-import { downloadTextFile, formatNumber, toCsv } from '../../lib/format';
+import { downloadTextFile, formatNumber, formatVoltage, toCsv } from '../../lib/format';
+import { classifyVoltage, VOLTAGE_CRITICAL_V, VOLTAGE_WARNING_V } from '../../data/stations';
 import { useResource } from '../../hooks/useResource';
 import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
 
@@ -44,7 +45,7 @@ interface ChartRow {
 
 export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onAuthError }) => {
   const [hours, setHours] = useState(6);
-  const [stationCode, setStationCode] = useState(() => stations[0]?.code ?? 'BRA');
+  const [stationCode, setStationCode] = useState(() => stations[0]?.code ?? 'VMD');
 
   const load = useCallback(
     () => api.telemetryHistory(session.token, { hours, stations: [stationCode] }),
@@ -62,24 +63,24 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
     () =>
       samples.map((sample) => ({
         bucketAt: sample.bucketAt,
-        avg: sample.avgKV,
-        band: [sample.minKV, sample.maxKV],
+        avg: sample.avgV,
+        band: [sample.minV, sample.maxV],
       })),
     [samples],
   );
 
   const stationName = stations.find((station) => station.code === stationCode)?.name ?? stationCode;
-  const nominal = stations.find((station) => station.code === stationCode)?.nominalVoltageKV ?? null;
+  const nominal = stations.find((station) => station.code === stationCode)?.nominalVoltageV ?? null;
 
   const handleExport = () => {
     const csv = toCsv(
-      ['Estação', 'Janela', 'Mínima (kV)', 'Média (kV)', 'Máxima (kV)'],
+      ['Estação', 'Janela', 'Mínima (V)', 'Média (V)', 'Máxima (V)'],
       samples.map((sample) => [
         sample.stationCode,
         new Date(sample.bucketAt).toISOString(),
-        sample.minKV,
-        sample.avgKV,
-        sample.maxKV,
+        sample.minV,
+        sample.avgV,
+        sample.maxV,
       ]),
     );
     downloadTextFile(`railpulse-historico-${stationCode}-${hours}h.csv`, csv);
@@ -90,7 +91,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
       <div className="rp-page-header">
         <div>
           <span className="rp-eyebrow">Série histórica</span>
-          <h2 className="rp-page-header__title">Histórico de tensão da catenária</h2>
+          <h2 className="rp-page-header__title">Histórico de tensão do terceiro trilho</h2>
           <p className="rp-page-header__subtitle">
             Leituras agregadas por janela (mínima, média e máxima) e persistidas no PostgreSQL
           </p>
@@ -156,60 +157,73 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
               <span className="rp-card__subtitle">
                 {stationName} • {chartData.length} janelas no período
               </span>
-              {nominal !== null && <span className="rp-badge rp-badge--code">Nominal {formatNumber(nominal, 1)} kV</span>}
+              {nominal !== null && <span className="rp-badge rp-badge--code">Referência {formatVoltage(nominal)}</span>}
             </div>
 
             <div style={{ width: '100%', height: 300 }}>
               <ResponsiveContainer>
                 <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 4, left: -12 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--uni-border)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--cco-border)" vertical={false} />
                   <XAxis
                     dataKey="bucketAt"
-                    stroke="var(--uni-text-muted)"
+                    stroke="var(--cco-text-muted)"
                     fontSize={10}
                     tickMargin={8}
                     minTickGap={32}
                     tickFormatter={axisFormatter(hours)}
                   />
                   <YAxis
-                    stroke="var(--uni-text-muted)"
+                    stroke="var(--cco-text-muted)"
                     fontSize={10}
                     width={56}
-                    domain={['dataMin - 0.3', 'dataMax + 0.3']}
-                    tickFormatter={(value) => `${Number(value).toFixed(1)} kV`}
+                    domain={['dataMin - 10', 'dataMax + 10']}
+                    tickFormatter={(value) => formatVoltage(Number(value))}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: 'var(--uni-bg-secondary)',
-                      border: '1px solid var(--uni-border)',
+                      backgroundColor: 'var(--cco-bg-secondary)',
+                      border: '1px solid var(--cco-border)',
                       borderRadius: 8,
                       fontSize: 12,
-                      color: 'var(--uni-text-main)',
+                      color: 'var(--cco-text-main)',
                     }}
-                    labelStyle={{ color: 'var(--uni-text-muted)' }}
+                    labelStyle={{ color: 'var(--cco-text-muted)' }}
                     labelFormatter={(value) => DAY_TIME_FORMAT.format(new Date(String(value)))}
                     formatter={(value, name) => {
                       if (Array.isArray(value)) {
-                        return [`${Number(value[0]).toFixed(2)} – ${Number(value[1]).toFixed(2)} kV`, 'Faixa min/máx'];
+                        return [`${formatNumber(Number(value[0]), 0)} – ${formatVoltage(Number(value[1]))}`, 'Faixa min/máx'];
                       }
-                      return [`${Number(value).toFixed(2)} kV`, name === 'avg' ? 'Média da janela' : String(name)];
+                      return [formatVoltage(Number(value)), name === 'avg' ? 'Média da janela' : String(name)];
                     }}
                   />
                   <Area
                     type="monotone"
                     dataKey="band"
                     stroke="none"
-                    fill="#f2871a"
+                    fill="var(--chart-1)"
                     fillOpacity={0.16}
                     isAnimationActive={false}
                   />
                   <Line
                     type="monotone"
                     dataKey="avg"
-                    stroke="#f2871a"
-                    strokeWidth={2.5}
+                    stroke="var(--chart-1)"
+                    strokeWidth={2}
                     dot={false}
                     isAnimationActive={false}
+                  />
+                  {/* Limiares de alarme: só aparecem quando a série chega perto deles. */}
+                  <ReferenceLine
+                    y={VOLTAGE_WARNING_V}
+                    stroke="var(--cco-warning)"
+                    strokeDasharray="4 4"
+                    label={{ value: `Atenção ${VOLTAGE_WARNING_V} V`, position: 'insideTopRight', fontSize: 10, fill: 'var(--cco-text-muted)' }}
+                  />
+                  <ReferenceLine
+                    y={VOLTAGE_CRITICAL_V}
+                    stroke="var(--cco-danger)"
+                    strokeDasharray="4 4"
+                    label={{ value: `Crítico ${VOLTAGE_CRITICAL_V} V`, position: 'insideTopRight', fontSize: 10, fill: 'var(--cco-text-muted)' }}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -245,7 +259,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
               <tbody>
                 {summary.map((row) => {
                   const station = stations.find((item) => item.code === row.stationCode);
-                  const condition = row.minKV < 22.5 ? 'CRÍTICO' : row.minKV < 23.8 ? 'ATENÇÃO' : 'NORMAL';
+                  const condition = classifyVoltage(row.minV);
 
                   return (
                     <tr key={row.stationCode}>
@@ -253,9 +267,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
                         <span className="rp-badge rp-badge--code">{row.stationCode}</span>{' '}
                         <span className="truncate">{station?.name ?? ''}</span>
                       </td>
-                      <td className="mono">{formatNumber(row.minKV, 2)} kV</td>
-                      <td className="rp-table__accent">{formatNumber(row.avgKV, 2)} kV</td>
-                      <td className="mono">{formatNumber(row.maxKV, 2)} kV</td>
+                      <td className="mono">{formatVoltage(row.minV)}</td>
+                      <td className="rp-table__accent">{formatVoltage(row.avgV)}</td>
+                      <td className="mono">{formatVoltage(row.maxV)}</td>
                       <td className="mono text-muted">{row.buckets}</td>
                       <td>
                         <StatusPill status={condition} />

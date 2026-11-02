@@ -1,7 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { LINE_STATIONS, LINE_STATION_CODES } from '../domain/line';
+import {
+  LINE_STATIONS,
+  LINE_STATION_CODES,
+  TRACTION_NOMINAL_V,
+  VOLTAGE_CRITICAL_V,
+  VOLTAGE_WARNING_V,
+  classifyVoltage,
+} from '../domain/line';
 
 /**
  * O mapa do frontend posiciona cada estação por código. Se a malha ganhar ou
@@ -19,18 +26,33 @@ describe('Contrato do catálogo da malha', () => {
     }
   });
 
-  it('associa cada estação a uma subestação de tração', () => {
+  it('associa cada estação a uma subestação retificadora', () => {
     for (const station of LINE_STATIONS) {
-      assert.match(station.substation, /^TSS-\d{2}$/, `${station.code} sem subestação válida`);
+      assert.match(station.substation, /^SR-\d{2}$/, `${station.code} sem subestação válida`);
     }
   });
 
-  it('mantém as tensões nominais em faixa plausível de catenária', () => {
+  it('mantém as tensões de referência em faixa plausível de terceiro trilho 750 Vcc', () => {
     for (const station of LINE_STATIONS) {
       assert.ok(
-        station.nominalVoltageKV >= 20 && station.nominalVoltageKV <= 26,
-        `${station.code} com tensão nominal fora da faixa: ${station.nominalVoltageKV}`,
+        station.nominalVoltageV >= 500 && station.nominalVoltageV <= 900,
+        `${station.code} com tensão fora da faixa: ${station.nominalVoltageV}`,
       );
     }
+  });
+});
+
+describe('Classificação de tensão do terceiro trilho', () => {
+  it('ordena os limiares abaixo da tensão nominal', () => {
+    assert.ok(VOLTAGE_CRITICAL_V < VOLTAGE_WARNING_V);
+    assert.ok(VOLTAGE_WARNING_V < TRACTION_NOMINAL_V);
+  });
+
+  it('classifica nas bordas dos limiares', () => {
+    assert.equal(classifyVoltage(TRACTION_NOMINAL_V), 'NORMAL');
+    assert.equal(classifyVoltage(VOLTAGE_WARNING_V), 'NORMAL');
+    assert.equal(classifyVoltage(VOLTAGE_WARNING_V - 0.1), 'ATENÇÃO');
+    assert.equal(classifyVoltage(VOLTAGE_CRITICAL_V), 'ATENÇÃO');
+    assert.equal(classifyVoltage(VOLTAGE_CRITICAL_V - 0.1), 'CRÍTICO');
   });
 });

@@ -2,7 +2,7 @@
 import bcrypt from 'bcrypt';
 import { db } from './postgres';
 import { env } from '../../config/env';
-import { LINE_STATIONS } from '../../domain/line';
+import { LINE_STATION_CODES, LINE_STATIONS } from '../../domain/line';
 import { generateCompliantPassword } from '../../domain/password-policy';
 import { operatorRepository } from '../repositories/pg-operator.repository';
 import { createLogger } from '../../shared/logger';
@@ -81,7 +81,7 @@ const DDL = `
     train_id VARCHAR(20) PRIMARY KEY,
     current_station_code VARCHAR(10) NOT NULL,
     speed_kmh NUMERIC(5, 1) NOT NULL,
-    voltage_kv NUMERIC(5, 2) NOT NULL,
+    voltage_v NUMERIC(6, 1) NOT NULL,
     status VARCHAR(20) NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
@@ -133,9 +133,9 @@ const DDL = `
     id BIGSERIAL PRIMARY KEY,
     station_code VARCHAR(10) NOT NULL,
     bucket_at TIMESTAMPTZ NOT NULL,
-    min_kv NUMERIC(5, 2) NOT NULL,
-    avg_kv NUMERIC(5, 2) NOT NULL,
-    max_kv NUMERIC(5, 2) NOT NULL,
+    min_v NUMERIC(6, 1) NOT NULL,
+    avg_v NUMERIC(6, 1) NOT NULL,
+    max_v NUMERIC(6, 1) NOT NULL,
     readings INTEGER NOT NULL,
     UNIQUE (station_code, bucket_at)
   );
@@ -180,12 +180,46 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_procedures_category ON procedures (category);
 `;
 
-/** Composições semeadas na malha, posicionadas em estações reais do traçado. */
+/**
+ * Bancos criados na versão da Linha 6-Laranja guardavam tensão de catenária em kV.
+ * A Linha 2-Verde é alimentada por terceiro trilho em 750 Vcc: renomeia as colunas
+ * e amplia a precisão uma única vez — em bancos novos os blocos IF não fazem nada.
+ */
+const LEGACY_VOLTAGE_COLUMNS_DDL = `
+  DO $$
+  BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'trains' AND column_name = 'voltage_kv') THEN
+      ALTER TABLE trains RENAME COLUMN voltage_kv TO voltage_v;
+      ALTER TABLE trains ALTER COLUMN voltage_v TYPE NUMERIC(6, 1);
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'telemetry_samples' AND column_name = 'min_kv') THEN
+      ALTER TABLE telemetry_samples RENAME COLUMN min_kv TO min_v;
+      ALTER TABLE telemetry_samples RENAME COLUMN avg_kv TO avg_v;
+      ALTER TABLE telemetry_samples RENAME COLUMN max_kv TO max_v;
+      ALTER TABLE telemetry_samples
+        ALTER COLUMN min_v TYPE NUMERIC(6, 1),
+        ALTER COLUMN avg_v TYPE NUMERIC(6, 1),
+        ALTER COLUMN max_v TYPE NUMERIC(6, 1);
+    END IF;
+  END $$;
+`;
+
+/** Procedimentos semeados na versão da Linha 6-Laranja, substituídos pela biblioteca da Linha 2. */
+const LEGACY_PROCEDURE_TITLES = [
+  'Desenergização de trecho da catenária',
+  'Subtensão ou sobretensão em subestação (TSS)',
+  'Risco de alagamento no entorno do Rio Tietê',
+  'Falha de comunicação com o sistema ATS',
+];
+
+/** Composições semeadas na malha, distribuídas pelo traçado. */
 const SEED_TRAINS: ReadonlyArray<[trainId: string, stationCode: string, speed: number, voltage: number, status: string]> = [
-  ['T-01', 'BRA', 45, 24.6, 'NORMAL'],
-  ['T-04', 'FGO', 30, 23.2, 'ATENÇÃO'],
-  ['T-07', 'PDZ', 50, 24.5, 'NORMAL'],
-  ['T-12', '14B', 48, 24.6, 'NORMAL'],
+  ['T-01', 'VMD', 42, 752, 'NORMAL'],
+  ['T-04', 'CNS', 55, 746, 'NORMAL'],
+  ['T-07', 'PSO', 48, 747, 'NORMAL'],
+  ['T-10', 'CKB', 52, 748, 'NORMAL'],
+  ['T-13', 'SAC', 30, 680, 'ATENÇÃO'],
+  ['T-16', 'VPT', 45, 751, 'NORMAL'],
 ];
 
 /** Equipe de plantão de vitrine, semeada apenas fora de produção. */
@@ -207,8 +241,8 @@ const SEED_PROCEDURES: ReadonlyArray<{
     title: 'Acionamento de frenagem de emergência',
     summary: 'Parada imediata de uma composição diante de risco iminente à via ou a pessoas.',
     steps: [
-      'Emita o comando EMERGENCY_BRAKE_OVERRIDE para a composição envolvida a partir do painel da estação.',
-      'Confirme com o maquinista pelo rádio de condução que o freio foi aplicado e que não há feridos.',
+      'Emita o comando EMERGENCY_BRAKE_OVERRIDE para a composição envolvida a partir do terminal da estação.',
+      'Confirme com o operador de trem pelo rádio que o freio foi aplicado e que não há feridos.',
       'Registre uma ocorrência de severidade CRÍTICA vinculando a composição e a estação do evento.',
       'Notifique o supervisor de plantão e mantenha a via interditada até a liberação formal.',
       'Só libere o sinal (RELEASE_SIGNAL) após inspeção visual do trecho pela equipe de via permanente.',
@@ -216,50 +250,50 @@ const SEED_PROCEDURES: ReadonlyArray<{
   },
   {
     category: 'ENERGIA',
-    title: 'Desenergização de trecho da catenária',
-    summary: 'Corte controlado de energia de tração em uma subestação para intervenção segura.',
+    title: 'Desenergização de trecho do terceiro trilho',
+    summary: 'Corte controlado da alimentação de tração (750 Vcc) para intervenção segura na via.',
     steps: [
-      'Confirme com a manutenção qual subestação (TSS) precisa ser isolada e o trecho de estações afetado.',
-      'Restrinja a velocidade das composições no trecho (SPEED_RESTRICTION_20KM) antes do corte.',
-      'Solicite à concessionária de energia ou ao quadro de força a abertura do disjuntor da subestação.',
-      'Aguarde a confirmação de tensão zero antes de autorizar qualquer equipe a acessar a catenária.',
+      'Confirme com a manutenção qual subestação retificadora (SR) e qual seção elétrica precisam ser isoladas.',
+      'Retire ou retenha nas plataformas as composições da seção antes do corte — nenhuma pode ficar entre estações.',
+      'Solicite ao controle de energia a abertura dos disjuntores de alimentação do terceiro trilho na seção.',
+      'Aguarde a confirmação de ausência de tensão e o aterramento da seção antes de autorizar qualquer equipe na via.',
       'Registre horário de corte e de religamento na trilha de auditoria e na passagem de turno.',
     ],
   },
   {
     category: 'ENERGIA',
-    title: 'Subtensão ou sobretensão em subestação (TSS)',
-    summary: 'Leitura de tensão fora da faixa nominal — abaixo de 23,8 kV (atenção) ou 22,5 kV (crítico).',
+    title: 'Subtensão no terceiro trilho (SR)',
+    summary: 'Leitura abaixo da faixa operacional — menos de 700 V (atenção) ou 640 V (crítico) em 750 Vcc.',
     steps: [
-      'Verifique no painel de Telemetria TSS se o desvio é pontual (ruído) ou uma tendência sustentada.',
-      'Compare com estações vizinhas da mesma subestação: um desvio isolado sugere sensor, não a rede.',
-      'Abaixo de 22,5 kV, restrinja a velocidade das composições no trecho até a normalização.',
-      'Acione a manutenção de energia informando a subestação, a leitura e o horário de início do desvio.',
+      'Verifique no painel de Telemetria SR se o desvio é pontual (pico de demanda) ou uma tendência sustentada.',
+      'Compare com as estações vizinhas da mesma SR: um desvio isolado sugere medição, não alimentação.',
+      'Abaixo de 640 V, restrinja a velocidade das composições na seção — a tração perde desempenho e pode haver parada entre estações.',
+      'Acione a manutenção de energia informando a SR, a leitura e o horário de início do desvio.',
       'Abra uma ocorrência de categoria ENERGIA se o desvio persistir por mais de cinco minutos.',
     ],
   },
   {
     category: 'SINALIZACAO',
-    title: 'Falha de comunicação com o sistema ATS',
-    summary: 'Perda de sincronismo entre o painel do CCO e o sistema de sinalização/supervisão da malha.',
+    title: 'Falha de comunicação com o sistema ATS/CBTC',
+    summary: 'Perda de supervisão entre o painel do CCO e o sistema de sinalização e controle de trens.',
     steps: [
       'Verifique o indicador de conexão no cabeçalho do painel e tente reconectar ao gateway.',
-      'Se a falha persistir, mude a operação para o modo de despacho por rádio com os maquinistas.',
-      'Reduza a velocidade de todas as composições em campo até restabelecer a supervisão automática.',
-      'Acione a equipe de TI/sinalização informando o horário exato da perda de comunicação.',
+      'Se a falha persistir, passe a operação ao modo de condução restrita, com autorização de movimento por rádio.',
+      'Aumente o intervalo entre composições até restabelecer a supervisão automática.',
+      'Acione a equipe de sinalização informando o horário exato da perda de comunicação.',
       'Registre o intervalo sem supervisão automática na passagem de turno, mesmo após o retorno.',
     ],
   },
   {
     category: 'METEOROLOGIA',
-    title: 'Risco de alagamento no entorno do Rio Tietê',
-    summary: 'Chuva intensa com risco de acúmulo de água próximo ao trecho que cruza a faixa do Tietê.',
+    title: 'Risco de alagamento na várzea do Tamanduateí',
+    summary: 'Chuva intensa com risco de acúmulo de água nos acessos e na integração com a CPTM em Tamanduateí.',
     steps: [
-      'Acompanhe o boletim meteorológico e o nível do rio nas estações mais próximas da faixa (FGO–SMA).',
-      'Solicite ronda visual da via permanente no trecho de cruzamento assim que a chuva se intensificar.',
-      'Se houver água sobre o lastro, restrinja a velocidade e avalie a interdição preventiva do trecho.',
-      'Mantenha contato constante com a Defesa Civil e registre qualquer interdição como ocorrência.',
-      'Só normalize a velocidade após confirmação de via seca e liberada pela equipe de via permanente.',
+      'Acompanhe os alertas do CGE e o nível do rio Tamanduateí durante o evento de chuva.',
+      'Solicite ronda nos acessos de Tamanduateí (TTI) e na passagem de integração com a CPTM Linha 10-Turquesa.',
+      'Se houver água próxima ao terceiro trilho, desenergize a seção e interdite o trecho antes de qualquer outra ação.',
+      'Mantenha contato com a Defesa Civil e com o CCO da CPTM; registre a interdição como ocorrência.',
+      'Só normalize a circulação após confirmação de via seca e liberada pela equipe de via permanente.',
     ],
   },
   {
@@ -267,26 +301,50 @@ const SEED_PROCEDURES: ReadonlyArray<{
     title: 'Evacuação de composição parada entre estações',
     summary: 'Desembarque de passageiros fora de plataforma, por falha prolongada ou risco à composição.',
     steps: [
-      'Confirme que a via está desenergizada e sem tráfego antes de autorizar qualquer desembarque.',
-      'Oriente o maquinista a informar os passageiros e preparar o desembarque pela via de fuga mais próxima.',
-      'Acione equipe de apoio e, se necessário, corpo de bombeiros e Defesa Civil.',
-      'Conduza os passageiros a pé até a estação mais próxima, sempre pelo lado oposto à via oposta.',
+      'Confirme a desenergização do terceiro trilho na seção e a ausência de tráfego antes de qualquer desembarque.',
+      'Oriente o operador de trem a informar os passageiros e preparar o desembarque pela passarela de emergência.',
+      'Acione equipe de apoio e, se necessário, Corpo de Bombeiros e Defesa Civil.',
+      'Conduza os passageiros a pé até a estação mais próxima, sempre afastados do terceiro trilho.',
       'Registre a ocorrência com horário de parada, de início e de fim da evacuação.',
     ],
   },
   {
     category: 'SEGURANCA',
     title: 'Invasão de via ou plataforma',
-    summary: 'Pessoa ou objeto estranho identificado na via, colocando em risco a circulação.',
+    summary: 'Pessoa ou objeto estranho na via — com o terceiro trilho energizado, o risco é de eletrocução.',
     steps: [
-      'Restrinja imediatamente a velocidade das composições que se aproximam do trecho afetado.',
-      'Se o risco for iminente, acione a frenagem de emergência da composição mais próxima.',
-      'Acione a segurança patrimonial da estação pelo canal de rádio de segurança.',
+      'Retenha nas plataformas as composições que se aproximam do trecho afetado.',
+      'Solicite a desenergização imediata do terceiro trilho na seção se houver pessoa na via.',
+      'Acione a segurança da estação pelo canal de rádio de segurança.',
       'Só normalize a circulação após confirmação de via livre pela segurança ou pela via permanente.',
       'Registre a ocorrência com categoria OUTROS e severidade proporcional ao risco observado.',
     ],
   },
 ];
+
+/**
+ * Remove o estado operacional herdado da Linha 6-Laranja: composições paradas em
+ * estações que não existem nesta malha (o simulador as ignoraria para sempre), a
+ * série histórica medida em kV e os procedimentos substituídos. Ocorrências, OSs
+ * e comunicações antigas ficam: são registro histórico, não estado da malha.
+ */
+const purgeLegacyLineData = async (): Promise<void> => {
+  const codes = [...LINE_STATION_CODES];
+  const trains = await db.query(`DELETE FROM trains WHERE current_station_code <> ALL($1::text[])`, [codes]);
+  const samples = await db.query(`DELETE FROM telemetry_samples WHERE station_code <> ALL($1::text[])`, [codes]);
+  const procedures = await db.query(`DELETE FROM procedures WHERE title = ANY($1::text[])`, [LEGACY_PROCEDURE_TITLES]);
+  // A categoria de OS de subestação de tração (TSS, em CA) virou subestação
+  // retificadora (SR, em CC). As OSs ficam; só o rótulo da categoria muda.
+  await db.query(`UPDATE work_orders SET category = 'SUBESTACAO_SR' WHERE category = 'TSS_SUBESTACAO'`);
+
+  const removed = (trains.rowCount ?? 0) + (samples.rowCount ?? 0) + (procedures.rowCount ?? 0);
+  if (removed > 0) {
+    logger.info(
+      `Dados da malha anterior removidos: ${trains.rowCount ?? 0} composição(ões), ` +
+        `${samples.rowCount ?? 0} janela(s) de telemetria, ${procedures.rowCount ?? 0} procedimento(s).`,
+    );
+  }
+};
 
 /**
  * Renomeia o perfil `OPERATOR_SOC` (jargão de centro de operações de segurança,
@@ -406,7 +464,9 @@ const flagLegacyDemoPasswords = async (): Promise<void> => {
 
 export const runMigrations = async (): Promise<void> => {
   await db.query(DDL);
+  await db.query(LEGACY_VOLTAGE_COLUMNS_DDL);
   await renameLegacyOperatorRole();
+  await purgeLegacyLineData();
   logger.info('Schema verificado (self-healing DDL aplicado).');
 
   await seedInitialOperator();
@@ -417,7 +477,7 @@ export const runMigrations = async (): Promise<void> => {
   for (const [trainId, stationCode, speed, voltage, status] of SEED_TRAINS) {
     if (!knownCodes.has(stationCode)) continue;
     await db.query(
-      `INSERT INTO trains (train_id, current_station_code, speed_kmh, voltage_kv, status)
+      `INSERT INTO trains (train_id, current_station_code, speed_kmh, voltage_v, status)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (train_id) DO NOTHING`,
       [trainId, stationCode, speed, voltage, status],
@@ -428,7 +488,11 @@ export const runMigrations = async (): Promise<void> => {
     await db.query(
       `INSERT INTO procedures (category, title, summary, steps)
        VALUES ($1, $2, $3, $4::jsonb)
-       ON CONFLICT (title) DO NOTHING`,
+       ON CONFLICT (title) DO UPDATE
+       SET category = EXCLUDED.category, summary = EXCLUDED.summary, steps = EXCLUDED.steps, updated_at = NOW()
+       WHERE procedures.summary IS DISTINCT FROM EXCLUDED.summary
+          OR procedures.steps IS DISTINCT FROM EXCLUDED.steps
+          OR procedures.category IS DISTINCT FROM EXCLUDED.category`,
       [procedure.category, procedure.title, procedure.summary, JSON.stringify(procedure.steps)],
     );
   }
