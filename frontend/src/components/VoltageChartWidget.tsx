@@ -1,7 +1,9 @@
-// frontend/src/components/TSSChartWidget.tsx
+// frontend/src/components/VoltageChartWidget.tsx
 import React, { useMemo } from 'react';
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Station } from '../types';
+import { formatVoltage } from '../lib/format';
+import { SERIES_COLORS } from '../lib/chart';
 import { EmptyState } from './common/EmptyState';
 
 /** Uma amostra do histórico: horário + tensão por código de estação. */
@@ -10,16 +12,20 @@ export interface VoltageSample {
   readings: Record<string, number>;
 }
 
-interface TSSChartWidgetProps {
+/** Uma série plotada: a estação e o slot de cor fixo que ela ocupa. */
+export interface ChartSeries {
+  code: string;
+  slot: number;
+}
+
+interface VoltageChartWidgetProps {
   history: VoltageSample[];
-  seriesCodes: string[];
+  series: ChartSeries[];
   stations: Station[];
 }
 
-/** Paleta derivada do laranja oficial, mantendo contraste entre séries sobre o fundo claro do gráfico. */
-const SERIES_COLORS = ['#f2871a', '#ffab2e', '#22e07a', '#ff4747'];
 
-export const TSSChartWidget: React.FC<TSSChartWidgetProps> = ({ history, seriesCodes, stations }) => {
+export const VoltageChartWidget: React.FC<VoltageChartWidgetProps> = ({ history, series, stations }) => {
   const nameByCode = useMemo(
     () => new Map(stations.map((station) => [station.code, station.name])),
     [stations],
@@ -29,13 +35,13 @@ export const TSSChartWidget: React.FC<TSSChartWidgetProps> = ({ history, seriesC
     () =>
       history.map((sample) => {
         const row: Record<string, string | number> = { time: sample.time };
-        for (const code of seriesCodes) {
+        for (const { code } of series) {
           const value = sample.readings[code];
           if (typeof value === 'number') row[code] = value;
         }
         return row;
       }),
-    [history, seriesCodes],
+    [history, series],
   );
 
   if (data.length === 0) {
@@ -52,36 +58,43 @@ export const TSSChartWidget: React.FC<TSSChartWidgetProps> = ({ history, seriesC
     <div style={{ width: '100%', height: 280 }}>
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: -12 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--uni-border)" vertical={false} />
-          <XAxis dataKey="time" stroke="var(--uni-text-muted)" fontSize={10} tickMargin={8} minTickGap={24} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--cco-border)" vertical={false} />
+          <XAxis dataKey="time" stroke="var(--cco-text-muted)" fontSize={10} tickMargin={8} minTickGap={24} />
           <YAxis
-            stroke="var(--uni-text-muted)"
+            stroke="var(--cco-text-muted)"
             fontSize={10}
             width={56}
-            domain={['dataMin - 0.3', 'dataMax + 0.3']}
-            tickFormatter={(value) => `${Number(value).toFixed(1)} kV`}
+            domain={['dataMin - 10', 'dataMax + 10']}
+            tickFormatter={(value) => formatVoltage(Number(value))}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'var(--uni-bg-secondary)',
-              border: '1px solid var(--uni-border)',
+              backgroundColor: 'var(--cco-bg-secondary)',
+              border: '1px solid var(--cco-border)',
               borderRadius: 8,
               fontSize: 12,
-              color: 'var(--uni-text-main)',
+              color: 'var(--cco-text-main)',
             }}
-            labelStyle={{ color: 'var(--uni-text-muted)' }}
+            labelStyle={{ color: 'var(--cco-text-muted)' }}
             formatter={(value, name) => [
-              `${Number(value).toFixed(2)} kV`,
+              formatVoltage(Number(value)),
               nameByCode.get(String(name)) ?? String(name),
             ]}
           />
-          {seriesCodes.map((code, index) => (
+          <Legend
+            iconType="plainline"
+            wrapperStyle={{ fontSize: 12, paddingTop: 4 }}
+            formatter={(value) => (
+              <span style={{ color: 'var(--cco-text-muted)' }}>{nameByCode.get(String(value)) ?? String(value)}</span>
+            )}
+          />
+          {series.map(({ code, slot }) => (
             <Line
               key={code}
               type="monotone"
               dataKey={code}
-              stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
-              strokeWidth={2.5}
+              stroke={SERIES_COLORS[slot % SERIES_COLORS.length]}
+              strokeWidth={2}
               dot={false}
               isAnimationActive={false}
               connectNulls

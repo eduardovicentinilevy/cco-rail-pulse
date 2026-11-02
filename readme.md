@@ -1,6 +1,6 @@
-# 🚆 RailPulse CCO — Centro de Controle Operacional (Linha 6-Laranja)
+# 🚇 RailPulse CCO — Centro de Controle Operacional (Linha 2-Verde)
 
-> **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacional em tempo real para a malha ferroviária da **Linha 6-Laranja (Linha Uni)**. A plataforma integra telemetria de subestações de tração (TSS), sinalização ATS ao longo das 15 estações do traçado e envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
+> **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacional em tempo real para a **Linha 2-Verde do Metrô de São Paulo**. A plataforma integra a telemetria do terceiro trilho (750 Vcc) por subestação retificadora (SR), a supervisão CBTC das 14 estações entre Vila Madalena e Vila Prudente e o envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
 
 ---
 
@@ -8,6 +8,7 @@
 
 * [Visão Geral](#-visão-geral)
 * [Sobre os Dados](#-sobre-os-dados)
+* [Modelo Elétrico](#-modelo-elétrico)
 * [Principais Funcionalidades](#-principais-funcionalidades)
 * [Arquitetura e Decisões Técnicas](#️-arquitetura-e-decisões-técnicas)
 * [Tech Stack](#️-tech-stack)
@@ -23,7 +24,7 @@
 
 ## 📌 Visão Geral
 
-O **RailPulse CCO** fornece aos operadores do Centro de Controle uma interface de alta fidelidade visual para acompanhar os ativos críticos do traçado elétrico e metroferroviário entre **Brasilândia** e **São Joaquim**.
+O **RailPulse CCO** fornece aos operadores do Centro de Controle uma interface de alta fidelidade visual para acompanhar os ativos críticos da Linha 2-Verde entre **Vila Madalena** e **Vila Prudente** — o eixo da Av. Paulista, as integrações com as linhas 1-Azul, 4-Amarela, 5-Lilás, 15-Prata e 10-Turquesa (CPTM) e a descida pelo Ipiranga.
 
 O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo **auto-inicialização de schema (Self-Healing DDL)** e **sincronização de carga inicial (Auto-Seeding)** sem dependência de scripts manuais.
 
@@ -31,8 +32,9 @@ O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo 
 
 ## 🔍 Sobre os Dados
 
-Este é um projeto de portfólio, sem integração com sistemas SCADA/ATS reais da
-Linha 6-Laranja. Para que quem avalia o projeto — inclusive quem opera a linha
+Este é um projeto de portfólio independente, sem vínculo com a Companhia do
+Metropolitano de São Paulo e sem integração com sistemas SCADA/CBTC reais da
+Linha 2-Verde. Para que quem avalia o projeto — inclusive quem opera a linha
 de verdade — saiba exatamente o que está vendo, a tabela abaixo separa o que é
 **infraestrutura real** (mecanismo de verdade, dado fabricado) do que é
 **simulação declarada** (mecanismo e dado ambos ilustrativos):
@@ -41,26 +43,48 @@ de verdade — saiba exatamente o que está vendo, a tabela abaixo separa o que 
 | --- | --- | --- |
 | Autenticação, 2FA/TOTP, RBAC, JWT | **Real** | Implementação própria, sem mocks — inclusive o segundo fator segue RFC 4226/6238 de verdade |
 | Persistência (PostgreSQL), auditoria, ciclo de vida de ocorrências | **Real** | Escritas e leituras de banco de verdade; nada é mantido só em memória |
-| Tensão das subestações (TSS) e deslocamento dos trens | **Simulação declarada** | *Random walk* ancorado nos valores nominais reais do projeto elétrico da linha — plausível, mas gerado no servidor, não lido de campo |
+| Tensão do terceiro trilho por subestação (SR) e deslocamento dos trens | **Simulação declarada** | *Random walk* ancorado em valores de referência de um sistema de 750 Vcc — plausível, mas gerado no servidor, não lido de campo. A numeração das SRs e o cenário degradado da SR-06 são fictícios |
 | Ocupação de plataformas | **Simulação declarada** | Estimativa calculada no navegador (horário de pico + posição da estação no traçado), sem qualquer sensor de fato |
 | CFTV | **Simulação declarada** | Status de câmera sorteado de forma determinística por estação — não há vídeo nem integração real; "Reportar falha" abre uma ocorrência de verdade no banco |
-| Estações, ordem e nomes da Linha 6-Laranja | **Real** | Confere com o traçado e a nomenclatura oficiais; o desenho do trilho no mapa é estilizado, não é cartografia exata |
+| Estações, ordem, nomes e integrações da Linha 2-Verde | **Real** | Confere com o traçado e a nomenclatura oficiais; os códigos de 3 letras são do projeto e o mapa é projetado a partir das coordenadas das estações, com o eixo vertical comprimido |
 
 Onde a interface poderia sugerir uma fonte real (um "sensor", uma "câmera"), o
 texto da própria tela deixa claro que é uma estimativa ou uma simulação.
 
 ---
 
+## ⚡ Modelo Elétrico
+
+A Linha 2 é alimentada por **terceiro trilho em 750 Vcc** — não há catenária. O
+modelo do projeto segue isso de ponta a ponta:
+
+* **Fonte única:** `backend/domain/line.ts` define a tensão nominal (`750 V`) e os
+  limiares de alarme do CCO; o simulador, o relatório de turno, a série histórica
+  e o frontend classificam a leitura pela mesma regra.
+* **Limiares operacionais:** `ATENÇÃO` abaixo de **700 V** e `CRÍTICO` abaixo de
+  **640 V** — bem acima do mínimo permanente que a EN 50163 admite para 750 Vcc
+  (500 V), porque o objetivo é avisar o operador antes que o desempenho de tração
+  caia, não no limite normativo.
+* **Cenário simulado:** a **SR-06** opera com um grupo retificador fora de serviço,
+  deixando **Alto do Ipiranga** em fim de alimentação (crítico) e **Sacomã** em
+  atenção — o que alimenta os alarmes, a saúde de ativos e o procedimento de
+  subtensão.
+* **Migração automática:** bancos criados na versão anterior do projeto (com
+  tensão em kV) têm as colunas renomeadas no boot, e o estado operacional da malha
+  antiga é descartado; ocorrências, OSs e comunicações ficam como histórico.
+
+---
+
 ## 🚀 Principais Funcionalidades
 
-* 🚉 **Supervisão ATS da Malha Tronco:** Acompanhamento interativo do progresso dos trens (`T-01`, `T-04`, `T-07`, `T-12`) ao longo das 15 estações da Linha 6.
-* ⚡ **Telemetria SCADA em Tempo Real (TSS):** Leitura de tensão das Subestações de Tração (kV) via WebSocket com gráficos dinâmicos de alta performance (`Recharts`).
+* 🚉 **Supervisão CBTC da via:** Acompanhamento interativo das composições (`T-01`, `T-04`, `T-07`, `T-10`, `T-13`, `T-16`) ao longo das 14 estações da Linha 2, com as integrações sinalizadas no número e na cor de cada linha.
+* ⚡ **Energia de tração em tempo real:** Tensão do terceiro trilho (Vcc) por subestação retificadora via WebSocket, com curvas comparáveis em cores estáveis e validadas para daltonismo (`Recharts`).
 * 🎮 **Painel de Comandos Operacionais:** Frenagem de emergência, restrição de velocidade (20 km/h) e liberação de sinal, aplicados sob lock pessimista e registrados na trilha de auditoria.
 * 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
 * 🔐 **Autenticação em Duas Etapas (2FA/TOTP):** Segundo fator compatível com Google Authenticator, Authy e afins — implementação própria de HOTP/TOTP (RFC 4226/6238), sem dependências externas, validada contra os vetores de teste oficiais do RFC.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
 * 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador de Controle, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
-* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG com as 15 estações posicionadas ao longo do eixo noroeste–centro, composições deslizando entre estações e realce pulsante das estações em alerta.
+* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG com as 14 estações projetadas das coordenadas reais (oeste → leste), o eixo da Av. Paulista e o Rio Tamanduateí como referências, composições deslizando entre estações e realce pulsante das estações em alerta.
 * ⇄ **Passagem de Turno:** Relatório consolidado do turno — comandos emitidos, ocorrências abertas/resolvidas, pendências herdadas e comportamento da tensão — com folha de impressão que gera o documento assinável.
 * ⌘ **Paleta de Comandos (Ctrl+K):** Busca difusa por seções, estações, composições e ações rápidas, navegável inteiramente pelo teclado.
 * 🔔 **Alertas de Eventos Críticos:** Sinal sonoro sintetizado (Web Audio) e notificação do sistema para ocorrências críticas, com preferência persistida.
@@ -124,7 +148,7 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 * **Biblioteca:** React 19 com TypeScript (modo `strict`)
 * **Visualização de Dados:** Recharts
-* **Estilização:** Design system em CSS puro (tokens, componentes e breakpoints) — Montserrat + JetBrains Mono. Tema claro alinhado à identidade real da Linha Uni: fundo branco, azul-marinho institucional e laranja âmbar, botões e pílulas de status arredondados
+* **Estilização:** Design system em CSS puro (tokens `--cco-*`, componentes e breakpoints) — Montserrat + JetBrains Mono. Identidade da Linha 2-Verde: verde da linha (`#007E5E`, ~5:1 com texto branco), grafite e branco, com temas claro e escuro e um mosaico de sala de controle em grafite profundo
 * **Build Tool:** Vite
 
 ---
@@ -139,11 +163,11 @@ cco-rail-pulse/
 │   ├── config/env.ts                       # Configuração validada e centralizada (fail-fast)
 │   ├── shared/                             # Erros, JWT, TOTP (2FA), logger e helpers de HTTP
 │   ├── domain/
-│   │   ├── line.ts                         # Catálogo oficial das 15 estações (fonte única)
+│   │   ├── line.ts                         # 14 estações, SRs, integrações e limiares de 750 Vcc (fonte única)
 │   │   ├── roles.ts                        # Perfis hierárquicos e permissões
 │   │   ├── entities/TrainSession.ts        # Regras de comando ferroviário
 │   │   ├── entities/Incident.ts            # Máquina de estados das ocorrências
-│   │   └── value-objects/StationCode.ts    # Código ATS validado contra a malha
+│   │   └── value-objects/StationCode.ts    # Código de estação validado contra a malha
 │   ├── application/
 │   │   ├── events/event-bus.ts             # Barramento de eventos de domínio (tipado)
 │   │   ├── services/TelemetrySimulator.ts  # Simulador SCADA (random walk ancorado)
@@ -161,7 +185,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 91 testes unitários (node:test)
+│   └── tests/                              # 113 testes unitários (node:test)
 │
 └── frontend/
     └── src/
@@ -174,8 +198,8 @@ cco-rail-pulse/
         ├── components/
         │   ├── common/                     # Modal, ConfirmDialog, CommandPalette, Toast…
         │   ├── layout/                     # Cabeçalho e navegação lateral
-        │   ├── dashboard/                  # Esquemático ATS, mapa da linha, grade, terminal
-        │   ├── views/                      # As dezessete seções do console
+        │   ├── dashboard/                  # Esquemático CBTC, mapa da linha, grade, terminal
+        │   ├── views/                      # As seções do console
         │   └── reports/AuditLogsView.tsx   # Trilha de auditoria paginada
         └── App.tsx
 ```
@@ -184,15 +208,19 @@ cco-rail-pulse/
 
 | Seção | O que entrega |
 | --- | --- |
+| **Mosaico Operacional** | Telão da sala de controle: via, KPIs, alarmes e CFTV num só quadro |
+| **Favoritos** | Estações e composições fixadas pelo operador |
 | **Painel executivo** | KPIs da malha, estações em alerta e últimas ocorrências |
-| **Malha ATS** | Esquemático da via com trens reais, grade de estações e terminal de comandos |
+| **Via CBTC** | Esquemático da via com trens reais, grade de estações e terminal de comandos |
 | **Ocorrências** | Registro, tratativa e resolução com MTTR e trilha de auditoria |
 | **Central de Alarmes** | Histórico persistido de alarmes, com reconhecimento e exportação |
 | **Ocupação** | Estimativa de fluxo de passageiros por estação, com alerta de superlotação |
 | **CFTV** | Cobertura de câmeras por estação, com abertura de ocorrência ao reportar falha |
-| **Telemetria TSS** | Tensão por subestação em tempo real e comparação de curvas |
+| **Clima & riscos** | Alagamento na várzea do Tamanduateí, calor nas plataformas e vento nos acessos (simulados) |
+| **Energia de tração** | Tensão do terceiro trilho por subestação retificadora e comparação de curvas |
 | **Série histórica** | Janelas agregadas (mín./méd./máx.) persistidas, por período |
-| **Saúde de ativos** | Carga estimada dos transformadores a partir do afundamento de tensão |
+| **Saúde de ativos** | Carga estimada dos grupos retificadores a partir do afundamento de tensão |
+| **Ordens de serviço** | Manutenção de SRs, terceiro trilho, via, sinalização e estações, com prazos |
 | **Relatórios & KPIs** | Indicadores derivados do estado corrente e exportação CSV |
 | **Escala & partidas** | Aderência à tabela horária calculada pela marcha real |
 | **Passagem de turno** | Relatório consolidado do turno, pronto para impressão e assinatura |
@@ -313,7 +341,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 91 testes unitários do domínio e da infraestrutura
+npm test          # 113 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
@@ -337,7 +365,7 @@ recusa de rotas protegidas sem token.
 | `Ctrl` / `⌘` + `K` | Abre a paleta de comandos |
 | `1` – `9`, `0` | Alterna entre as dez primeiras seções do console (as demais ficam na paleta) |
 | `↑` / `↓` | Navega entre seções (com foco na barra lateral) |
-| `/` | Abre a Malha ATS e foca a busca de estações |
+| `/` | Abre a Via CBTC e foca a busca de estações |
 | `Esc` | Fecha o diálogo aberto |
 
 ---

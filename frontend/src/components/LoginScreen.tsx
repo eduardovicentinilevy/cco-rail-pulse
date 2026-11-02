@@ -1,5 +1,6 @@
 // frontend/src/components/LoginScreen.tsx
 import React, { useCallback, useRef, useState } from 'react';
+import { LINE_NAME, LINE_OPERATOR } from '../data/stations';
 
 interface LoginScreenProps {
   onLogin: (operatorId: string, password: string) => Promise<{ mfaRequired: boolean; challengeToken?: string }>;
@@ -86,7 +87,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSubmitMfaCo
         <header className="rp-login__header">
           <span className="rp-login__tag">Acesso restrito</span>
           <h1 className="rp-login__title">RailPulse CCO</h1>
-          <p className="rp-login__subtitle">Centro de Controle Operacional • Linha 6-Laranja (Linha Uni)</p>
+          <p className="rp-login__subtitle">
+            Centro de Controle Operacional • {LINE_NAME} • {LINE_OPERATOR}
+          </p>
         </header>
 
         {notice && (

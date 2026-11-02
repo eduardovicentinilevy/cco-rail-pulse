@@ -6,7 +6,7 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
 import { useResource } from '../../hooks/useResource';
 import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
-import { downloadTextFile, formatDateTime, formatDuration, formatNumber, toCsv } from '../../lib/format';
+import { downloadTextFile, formatDateTime, formatDuration, formatVoltage, toCsv } from '../../lib/format';
 
 interface ShiftHandoverViewProps {
   session: OperatorSession;
@@ -71,7 +71,7 @@ export const ShiftHandoverView: React.FC<ShiftHandoverViewProps> = ({ session, s
         ...report.voltageExtremes.map((row) => [
           'Tensão',
           `${row.stationCode} ${row.stationName}`,
-          `min ${row.minKV} / méd ${row.avgKV} / máx ${row.maxKV} kV`,
+          `min ${row.minV} / méd ${row.avgV} / máx ${row.maxV} V`,
           String(row.degradedBuckets),
         ]),
       ],
@@ -265,9 +265,9 @@ export const ShiftHandoverView: React.FC<ShiftHandoverViewProps> = ({ session, s
                       <span className="rp-badge rp-badge--code">{row.stationCode}</span>{' '}
                       <span className="truncate">{row.stationName}</span>
                     </td>
-                    <td className="mono">{formatNumber(row.minKV, 2)} kV</td>
-                    <td className="rp-table__accent">{formatNumber(row.avgKV, 2)} kV</td>
-                    <td className="mono">{formatNumber(row.maxKV, 2)} kV</td>
+                    <td className="mono">{formatVoltage(row.minV)}</td>
+                    <td className="rp-table__accent">{formatVoltage(row.avgV)}</td>
+                    <td className="mono">{formatVoltage(row.maxV)}</td>
                     <td>
                       {row.degradedBuckets > 0 ? (
                         <StatusPill status="ATENÇÃO" label={`${row.degradedBuckets} janela(s)`} />

@@ -7,7 +7,7 @@ export type TrainStatus = (typeof TRAIN_STATUSES)[number];
 export const TRAIN_COMMANDS = ['HALT', 'RESTRICT_SPEED', 'RELEASE'] as const;
 export type TrainCommand = (typeof TRAIN_COMMANDS)[number];
 
-/** Velocidade máxima homologada para a Linha 6-Laranja, em km/h. */
+/** Velocidade máxima operacional adotada pelo simulador, em km/h. */
 export const MAX_SPEED_KMH = 80;
 /** Velocidade imposta por restrição operacional (V.R.), em km/h. */
 export const RESTRICTED_SPEED_KMH = 20;
@@ -18,7 +18,7 @@ export interface TrainSnapshot {
   trainId: string;
   currentStationCode: string;
   speedKmH: number;
-  voltageKV: number;
+  voltageV: number;
   status: TrainStatus;
   updatedAt: string;
 }
@@ -31,24 +31,24 @@ export class TrainSession {
     public readonly trainId: string,
     public currentStationCode: string,
     public speedKmH: number,
-    public voltageKV: number,
+    public voltageV: number,
     public status: TrainStatus,
     public updatedAt: Date,
   ) {}
 
-  public updateTelemetry(speedKmH: number, voltageKV: number, status: TrainStatus): void {
+  public updateTelemetry(speedKmH: number, voltageV: number, status: TrainStatus): void {
     if (!Number.isFinite(speedKmH) || speedKmH < 0) {
       throw new ValidationError('A velocidade não pode ser negativa.');
     }
     if (speedKmH > MAX_SPEED_KMH) {
       throw new ValidationError(`A velocidade não pode exceder ${MAX_SPEED_KMH} km/h.`);
     }
-    if (!Number.isFinite(voltageKV) || voltageKV < 0) {
-      throw new ValidationError('A tensão de catenária é inválida.');
+    if (!Number.isFinite(voltageV) || voltageV < 0) {
+      throw new ValidationError('A tensão de terceiro trilho é inválida.');
     }
 
     this.speedKmH = speedKmH;
-    this.voltageKV = voltageKV;
+    this.voltageV = voltageV;
     this.status = status;
     this.updatedAt = new Date();
   }
@@ -65,13 +65,13 @@ export class TrainSession {
   public applyCommand(command: TrainCommand): void {
     switch (command) {
       case 'HALT':
-        this.updateTelemetry(0, this.voltageKV, 'EMERGÊNCIA');
+        this.updateTelemetry(0, this.voltageV, 'EMERGÊNCIA');
         break;
       case 'RESTRICT_SPEED':
-        this.updateTelemetry(RESTRICTED_SPEED_KMH, this.voltageKV, 'ATENÇÃO');
+        this.updateTelemetry(RESTRICTED_SPEED_KMH, this.voltageV, 'ATENÇÃO');
         break;
       case 'RELEASE':
-        this.updateTelemetry(CRUISE_SPEED_KMH, this.voltageKV, 'NORMAL');
+        this.updateTelemetry(CRUISE_SPEED_KMH, this.voltageV, 'NORMAL');
         break;
     }
   }
@@ -81,7 +81,7 @@ export class TrainSession {
       trainId: this.trainId,
       currentStationCode: this.currentStationCode,
       speedKmH: this.speedKmH,
-      voltageKV: this.voltageKV,
+      voltageV: this.voltageV,
       status: this.status,
       updatedAt: this.updatedAt.toISOString(),
     };

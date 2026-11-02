@@ -6,6 +6,7 @@ import { StatusPill } from '../common/StatusPill';
 import { EmptyState } from '../common/EmptyState';
 import { formatDuration, formatTime } from '../../lib/format';
 import type { ConnectionStatus } from '../layout/Header';
+import { LINE_NAME } from '../../data/stations';
 
 type HealthSnapshot = Awaited<ReturnType<typeof api.health>>;
 
@@ -66,7 +67,7 @@ export const SystemStatusView: React.FC<SystemStatusViewProps> = ({ connectionSt
         <article className="rp-metric" data-status={overallStatus}>
           <span className="rp-metric__label">Status geral</span>
           <span className="rp-metric__value">{overallLabel}</span>
-          <span className="rp-metric__hint">{health?.line ?? 'Linha 6-Laranja (Linha Uni)'}</span>
+          <span className="rp-metric__hint">{health?.line ?? LINE_NAME}</span>
         </article>
         <article className="rp-metric" data-status={apiOk ? 'NORMAL' : 'CRÍTICO'}>
           <span className="rp-metric__label">Tempo ativo da API</span>

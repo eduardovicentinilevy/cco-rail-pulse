@@ -5,7 +5,7 @@ export interface TrainResponseDTO {
   trainId: string;
   currentStationCode: string;
   speedKmH: number;
-  voltageKV: number;
+  voltageV: number;
   status: TrainStatus;
   updatedAt: string;
 }
@@ -18,6 +18,6 @@ export interface ExecuteCommandDTO {
 
 export interface StationTelemetryDTO {
   currentStationCode: string;
-  voltageKV: number;
+  voltageV: number;
   status: 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO';
 }

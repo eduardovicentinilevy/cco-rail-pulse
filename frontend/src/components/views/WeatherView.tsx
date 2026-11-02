@@ -10,8 +10,11 @@ interface WeatherViewProps {
   stations: Station[];
 }
 
-/** Estações no cruzamento com a faixa do Rio Tietê (ver procedimento METEOROLOGIA). */
-const FLOOD_RISK_CODES = new Set(['FGO', 'SMA']);
+/**
+ * Estações na várzea do Tamanduateí, ponto de alagamento recorrente da cidade
+ * (ver procedimento METEOROLOGIA).
+ */
+const FLOOD_RISK_CODES = new Set(['TTI']);
 
 const TIME_BUCKET_MS = 10 * 60_000;
 
@@ -58,9 +61,9 @@ const deriveWeather = (station: Station, bucket: number): StationWeather => {
   const windRisk: RiskLevel = windKmH > 60 ? 'CRÍTICO' : windKmH > 45 ? 'ATENÇÃO' : 'NORMAL';
 
   const advisories: string[] = [];
-  if (floodRisk !== 'NORMAL') advisories.push('Risco de alagamento no cruzamento com o Rio Tietê — ver procedimento METEOROLOGIA.');
-  if (heatRisk !== 'NORMAL') advisories.push('Risco de dilatação da via permanente por calor — monitore trechos sensíveis.');
-  if (windRisk !== 'NORMAL') advisories.push('Vento acima do limite operacional da catenária — avalie restrição de velocidade.');
+  if (floodRisk !== 'NORMAL') advisories.push('Risco de alagamento na várzea do Tamanduateí — monitore os acessos e siga o procedimento METEOROLOGIA.');
+  if (heatRisk !== 'NORMAL') advisories.push('Calor elevado nas plataformas — reforce a ventilação e monitore a temperatura dos equipamentos.');
+  if (windRisk !== 'NORMAL') advisories.push('Rajadas fortes — risco de queda de árvores e objetos sobre acessos e poços de ventilação.');
 
   return {
     station,
@@ -117,7 +120,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ stations }) => {
         <article className="rp-metric" data-status={maxWind > 60 ? 'CRÍTICO' : maxWind > 45 ? 'ATENÇÃO' : 'NORMAL'}>
           <span className="rp-metric__label">Vento máximo</span>
           <span className="rp-metric__value">{formatNumber(maxWind, 0)} km/h</span>
-          <span className="rp-metric__hint">Limite operacional da catenária: 60 km/h</span>
+          <span className="rp-metric__hint">Limite para acessos e poços de ventilação: 60 km/h</span>
         </article>
         <article className="rp-metric" data-status={rainingStations > 0 ? 'ATENÇÃO' : 'NORMAL'}>
           <span className="rp-metric__label">Estações sob chuva</span>
@@ -127,7 +130,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ stations }) => {
         <article className="rp-metric" data-status={alertCount > 0 ? 'CRÍTICO' : 'NORMAL'}>
           <span className="rp-metric__label">Estações em risco</span>
           <span className="rp-metric__value">{alertCount}</span>
-          <span className="rp-metric__hint">Alagamento, calor na via ou vento na catenária</span>
+          <span className="rp-metric__hint">Alagamento, calor nas plataformas ou vento nos acessos</span>
         </article>
       </div>
 
@@ -160,7 +163,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ stations }) => {
               {reading.advisories.length > 0 && (
                 <ul className="rp-stack rp-stack--tight" style={{ marginTop: 'var(--sp-2)' }}>
                   {reading.advisories.map((advisory) => (
-                    <li key={advisory} className="rp-hint" style={{ color: 'var(--uni-warning)' }}>
+                    <li key={advisory} className="rp-hint" style={{ color: 'var(--cco-warning)' }}>
                       ⚠ {advisory}
                     </li>
                   ))}

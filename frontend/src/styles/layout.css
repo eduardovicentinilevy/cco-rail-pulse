@@ -36,8 +36,8 @@
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-3);
-  background-color: var(--uni-bg-void);
-  border-right: 1px solid var(--uni-border);
+  background-color: var(--cco-bg-void);
+  border-right: 1px solid var(--cco-border);
   overflow-y: auto;
   overflow-x: hidden;
   transition: padding var(--dur-base) var(--ease);
@@ -53,7 +53,7 @@
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--uni-border);
+  border-bottom: 1px solid var(--cco-border);
   min-width: 0;
 }
 
@@ -63,14 +63,13 @@
   width: 2.4rem;
   height: 2.4rem;
   flex-shrink: 0;
-  background: var(--grad-accent);
+  /* Verde chapado, sem gradiente: é o círculo numerado das placas do Metrô. */
+  background: var(--cco-green);
   color: #fff;
-  font-weight: 900;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.02em;
-  /* Circular, ecoando o emblema redondo do "6" no logotipo institucional. */
+  font-weight: 800;
+  font-size: var(--fs-lg);
   border-radius: 50%;
-  box-shadow: 0 0 20px var(--uni-orange-glow);
+  box-shadow: 0 0 20px var(--cco-green-glow);
 }
 
 .rp-sidebar__wordmark {
@@ -89,7 +88,7 @@
 
 .rp-sidebar__line {
   font-size: var(--fs-2xs);
-  color: var(--uni-orange);
+  color: var(--cco-green-ink);
   font-weight: 700;
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
@@ -108,7 +107,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
-  color: var(--uni-text-dim);
+  color: var(--cco-text-dim);
   white-space: nowrap;
 }
 
@@ -121,7 +120,7 @@
   padding: 0.6rem 0.7rem;
   border: none;
   background: transparent;
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
   font-size: var(--fs-sm);
   font-weight: 600;
   text-align: left;
@@ -133,16 +132,16 @@
 }
 
 .rp-nav-item:hover {
-  background-color: var(--uni-bg-card);
-  color: var(--uni-text-main);
+  background-color: var(--cco-bg-card);
+  color: var(--cco-text-main);
 }
 
 .rp-nav-item[aria-current='page'] {
-  background-color: var(--uni-orange-soft);
-  color: var(--uni-orange);
+  background-color: var(--cco-green-soft);
+  color: var(--cco-green-ink);
 }
 
-/* Trilho luminoso à esquerda do item ativo — assinatura visual da Linha 6. */
+/* Trilho luminoso à esquerda do item ativo — o verde da Linha 2. */
 .rp-nav-item[aria-current='page']::before {
   content: '';
   position: absolute;
@@ -152,8 +151,8 @@
   width: 3px;
   height: 1.4rem;
   border-radius: var(--radius-pill);
-  background: var(--uni-orange);
-  box-shadow: 0 0 10px var(--uni-orange-glow);
+  background: var(--cco-green);
+  box-shadow: 0 0 10px var(--cco-green-glow);
 }
 
 .rp-nav-item__icon {
@@ -175,9 +174,9 @@
   flex-shrink: 0;
   min-width: 1.35rem;
   padding: 0.05rem 0.35rem;
-  background-color: var(--uni-danger);
+  background-color: var(--cco-danger);
   color: #fff;
-  font-family: var(--uni-font-mono);
+  font-family: var(--cco-font-mono);
   font-size: var(--fs-2xs);
   font-weight: 700;
   text-align: center;
@@ -187,7 +186,7 @@
 .rp-sidebar__footer {
   margin-top: auto;
   padding-top: var(--sp-3);
-  border-top: 1px solid var(--uni-border);
+  border-top: 1px solid var(--cco-border);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
@@ -196,7 +195,7 @@
 .rp-sidebar__meta {
   padding: 0 var(--sp-2);
   font-size: var(--fs-2xs);
-  color: var(--uni-text-dim);
+  color: var(--cco-text-dim);
   line-height: 1.5;
   white-space: nowrap;
   overflow: hidden;
@@ -240,9 +239,9 @@
   gap: var(--sp-4);
   flex-wrap: wrap;
   padding: 0.7rem var(--content-gutter);
-  background-color: color-mix(in srgb, var(--uni-bg-primary) 88%, transparent);
+  background-color: color-mix(in srgb, var(--cco-bg-primary) 88%, transparent);
   backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--uni-border);
+  border-bottom: 1px solid var(--cco-border);
 }
 
 .rp-header__left {
@@ -261,7 +260,7 @@
 
 .rp-header__subtitle {
   font-size: var(--fs-2xs);
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
 .rp-header__actions {
@@ -276,14 +275,14 @@
   align-items: center;
   gap: var(--sp-2);
   padding: 0.42rem 0.72rem;
-  background-color: var(--uni-bg-secondary);
-  border: 1px solid var(--uni-border);
+  background-color: var(--cco-bg-secondary);
+  border: 1px solid var(--cco-border);
   border-radius: var(--radius-sm);
   font-size: var(--fs-xs);
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
 }
 
-.rp-header__stat strong { color: var(--uni-text-main); }
+.rp-header__stat strong { color: var(--cco-text-main); }
 
 .rp-header__connection {
   display: inline-flex;
@@ -304,15 +303,15 @@
   align-items: center;
   gap: var(--sp-2);
   padding: 0.2rem 0.8rem 0.2rem 0.2rem;
-  background-color: var(--uni-bg-secondary);
-  border: 1px solid var(--uni-border);
+  background-color: var(--cco-bg-secondary);
+  border: 1px solid var(--cco-border);
   border-radius: var(--radius-pill);
   transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 
 .rp-profile:hover {
-  border-color: var(--uni-orange);
-  background-color: var(--uni-orange-softer);
+  border-color: var(--cco-green);
+  background-color: var(--cco-green-softer);
 }
 
 .rp-profile__avatar {
@@ -320,7 +319,7 @@
   height: 2rem;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid var(--uni-orange);
+  border: 1px solid var(--cco-green);
   flex-shrink: 0;
 }
 
@@ -335,7 +334,7 @@
 }
 
 .rp-profile__name { font-size: var(--fs-xs); font-weight: 700; }
-.rp-profile__role { font-size: var(--fs-2xs); color: var(--uni-text-muted); font-family: var(--uni-font-mono); }
+.rp-profile__role { font-size: var(--fs-2xs); color: var(--cco-text-muted); font-family: var(--cco-font-mono); }
 
 /* --- Grades ----------------------------------------------------------------- */
 .rp-grid {
@@ -381,7 +380,7 @@
   gap: var(--sp-4);
   flex-wrap: wrap;
   padding-bottom: var(--sp-4);
-  border-bottom: 1px solid var(--uni-border);
+  border-bottom: 1px solid var(--cco-border);
 }
 
 .rp-page-header__title {
@@ -393,7 +392,7 @@
 
 .rp-page-header__subtitle {
   font-size: var(--fs-xs);
-  color: var(--uni-text-muted);
+  color: var(--cco-text-muted);
   max-width: 62ch;
 }
 
@@ -438,7 +437,7 @@
     gap: var(--sp-2);
     padding: var(--sp-2) var(--sp-3);
     border-right: none;
-    border-bottom: 1px solid var(--uni-border);
+    border-bottom: 1px solid var(--cco-border);
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -447,7 +446,7 @@
 
   .rp-sidebar__brand {
     border-bottom: none;
-    border-right: 1px solid var(--uni-border);
+    border-right: 1px solid var(--cco-border);
     padding: 0 var(--sp-3) 0 0;
   }
 
@@ -483,9 +482,9 @@
 
 /* Atalho de busca no cabeçalho — some antes dos demais controles. */
 .rp-header__palette {
-  border: 1px solid var(--uni-border);
-  background-color: var(--uni-bg-secondary);
-  color: var(--uni-text-muted);
+  border: 1px solid var(--cco-border);
+  background-color: var(--cco-bg-secondary);
+  color: var(--cco-text-muted);
 }
 
 @media (max-width: 1100px) {

@@ -10,15 +10,15 @@ import {
 } from '../domain/entities/TrainSession';
 import { ValidationError } from '../shared/errors';
 
-const buildTrain = () => new TrainSession('T-01', 'BRA', 45, 24.6, 'NORMAL', new Date('2026-09-16T10:00:00Z'));
+const buildTrain = () => new TrainSession('T-01', 'VMD', 45, 752, 'NORMAL', new Date('2026-09-16T10:00:00Z'));
 
 describe('TrainSession — telemetria', () => {
   it('rejeita velocidade negativa', () => {
-    assert.throws(() => buildTrain().updateTelemetry(-1, 24.6, 'NORMAL'), ValidationError);
+    assert.throws(() => buildTrain().updateTelemetry(-1, 752, 'NORMAL'), ValidationError);
   });
 
   it('rejeita velocidade acima do limite homologado', () => {
-    assert.throws(() => buildTrain().updateTelemetry(MAX_SPEED_KMH + 1, 24.6, 'NORMAL'), ValidationError);
+    assert.throws(() => buildTrain().updateTelemetry(MAX_SPEED_KMH + 1, 752, 'NORMAL'), ValidationError);
   });
 
   it('rejeita tensão inválida', () => {
@@ -63,8 +63,8 @@ describe('TrainSession — comandos operacionais', () => {
     const train = buildTrain();
     train.applyCommand('HALT');
 
-    assert.equal(train.currentStationCode, 'BRA');
-    assert.equal(train.voltageKV, 24.6);
+    assert.equal(train.currentStationCode, 'VMD');
+    assert.equal(train.voltageV, 752);
   });
 
   it('reconhece apenas comandos de domínio válidos', () => {

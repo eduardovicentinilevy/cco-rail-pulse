@@ -1,8 +1,8 @@
 // backend/domain/value-objects/StationCode.ts
-import { isKnownStation } from '../line';
+import { isKnownStation, LINE_NAME } from '../line';
 import { ValidationError } from '../../shared/errors';
 
-/** Código ATS de 3 caracteres de uma estação da malha (padrão CCO Linha Uni). */
+/** Código operacional de 3 caracteres de uma estação da malha. */
 export class StationCode {
   private readonly value: string;
 
@@ -13,10 +13,10 @@ export class StationCode {
       throw new ValidationError('O código da estação não pode ser vazio.');
     }
     if (normalized.length !== 3) {
-      throw new ValidationError('O código da estação deve possuir exatamente 3 caracteres (Padrão CCO Linha Uni).');
+      throw new ValidationError('O código da estação deve possuir exatamente 3 caracteres.');
     }
     if (!isKnownStation(normalized)) {
-      throw new ValidationError(`O código "${normalized}" não pertence à malha da Linha 6-Laranja.`);
+      throw new ValidationError(`O código "${normalized}" não pertence à malha da ${LINE_NAME}.`);
     }
 
     this.value = normalized;
