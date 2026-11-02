@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import type { OperationalCommand, Station, Train } from '../../types';
 import { formatHeadway } from '../../data/stations';
 import { StatusPill } from '../common/StatusPill';
+import { ConnectionBadges } from '../common/ConnectionBadges';
+import { formatVoltage } from '../../lib/format';
 import type { ConfirmRequest } from '../common/ConfirmDialog';
 
 interface SelectedStationPanelProps {
@@ -82,8 +84,14 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
         </span>
         <h2 className="rp-card__title">{station.name}</h2>
         <span className="rp-card__subtitle mono">
-          Código ATS: {station.code} • {station.substation}
+          Código: {station.code} • Alimentação {station.substation}
         </span>
+        {station.connections.length > 0 && (
+          <span className="rp-row" style={{ gap: 'var(--sp-2)', marginTop: 'var(--sp-2)' }}>
+            <span className="rp-card__subtitle">Integração</span>
+            <ConnectionBadges connections={station.connections} variant="full" />
+          </span>
+        )}
       </div>
 
       <div className="rp-terminal__metrics">
@@ -92,14 +100,14 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
           <StatusPill status={station.status} />
         </div>
         <div className="rp-metric-row">
-          <span>Tensão da catenária</span>
-          <strong className="mono" style={{ color: 'var(--uni-orange)' }}>
-            {station.voltageKV.toFixed(2)} kV
+          <span>Terceiro trilho</span>
+          <strong className="mono" style={{ color: 'var(--cco-green-ink)' }}>
+            {formatVoltage(station.voltageV)}
           </strong>
         </div>
         <div className="rp-metric-row">
-          <span>Tensão nominal</span>
-          <strong className="mono">{station.nominalVoltageKV.toFixed(1)} kV</strong>
+          <span>Tensão de referência</span>
+          <strong className="mono">{formatVoltage(station.nominalVoltageV)}</strong>
         </div>
         <div className="rp-metric-row">
           <span>Headway operacional</span>

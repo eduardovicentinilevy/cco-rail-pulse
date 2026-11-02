@@ -25,7 +25,7 @@ if (isProduction && !process.env.JWT_SECRET) {
 }
 
 const DEFAULT_SEED_PASSWORD = '123456';
-if (isProduction && (process.env.SEED_OPERATOR_PASSWORD ?? DEFAULT_SEED_PASSWORD) === DEFAULT_SEED_PASSWORD) {
+if (isProduction && (process.env.SEED_OPERATOR_PASSWORD || DEFAULT_SEED_PASSWORD) === DEFAULT_SEED_PASSWORD) {
   // Fail-fast: sem isso, um deploy real esquecido sobe com uma conta (SUPERVISOR por
   // padrão) protegida por uma senha trivial e publicamente documentada no .env.example.
   throw new Error('[CONFIG] SEED_OPERATOR_PASSWORD precisa de um valor forte quando NODE_ENV=production.');
@@ -38,7 +38,10 @@ export const env = {
   nodeEnv,
   isProduction,
   port: toInt(process.env.PORT, 3333),
-  jwtSecret: process.env.JWT_SECRET ?? DEV_JWT_SECRET,
+  // `||`, não `??`: JWT_SECRET='' (ex.: .env.example copiado sem edição) é falsy mas
+  // não nullish — com `??` esse vazio passaria adiante e o jsonwebtoken rejeitaria a
+  // assinatura em runtime ("secretOrPrivateKey must have a value") no primeiro login.
+  jwtSecret: process.env.JWT_SECRET || DEV_JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '8h',
   corsOrigin: corsOrigins.length > 0 ? corsOrigins : '*',
   bcryptRounds: toInt(process.env.BCRYPT_ROUNDS, 10),
@@ -50,7 +53,7 @@ export const env = {
    * corpo do login). É o que mantém uma instalação de um cliente só funcionando
    * sem que ninguém precise digitar o cliente na tela de acesso.
    */
-  defaultTenantSlug: (process.env.DEFAULT_TENANT_SLUG ?? 'linha-uni').trim().toLowerCase(),
+  defaultTenantSlug: (process.env.DEFAULT_TENANT_SLUG ?? 'metro-sp').trim().toLowerCase(),
   /**
    * Domínio base das instalações multi-cliente. Com ele definido, o subdomínio do
    * Host vira o slug do cliente: `cliente.railpulse.app` → `cliente`.
@@ -58,7 +61,7 @@ export const env = {
   tenantBaseDomain: (process.env.TENANT_BASE_DOMAIN ?? '').trim().toLowerCase(),
   seedOperatorId: process.env.SEED_OPERATOR_ID ?? 'EDP-042',
   seedOperatorName: process.env.SEED_OPERATOR_NAME ?? 'Eduardo Vicentini Levy',
-  seedOperatorPassword: process.env.SEED_OPERATOR_PASSWORD ?? '123456',
+  seedOperatorPassword: process.env.SEED_OPERATOR_PASSWORD || '123456',
   seedOperatorRole: process.env.SEED_OPERATOR_ROLE ?? 'SUPERVISOR',
   /** Janela de agregação da série histórica de telemetria, em segundos. */
   telemetryBucketSeconds: toInt(process.env.TELEMETRY_BUCKET_SECONDS, 60),

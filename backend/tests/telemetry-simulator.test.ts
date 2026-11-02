@@ -1,11 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { TelemetrySimulator } from '../application/services/TelemetrySimulator';
-import { linhaUniCatalog, otherTenantCatalog } from './helpers/catalog';
+import { MAX_DRIFT_V, TelemetrySimulator } from '../application/services/TelemetrySimulator';
+import { demoCatalog, otherTenantCatalog } from './helpers/catalog';
 
 describe('TelemetrySimulator', () => {
-  const catalog = linhaUniCatalog();
+  const catalog = demoCatalog();
 
   it('parte da tensão nominal de cada subestação', () => {
     const snapshot = new TelemetrySimulator(catalog, 1000).snapshot();
@@ -13,7 +13,7 @@ describe('TelemetrySimulator', () => {
     assert.equal(snapshot.length, catalog.size);
     for (const station of catalog.stations) {
       const reading = snapshot.find((item) => item.currentStationCode === station.code);
-      assert.equal(reading?.voltageKV, station.nominalVoltageKV, station.code);
+      assert.equal(reading?.voltageV, station.nominalVoltageV, station.code);
     }
   });
 
@@ -26,14 +26,14 @@ describe('TelemetrySimulator', () => {
   it('classifica a leitura conforme os limiares SCADA', () => {
     const snapshot = new TelemetrySimulator(catalog, 1000).snapshot();
 
-    // ITA opera nominalmente em 22.0 kV — abaixo do limiar crítico de 22.5 kV.
-    assert.equal(snapshot.find((item) => item.currentStationCode === 'ITA')?.status, 'CRÍTICO');
-    // FGO opera em 23.2 kV — faixa de atenção.
-    assert.equal(snapshot.find((item) => item.currentStationCode === 'FGO')?.status, 'ATENÇÃO');
-    assert.equal(snapshot.find((item) => item.currentStationCode === 'BRA')?.status, 'NORMAL');
+    // AIP fica em fim de alimentação (620 V) — abaixo do limiar crítico de 640 V.
+    assert.equal(snapshot.find((item) => item.currentStationCode === 'AIP')?.status, 'CRÍTICO');
+    // SAC opera em 680 V — faixa de atenção.
+    assert.equal(snapshot.find((item) => item.currentStationCode === 'SAC')?.status, 'ATENÇÃO');
+    assert.equal(snapshot.find((item) => item.currentStationCode === 'VMD')?.status, 'NORMAL');
   });
 
-  it('mantém a deriva dentro de ±0.5 kV do nominal ao longo do tempo', async () => {
+  it('mantém a deriva dentro do limite em torno da tensão de referência', async () => {
     const simulator = new TelemetrySimulator(catalog, 5);
     simulator.start();
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -42,8 +42,8 @@ describe('TelemetrySimulator', () => {
     for (const reading of simulator.snapshot()) {
       const station = catalog.find(reading.currentStationCode);
       assert.ok(station);
-      const drift = Math.abs(reading.voltageKV - station.nominalVoltageKV);
-      assert.ok(drift <= 0.5 + 1e-9, `${reading.currentStationCode} derivou ${drift.toFixed(3)} kV`);
+      const drift = Math.abs(reading.voltageV - station.nominalVoltageV);
+      assert.ok(drift <= MAX_DRIFT_V + 1e-9, `${reading.currentStationCode} derivou ${drift.toFixed(1)} V`);
     }
   });
 
@@ -63,17 +63,17 @@ describe('TelemetrySimulator', () => {
    * suportar: cada um enxerga só a sua malha.
    */
   it('simula cada linha sobre a sua própria malha', () => {
-    const uni = new TelemetrySimulator(linhaUniCatalog(), 1000).snapshot();
+    const demo = new TelemetrySimulator(demoCatalog(), 1000).snapshot();
     const outro = new TelemetrySimulator(otherTenantCatalog(), 1000).snapshot();
 
-    assert.equal(uni.length, 15);
+    assert.equal(demo.length, 14);
     assert.equal(outro.length, 3);
     assert.deepEqual(
       outro.map((reading) => reading.currentStationCode),
       ['JAB', 'CNC', 'SPO'],
     );
     assert.equal(
-      uni.some((reading) => reading.currentStationCode === 'JAB'),
+      demo.some((reading) => reading.currentStationCode === 'JAB'),
       false,
     );
   });

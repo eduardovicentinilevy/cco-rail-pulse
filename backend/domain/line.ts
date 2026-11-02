@@ -13,10 +13,12 @@ export interface LineStation {
   readonly position: number;
   readonly code: string;
   readonly name: string;
-  /** Subestação de tração que alimenta o trecho. */
+  /** Subestação retificadora (SR) que alimenta o terceiro trilho no trecho. */
   readonly substation: string;
-  /** Tensão nominal de projeto da catenária, em kV. */
-  readonly nominalVoltageKV: number;
+  /** Tensão de referência do trecho que alimenta a estação, em volts. */
+  readonly nominalVoltageV: number;
+  /** Integrações com outras linhas e modais, como sinalizadas na estação. */
+  readonly connections: readonly string[];
   /** Intervalo entre composições, em segundos. */
   readonly headwaySeconds: number | null;
   /** Posição normalizada (0–1) no traçado esquemático, para o mapa do painel. */
@@ -33,6 +35,31 @@ export interface LineIdentity {
 }
 
 export const normalizeStationCode = (value: unknown): string => String(value ?? '').trim().toUpperCase();
+
+/**
+ * Modelo elétrico da tração, em volts de corrente contínua.
+ *
+ * Fica em código, e não no cadastro da linha, porque descreve o sistema de
+ * alimentação da instalação, não a malha: as estações e as subestações são
+ * dado, os limiares de subtensão são a regra que o CCO aplica sobre elas. Uma
+ * linha alimentada por catenária em kV precisaria destes valores por linha —
+ * está anotado na seção 9 de `docs/multi-tenant.md` como passo seguinte.
+ *
+ * Os limiares ficam bem acima do mínimo permanente que a EN 50163 admite para
+ * 750 Vcc (500 V): o objetivo é avisar o operador antes que o desempenho de
+ * tração caia, não no limite normativo.
+ */
+export const TRACTION_NOMINAL_V = 750;
+export const VOLTAGE_WARNING_V = 700;
+export const VOLTAGE_CRITICAL_V = 640;
+
+export type VoltageStatus = 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO';
+
+export const classifyVoltage = (voltageV: number): VoltageStatus => {
+  if (voltageV < VOLTAGE_CRITICAL_V) return 'CRÍTICO';
+  if (voltageV < VOLTAGE_WARNING_V) return 'ATENÇÃO';
+  return 'NORMAL';
+};
 
 /**
  * Malha de uma linha: identidade da linha mais as suas estações em ordem física.
@@ -55,6 +82,19 @@ export class LineCatalog {
     this.codes = this.stations.map((station) => station.code);
     this.byCode = new Map(this.stations.map((station) => [station.code, station]));
     this.indexByCode = new Map(this.stations.map((station, index) => [station.code, index]));
+  }
+
+  /**
+   * Terminais do traçado, na ordem física.
+   *
+   * Substitui `LINE_TERMINALS`, que nomeava os extremos por ponto cardeal: o
+   * sentido do traçado é da linha, e nem toda linha corre de oeste para leste.
+   */
+  public get terminals(): { first: string; last: string } | null {
+    const first = this.stations[0];
+    const last = this.stations[this.stations.length - 1];
+    if (!first || !last) return null;
+    return { first: first.name, last: last.name };
   }
 
   public get id(): string {

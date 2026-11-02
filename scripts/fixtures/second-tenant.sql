@@ -13,8 +13,8 @@ WITH novo_cliente AS (
   ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name
   RETURNING id
 )
-INSERT INTO stations (line_id, code, name, position, substation, nominal_voltage_kv, headway_seconds, map_x, map_y)
-SELECT nova_linha.id, v.code, v.nome, v.pos, 'TSS-A1', 24.5, 180, v.mx, 0.5
+INSERT INTO stations (line_id, code, name, position, substation, nominal_voltage_v, connections, headway_seconds, map_x, map_y)
+SELECT nova_linha.id, v.code, v.nome, v.pos, 'SR-A1', 749, '{}'::text[], 180, v.mx, 0.5
 FROM nova_linha, (VALUES ('JAB', 'Jabaquara', 1, 0.15), ('TUC', 'Tucuruvi', 2, 0.85)) AS v(code, nome, pos, mx)
 ON CONFLICT (line_id, code) DO NOTHING;
 
@@ -23,8 +23,8 @@ SELECT id, 'EDP-042', 'Homônimo do Metrô', 'OPERADOR', :'hash'
 FROM tenants WHERE slug = 'metro-ci'
 ON CONFLICT (tenant_id, login_id) DO NOTHING;
 
-INSERT INTO trains (line_id, train_id, current_station_code, speed_kmh, voltage_kv, status)
-SELECT l.id, 'T-01', 'JAB', 60, 24.5, 'NORMAL'
+INSERT INTO trains (line_id, train_id, current_station_code, speed_kmh, voltage_v, status)
+SELECT l.id, 'T-01', 'JAB', 60, 749, 'NORMAL'
 FROM lines l JOIN tenants t ON t.id = l.tenant_id
 WHERE t.slug = 'metro-ci'
 ON CONFLICT (line_id, train_id) DO NOTHING;

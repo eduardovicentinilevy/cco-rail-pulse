@@ -4,6 +4,7 @@ import type { Station, Train } from '../../types';
 import type { FavoritesControls } from '../../hooks/useFavorites';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
+import { formatVoltage } from '../../lib/format';
 
 interface FavoritesViewProps {
   stations: Station[];
@@ -47,7 +48,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ stations, trains, 
             <EmptyState
               icon="☆"
               title="Nenhuma estação favoritada."
-              hint="Na Malha ATS, selecione uma estação e use o botão ★ no terminal de controle."
+              hint="Na Via CBTC, selecione uma estação e use o botão ★ no terminal de controle."
             />
           ) : (
             <ul className="rp-feed">
@@ -55,7 +56,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ stations, trains, 
                 <li key={station.code} className="rp-feed__item" data-status={station.status}>
                   <span className="rp-feed__source">{station.code}</span>
                   <span className="rp-feed__message truncate">{station.name}</span>
-                  <span className="mono text-muted">{station.voltageKV.toFixed(2)} kV</span>
+                  <span className="mono text-muted">{formatVoltage(station.voltageV)}</span>
                   <StatusPill status={station.status} solid />
                   <button type="button" className="rp-btn rp-btn--link" onClick={() => onGoToStation(station)}>
                     Ver na malha
@@ -85,7 +86,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ stations, trains, 
             <EmptyState
               icon="☆"
               title="Nenhuma composição favoritada."
-              hint="Na Malha ATS, selecione a composição alvo no terminal de controle e use o botão ★."
+              hint="Na Via CBTC, selecione a composição alvo no terminal de controle e use o botão ★."
             />
           ) : (
             <ul className="rp-feed">

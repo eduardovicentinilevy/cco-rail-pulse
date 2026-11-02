@@ -17,7 +17,7 @@ interface SettingsViewProps {
 const SHORTCUTS: ReadonlyArray<{ keys: string[]; description: string }> = [
   { keys: ['Ctrl', 'K'], description: 'Abrir a paleta de comandos (busca seções, estações e composições)' },
   { keys: ['1', '…', '9', '0'], description: 'Ir direto para uma das dez seções do console' },
-  { keys: ['/'], description: 'Focar a busca de estações na malha ATS' },
+  { keys: ['/'], description: 'Focar a busca de estações na Via CBTC' },
   { keys: ['Esc'], description: 'Fechar o modal, diálogo ou paleta ativo' },
   { keys: ['↑', '↓'], description: 'Navegar pela lista de resultados de um modal aberto' },
   { keys: ['↵'], description: 'Confirmar a seleção ativa na paleta de comandos' },

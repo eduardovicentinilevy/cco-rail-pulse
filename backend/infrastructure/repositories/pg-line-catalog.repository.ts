@@ -27,7 +27,8 @@ interface StationRow {
   name: string;
   position: number;
   substation: string;
-  nominal_voltage_kv: string;
+  nominal_voltage_v: string;
+  connections: string[] | null;
   headway_seconds: number | null;
   map_x: string | null;
   map_y: string | null;
@@ -42,7 +43,8 @@ const toStation = (row: StationRow): LineStation => ({
   name: row.name,
   position: Number(row.position),
   substation: row.substation,
-  nominalVoltageKV: Number(row.nominal_voltage_kv),
+  nominalVoltageV: Number(row.nominal_voltage_v),
+  connections: row.connections ?? [],
   headwaySeconds: row.headway_seconds,
   mapX: toNumberOrNull(row.map_x),
   mapY: toNumberOrNull(row.map_y),
@@ -136,7 +138,7 @@ export class PgLineCatalogRepository {
 
   private async loadStations(lineId: string): Promise<LineStation[]> {
     const result = await db.query<StationRow>(
-      `SELECT id, code, name, position, substation, nominal_voltage_kv, headway_seconds, map_x, map_y
+      `SELECT id, code, name, position, substation, nominal_voltage_v, connections, headway_seconds, map_x, map_y
        FROM stations
        WHERE line_id = $1
        ORDER BY position ASC`,

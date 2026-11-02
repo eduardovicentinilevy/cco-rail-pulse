@@ -3,7 +3,8 @@ import React, { useMemo, useState } from 'react';
 import type { Station } from '../../types';
 import { StatusPill } from '../common/StatusPill';
 import { EmptyState } from '../common/EmptyState';
-import { formatNumber } from '../../lib/format';
+import { formatVoltage } from '../../lib/format';
+import { TRACTION_NOMINAL_V } from '../../data/stations';
 
 interface AssetMaintenanceViewProps {
   stations: Station[];
@@ -15,7 +16,7 @@ interface SubstationAsset {
   code: string;
   name: string;
   voltageClass: string;
-  measuredKV: number;
+  measuredV: number;
   loadPercent: number;
   status: AssetStatus;
   stationCodes: string[];
@@ -25,12 +26,13 @@ const HIGH_LOAD_THRESHOLD = 80;
 const PREVENTIVE_LOAD_THRESHOLD = 70;
 
 /**
- * Deriva a carga do transformador a partir do afundamento de tensão medido:
- * quanto mais a leitura cai abaixo do nominal, maior a solicitação do trafo.
+ * Deriva a carga dos grupos retificadores a partir do afundamento de tensão
+ * no terceiro trilho: quanto mais a leitura cai abaixo dos 750 Vcc nominais,
+ * mais a subestação está sendo solicitada (ou opera com grupo a menos).
  */
-const estimateLoad = (measuredKV: number, nominalKV: number): number => {
-  const sag = Math.max(0, nominalKV - measuredKV);
-  return Math.min(99, Math.round(45 + (sag / Math.max(nominalKV, 1)) * 900));
+const estimateLoad = (measuredV: number): number => {
+  const sag = Math.max(0, TRACTION_NOMINAL_V - measuredV);
+  return Math.min(99, Math.round(45 + (sag / TRACTION_NOMINAL_V) * 450));
 };
 
 const classifyAsset = (loadPercent: number): AssetStatus => {
@@ -52,15 +54,15 @@ export const AssetMaintenanceView: React.FC<AssetMaintenanceViewProps> = ({ stat
 
     return Array.from(grouped.entries())
       .map(([code, group]) => {
-        const measuredKV = group.reduce((sum, station) => sum + station.voltageKV, 0) / group.length;
-        const nominalKV = group.reduce((sum, station) => sum + station.nominalVoltageKV, 0) / group.length;
-        const loadPercent = estimateLoad(measuredKV, nominalKV);
+        const measuredV = group.reduce((sum, station) => sum + station.voltageV, 0) / group.length;
+        const loadPercent = estimateLoad(measuredV);
 
         return {
           code,
           name: `Subestação Retificadora ${group[0].name}`,
-          voltageClass: '88 kV / 750 V',
-          measuredKV,
+          // Recebe 22 kV CA da subestação primária e entrega 750 Vcc ao terceiro trilho.
+          voltageClass: '22 kV CA → 750 Vcc',
+          measuredV,
           loadPercent,
           status: classifyAsset(loadPercent),
           stationCodes: group.map((station) => station.code),
@@ -77,9 +79,9 @@ export const AssetMaintenanceView: React.FC<AssetMaintenanceViewProps> = ({ stat
       <div className="rp-page-header">
         <div>
           <span className="rp-eyebrow">Ativos &amp; energia</span>
-          <h2 className="rp-page-header__title">Saúde de ativos (TSS &amp; AMV)</h2>
+          <h2 className="rp-page-header__title">Saúde de ativos (SR &amp; AMV)</h2>
           <p className="rp-page-header__subtitle">
-            Carga estimada dos transformadores a partir do afundamento de tensão medido na catenária
+            Carga estimada dos grupos retificadores a partir do afundamento de tensão no terceiro trilho
           </p>
         </div>
         <button type="button" className="rp-chip" aria-pressed={onlyAlerts} onClick={() => setOnlyAlerts((v) => !v)}>
@@ -107,10 +109,10 @@ export const AssetMaintenanceView: React.FC<AssetMaintenanceViewProps> = ({ stat
               </div>
               <div className="rp-metric-row">
                 <span>Tensão medida</span>
-                <strong className="mono">{formatNumber(asset.measuredKV, 2)} kV</strong>
+                <strong className="mono">{formatVoltage(asset.measuredV)}</strong>
               </div>
               <div className="rp-metric-row">
-                <span>Carga estimada do trafo</span>
+                <span>Carga dos retificadores</span>
                 <strong className="mono">{asset.loadPercent}%</strong>
               </div>
 
@@ -120,7 +122,7 @@ export const AssetMaintenanceView: React.FC<AssetMaintenanceViewProps> = ({ stat
                 aria-valuenow={asset.loadPercent}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label={`Carga do transformador ${asset.code}`}
+                aria-label={`Carga dos grupos retificadores da ${asset.code}`}
               >
                 <div className="rp-progress__fill" style={{ width: `${asset.loadPercent}%` }} />
               </div>

@@ -8,7 +8,7 @@ interface TrainRow {
   train_id: string;
   current_station_code: string;
   speed_kmh: string | number;
-  voltage_kv: string | number;
+  voltage_v: string | number;
   status: string;
   updated_at: Date;
 }
@@ -19,14 +19,14 @@ const toEntity = (row: TrainRow): TrainSession =>
     row.train_id,
     row.current_station_code,
     Number(row.speed_kmh),
-    Number(row.voltage_kv),
+    Number(row.voltage_v),
     row.status as TrainStatus,
     new Date(row.updated_at),
   );
 
 type Queryable = Pick<PoolClient, 'query'>;
 
-const COLUMNS = 'train_id, current_station_code, speed_kmh, voltage_kv, status, updated_at';
+const COLUMNS = 'train_id, current_station_code, speed_kmh, voltage_v, status, updated_at';
 
 /**
  * Composições de uma linha.
@@ -61,12 +61,12 @@ export class TrainRepository {
 
   public static async save(lineId: string, train: TrainSession, client: Queryable = db): Promise<void> {
     await client.query(
-      `INSERT INTO trains (line_id, train_id, current_station_code, speed_kmh, voltage_kv, status, updated_at)
+      `INSERT INTO trains (line_id, train_id, current_station_code, speed_kmh, voltage_v, status, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (line_id, train_id) DO UPDATE
        SET current_station_code = EXCLUDED.current_station_code,
            speed_kmh = EXCLUDED.speed_kmh,
-           voltage_kv = EXCLUDED.voltage_kv,
+           voltage_v = EXCLUDED.voltage_v,
            status = EXCLUDED.status,
            updated_at = EXCLUDED.updated_at`,
       [
@@ -74,7 +74,7 @@ export class TrainRepository {
         train.trainId,
         train.currentStationCode,
         train.speedKmH,
-        train.voltageKV,
+        train.voltageV,
         train.status,
         train.updatedAt,
       ],

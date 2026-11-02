@@ -11,6 +11,8 @@ export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
 interface HeaderProps {
   session: OperatorSession;
+  /** Terminais do traçado, já formatados a partir da malha recebida. */
+  terminals: string;
   connectionStatus: ConnectionStatus;
   shiftStartedAt: number;
   criticalAlarms: number;
@@ -32,6 +34,7 @@ const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
 
 export const Header: React.FC<HeaderProps> = ({
   session,
+  terminals,
   connectionStatus,
   shiftStartedAt,
   criticalAlarms,
@@ -54,7 +57,9 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="rp-header__left">
           <div className="truncate">
             <h1 className="rp-header__title">Centro de Controle Operacional</h1>
-            <p className="rp-header__subtitle">Supervisão ATS &amp; telemetria SCADA • Brasilândia ➔ São Joaquim</p>
+            <p className="rp-header__subtitle">
+              {session.line.name} • CBTC &amp; telemetria SCADA{terminals && ` • ${terminals}`}
+            </p>
           </div>
         </div>
 
@@ -146,7 +151,12 @@ export const Header: React.FC<HeaderProps> = ({
       </header>
 
       {isProfileOpen && (
-        <UserProfileModal session={session} onUpdateAvatar={onUpdateAvatar} onClose={() => setIsProfileOpen(false)} />
+        <UserProfileModal
+          session={session}
+          terminals={terminals}
+          onUpdateAvatar={onUpdateAvatar}
+          onClose={() => setIsProfileOpen(false)}
+        />
       )}
     </>
   );

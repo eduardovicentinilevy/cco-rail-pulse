@@ -2,10 +2,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { jitteredDelay, nextDirection } from '../application/services/TrainMotionSimulator';
-import { linhaUniCatalog } from './helpers/catalog';
+import { demoCatalog } from './helpers/catalog';
 
 describe('TrainMotionSimulator — sentido do vaivém', () => {
-  const maxIndex = linhaUniCatalog().size - 1;
+  const maxIndex = demoCatalog().size - 1;
 
   it('força o sentido de ida ao chegar ao terminal inicial', () => {
     assert.equal(nextDirection(0, maxIndex, -1), 1);

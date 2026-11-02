@@ -4,17 +4,17 @@ import assert from 'node:assert/strict';
 import { StationCode } from '../domain/value-objects/StationCode';
 import { LineCatalog } from '../domain/line';
 import { ValidationError } from '../shared/errors';
-import { linhaUniCatalog, otherTenantCatalog } from './helpers/catalog';
+import { demoCatalog, otherTenantCatalog } from './helpers/catalog';
 
 describe('StationCode', () => {
   it('normaliza para maiúsculas', () => {
-    assert.equal(new StationCode('bra').getValue(), 'BRA');
+    assert.equal(new StationCode('vmd').getValue(), 'VMD');
   });
 
   it('rejeita vazio e comprimento diferente de 3', () => {
     assert.throws(() => new StationCode(''), ValidationError);
-    assert.throws(() => new StationCode('BR'), ValidationError);
-    assert.throws(() => new StationCode('BRAS'), ValidationError);
+    assert.throws(() => new StationCode('VM'), ValidationError);
+    assert.throws(() => new StationCode('VMDA'), ValidationError);
   });
 
   it('aceita o código alfanumérico 14B', () => {
@@ -26,18 +26,18 @@ describe('StationCode', () => {
   });
 
   it('compara por valor', () => {
-    assert.equal(new StationCode('BRA').equals(new StationCode('bra')), true);
-    assert.equal(new StationCode('BRA').equals(new StationCode('MAR')), false);
+    assert.equal(new StationCode('VMD').equals(new StationCode('vmd')), true);
+    assert.equal(new StationCode('VMD').equals(new StationCode('SUM')), false);
   });
 });
 
 describe('StationCode.inLine', () => {
   it('aceita um código da malha da linha', () => {
-    assert.equal(StationCode.inLine('bra', linhaUniCatalog()).getValue(), 'BRA');
+    assert.equal(StationCode.inLine('vmd', demoCatalog()).getValue(), 'VMD');
   });
 
   it('rejeita um código que não pertence à linha', () => {
-    assert.throws(() => StationCode.inLine('XYZ', linhaUniCatalog()), ValidationError);
+    assert.throws(() => StationCode.inLine('XYZ', demoCatalog()), ValidationError);
   });
 
   /**
@@ -46,11 +46,11 @@ describe('StationCode.inLine', () => {
    * responder por uma malha.
    */
   it('não aceita estação de outra linha', () => {
-    const uni = linhaUniCatalog();
+    const demo = demoCatalog();
     const outro = otherTenantCatalog();
 
-    assert.throws(() => StationCode.inLine('BRA', outro), ValidationError);
-    assert.throws(() => StationCode.inLine('JAB', uni), ValidationError);
+    assert.throws(() => StationCode.inLine('VMD', outro), ValidationError);
+    assert.throws(() => StationCode.inLine('JAB', demo), ValidationError);
     assert.equal(StationCode.inLine('JAB', outro).getValue(), 'JAB');
   });
 
@@ -63,16 +63,17 @@ describe('StationCode.inLine', () => {
 });
 
 describe('Catálogo da malha', () => {
-  const catalog = linhaUniCatalog();
+  const catalog = demoCatalog();
 
-  it('possui as 15 estações da Linha 6-Laranja', () => {
-    assert.equal(catalog.size, 15);
+  it('possui as 14 estações da linha semeada', () => {
+    assert.equal(catalog.size, 14);
   });
 
-  it('mantém a ordem física contígua de Brasilândia a São Joaquim', () => {
+  it('mantém a ordem física contígua de Vila Madalena a Vila Prudente', () => {
     catalog.stations.forEach((station, index) => assert.equal(station.position, index + 1));
-    assert.equal(catalog.stations[0].code, 'BRA');
-    assert.equal(catalog.stations.at(-1)?.code, 'SJQ');
+    assert.equal(catalog.stations[0].code, 'VMD');
+    assert.equal(catalog.stations.at(-1)?.code, 'VPT');
+    assert.deepEqual(catalog.terminals, { first: 'Vila Madalena', last: 'Vila Prudente' });
   });
 
   it('não repete códigos', () => {
@@ -80,8 +81,8 @@ describe('Catálogo da malha', () => {
   });
 
   it('busca estação sem diferenciar caixa ou espaços', () => {
-    assert.equal(catalog.find('  fgo ')?.name, 'Freguesia do Ó');
-    assert.equal(catalog.has('sjq'), true);
+    assert.equal(catalog.find('  pso ')?.name, 'Paraíso');
+    assert.equal(catalog.has('vpt'), true);
     assert.equal(catalog.has('ZZZ'), false);
   });
 
@@ -93,8 +94,9 @@ describe('Catálogo da malha', () => {
       position,
       code,
       name: code,
-      substation: 'TSS-01',
-      nominalVoltageKV: 24.6,
+      substation: 'SR-01',
+      nominalVoltageV: 750,
+      connections: [],
       headwaySeconds: null,
       mapX: null,
       mapY: null,
@@ -109,5 +111,13 @@ describe('Catálogo da malha', () => {
     assert.deepEqual([...embaralhado.codes], ['AAA', 'BBB', 'CCC']);
     assert.equal(embaralhado.indexOf('BBB'), 1);
     assert.equal(embaralhado.at(2)?.code, 'CCC');
+  });
+
+  it('registra as integrações com outras linhas', () => {
+    assert.deepEqual(catalog.find('PSO')?.connections, ['L1-Azul']);
+    assert.deepEqual(catalog.find('CNS')?.connections, ['L4-Amarela']);
+    assert.deepEqual(catalog.find('CKB')?.connections, ['L5-Lilás']);
+    assert.deepEqual(catalog.find('TTI')?.connections, ['CPTM L10-Turquesa']);
+    assert.deepEqual(catalog.find('VPT')?.connections, ['L15-Prata']);
   });
 });

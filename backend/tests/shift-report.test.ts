@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 
 import { BuildShiftReportUseCase } from '../application/use-cases/BuildShiftReportUseCase';
 import { ValidationError } from '../shared/errors';
-import { linhaUniCatalog } from './helpers/catalog';
+import { demoCatalog } from './helpers/catalog';
 
 const useCase = new BuildShiftReportUseCase();
 // A janela é validada antes de qualquer consulta, então o catálogo aqui só
 // precisa existir — nenhum destes casos chega ao banco.
-const catalog = linhaUniCatalog();
+const catalog = demoCatalog();
 
 describe('BuildShiftReportUseCase — validação da janela', () => {
   it('rejeita data inválida', async () => {

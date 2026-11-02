@@ -6,6 +6,8 @@ import { DEFAULT_AVATAR_URL } from '../../config/env';
 
 interface UserProfileModalProps {
   session: OperatorSession;
+  /** Terminais do traçado, já formatados a partir da malha recebida. */
+  terminals: string;
   onUpdateAvatar: (url: string) => Promise<void>;
   onClose: () => void;
 }
@@ -19,7 +21,12 @@ const isValidHttpUrl = (value: string): boolean => {
   }
 };
 
-export const UserProfileModal: React.FC<UserProfileModalProps> = ({ session, onUpdateAvatar, onClose }) => {
+export const UserProfileModal: React.FC<UserProfileModalProps> = ({
+  session,
+  terminals,
+  onUpdateAvatar,
+  onClose,
+}) => {
   const [avatarInput, setAvatarInput] = useState(session.avatarUrl ?? '');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +78,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ session, onU
       }
     >
       <form id="rp-profile-form" className="rp-stack" onSubmit={handleSubmit} noValidate>
-        <div className="rp-row" style={{ padding: 'var(--sp-4)', background: 'var(--uni-bg-primary)', border: '1px solid var(--uni-border)', borderRadius: 'var(--radius-md)' }}>
+        <div className="rp-row" style={{ padding: 'var(--sp-4)', background: 'var(--cco-bg-primary)', border: '1px solid var(--cco-border)', borderRadius: 'var(--radius-md)' }}>
           <img
             className="rp-profile__avatar rp-profile__avatar--lg"
             src={trimmed || DEFAULT_AVATAR_URL}
@@ -122,7 +129,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ session, onU
         <div className="rp-terminal__metrics">
           <div className="rp-metric-row">
             <span>Eixo operacional</span>
-            <strong>Brasilândia ➔ São Joaquim</strong>
+            <strong>{terminals || '—'}</strong>
           </div>
           <div className="rp-metric-row">
             <span>Perfil de acesso</span>

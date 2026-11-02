@@ -11,7 +11,7 @@
 
 CREATE TABLE IF NOT EXISTS tenants (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    slug        VARCHAR(40) UNIQUE NOT NULL,      -- Ex: 'linha-uni'
+    slug        VARCHAR(40) UNIQUE NOT NULL,      -- Ex: 'metro-sp'
     name        VARCHAR(120) NOT NULL,
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 CREATE TABLE IF NOT EXISTS lines (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    code        VARCHAR(20) NOT NULL,             -- Ex: 'L6'
+    code        VARCHAR(20) NOT NULL,             -- Ex: 'L2'
     name        VARCHAR(120) NOT NULL,
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS stations (
     name                VARCHAR(120) NOT NULL,
     position            INTEGER NOT NULL,         -- Ordem física ('order' é reservada)
     substation          VARCHAR(20) NOT NULL,
-    nominal_voltage_kv  NUMERIC(5, 2) NOT NULL,
+    nominal_voltage_v   NUMERIC(6, 1) NOT NULL,   -- Volts no terceiro trilho (750 Vcc nominal)
+    connections         TEXT[] NOT NULL DEFAULT '{}', -- Integrações sinalizadas na estação
     headway_seconds     INTEGER,
     map_x               NUMERIC(6, 5),            -- Posição normalizada (0–1) no traçado
     map_y               NUMERIC(6, 5),
@@ -84,7 +85,7 @@ CREATE TABLE IF NOT EXISTS trains (
     train_id              VARCHAR(20) NOT NULL,   -- Ex: 'T-01'
     current_station_code  VARCHAR(10) NOT NULL,
     speed_kmh             NUMERIC(5, 1) NOT NULL,
-    voltage_kv            NUMERIC(5, 2) NOT NULL,
+    voltage_v             NUMERIC(6, 1) NOT NULL,
     status                VARCHAR(20) NOT NULL,   -- NORMAL | ATENÇÃO | EMERGÊNCIA
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (line_id, train_id)
@@ -114,9 +115,9 @@ CREATE TABLE IF NOT EXISTS telemetry_samples (
     id          BIGSERIAL PRIMARY KEY,
     station_id  UUID NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
     bucket_at   TIMESTAMPTZ NOT NULL,
-    min_kv      NUMERIC(5, 2) NOT NULL,
-    avg_kv      NUMERIC(5, 2) NOT NULL,
-    max_kv      NUMERIC(5, 2) NOT NULL,
+    min_v       NUMERIC(6, 1) NOT NULL,
+    avg_v       NUMERIC(6, 1) NOT NULL,
+    max_v       NUMERIC(6, 1) NOT NULL,
     readings    INTEGER NOT NULL,
     UNIQUE (station_id, bucket_at)
 );

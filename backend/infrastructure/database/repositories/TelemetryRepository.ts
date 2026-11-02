@@ -5,18 +5,18 @@ export interface TelemetryBucket {
   /** Chave da estação na malha — a série pende da estação, não do código solto. */
   stationId: string;
   bucketAt: Date;
-  minKV: number;
-  avgKV: number;
-  maxKV: number;
+  minV: number;
+  avgV: number;
+  maxV: number;
   readings: number;
 }
 
 export interface HistorySample {
   stationCode: string;
   bucketAt: string;
-  minKV: number;
-  avgKV: number;
-  maxKV: number;
+  minV: number;
+  avgV: number;
+  maxV: number;
 }
 
 export class TelemetryRepository {
@@ -30,17 +30,17 @@ export class TelemetryRepository {
     const values: unknown[] = [];
     const placeholders = buckets.map((bucket, index) => {
       const base = index * 6;
-      values.push(bucket.stationId, bucket.bucketAt, bucket.minKV, bucket.avgKV, bucket.maxKV, bucket.readings);
+      values.push(bucket.stationId, bucket.bucketAt, bucket.minV, bucket.avgV, bucket.maxV, bucket.readings);
       return `($${base + 1}::uuid, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
     });
 
     await db.query(
-      `INSERT INTO telemetry_samples (station_id, bucket_at, min_kv, avg_kv, max_kv, readings)
+      `INSERT INTO telemetry_samples (station_id, bucket_at, min_v, avg_v, max_v, readings)
        VALUES ${placeholders.join(', ')}
        ON CONFLICT (station_id, bucket_at) DO UPDATE
-       SET min_kv = LEAST(telemetry_samples.min_kv, EXCLUDED.min_kv),
-           max_kv = GREATEST(telemetry_samples.max_kv, EXCLUDED.max_kv),
-           avg_kv = EXCLUDED.avg_kv,
+       SET min_v = LEAST(telemetry_samples.min_v, EXCLUDED.min_v),
+           max_v = GREATEST(telemetry_samples.max_v, EXCLUDED.max_v),
+           avg_v = EXCLUDED.avg_v,
            readings = telemetry_samples.readings + EXCLUDED.readings`,
       values,
     );
@@ -62,13 +62,13 @@ export class TelemetryRepository {
     const result = await db.query<{
       station_code: string;
       bucket_at: Date;
-      min_kv: string;
-      avg_kv: string;
-      max_kv: string;
+      min_v: string;
+      avg_v: string;
+      max_v: string;
     }>(
       // O JOIN com stations é o que escopa a série à linha: não existe leitura
       // de telemetria que não pertença a uma estação de alguma linha.
-      `SELECT s.code AS station_code, t.bucket_at, t.min_kv, t.avg_kv, t.max_kv
+      `SELECT s.code AS station_code, t.bucket_at, t.min_v, t.avg_v, t.max_v
        FROM telemetry_samples t
        JOIN stations s ON s.id = t.station_id
        WHERE s.line_id = $1
@@ -81,9 +81,9 @@ export class TelemetryRepository {
     return result.rows.map((row) => ({
       stationCode: row.station_code,
       bucketAt: new Date(row.bucket_at).toISOString(),
-      minKV: Number(row.min_kv),
-      avgKV: Number(row.avg_kv),
-      maxKV: Number(row.max_kv),
+      minV: Number(row.min_v),
+      avgV: Number(row.avg_v),
+      maxV: Number(row.max_v),
     }));
   }
 
@@ -91,18 +91,18 @@ export class TelemetryRepository {
   public static async summary(
     lineId: string,
     sinceHours: number,
-  ): Promise<Array<{ stationCode: string; minKV: number; avgKV: number; maxKV: number; buckets: number }>> {
+  ): Promise<Array<{ stationCode: string; minV: number; avgV: number; maxV: number; buckets: number }>> {
     const result = await db.query<{
       station_code: string;
-      min_kv: string;
-      avg_kv: string;
-      max_kv: string;
+      min_v: string;
+      avg_v: string;
+      max_v: string;
       buckets: string;
     }>(
       `SELECT s.code AS station_code,
-              MIN(t.min_kv)::text AS min_kv,
-              AVG(t.avg_kv)::text AS avg_kv,
-              MAX(t.max_kv)::text AS max_kv,
+              MIN(t.min_v)::text AS min_v,
+              AVG(t.avg_v)::text AS avg_v,
+              MAX(t.max_v)::text AS max_v,
               COUNT(*)::text AS buckets
        FROM telemetry_samples t
        JOIN stations s ON s.id = t.station_id
@@ -114,9 +114,9 @@ export class TelemetryRepository {
 
     return result.rows.map((row) => ({
       stationCode: row.station_code,
-      minKV: Number(row.min_kv),
-      avgKV: Number(Number(row.avg_kv).toFixed(2)),
-      maxKV: Number(row.max_kv),
+      minV: Number(row.min_v),
+      avgV: Number(Number(row.avg_v).toFixed(1)),
+      maxV: Number(row.max_v),
       buckets: Number(row.buckets),
     }));
   }

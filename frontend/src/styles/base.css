@@ -20,13 +20,13 @@ html[data-theme='dark'] {
 body {
   margin: 0;
   min-height: 100dvh;
-  background-color: var(--uni-bg-primary);
+  background-color: var(--cco-bg-primary);
   background-image:
-    radial-gradient(ellipse 900px 500px at 8% -12%, var(--body-tint-orange), transparent 60%),
-    radial-gradient(ellipse 700px 500px at 100% 0%, var(--body-tint-navy), transparent 55%);
+    radial-gradient(ellipse 900px 500px at 8% -12%, var(--body-tint-green), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 0%, var(--body-tint-graphite), transparent 55%);
   background-attachment: fixed;
-  color: var(--uni-text-main);
-  font-family: var(--uni-font);
+  color: var(--cco-text-main);
+  font-family: var(--cco-font);
   font-size: var(--fs-md);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -70,12 +70,12 @@ table {
 }
 
 ::selection {
-  background: var(--uni-orange);
+  background: var(--cco-green);
   color: #fff;
 }
 
 :focus-visible {
-  outline: 2px solid var(--uni-orange);
+  outline: 2px solid var(--cco-green);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
@@ -88,7 +88,7 @@ table {
 /* --- Scrollbars técnicas --------------------------------------------------- */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--uni-border-strong) transparent;
+  scrollbar-color: var(--cco-border-strong) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -101,22 +101,23 @@ table {
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: var(--uni-border-strong);
+  background-color: var(--cco-border-strong);
   border-radius: var(--radius-pill);
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: var(--uni-orange);
+  background-color: var(--cco-green);
 }
 
 /* --- Utilitários ----------------------------------------------------------- */
 .mono {
-  font-family: var(--uni-font-mono);
+  font-family: var(--cco-font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-.text-muted { color: var(--uni-text-muted); }
-.text-dim { color: var(--uni-text-dim); }
+.text-muted { color: var(--cco-text-muted); }
+.text-dim { color: var(--cco-text-dim); }
+.rp-nowrap { white-space: nowrap; }
 .truncate {
   min-width: 0;
   overflow: hidden;

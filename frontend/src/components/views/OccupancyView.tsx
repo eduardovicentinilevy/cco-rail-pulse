@@ -22,11 +22,15 @@ const peakFactor = (hour: number, minute: number): number => {
   return Math.min(1, morning + evening);
 };
 
-/** Estações no meio do traçado concentram mais baldeação e fluxo do que os terminais. */
-const centralityWeight = (position: number, total: number): number => {
+/**
+ * Peso de fluxo da estação: o miolo do traçado recebe mais gente que as pontas,
+ * e cada integração com outra linha soma baldeação.
+ */
+const flowWeight = (station: Station, total: number): number => {
   const center = (total - 1) / 2;
-  const distance = Math.abs(position - 1 - center) / center;
-  return 1 - distance * 0.7;
+  const distance = Math.abs(station.position - 1 - center) / center;
+  const transfers = Math.min(station.connections.length, 2) * 0.12;
+  return Math.min(1, 1 - distance * 0.7 + transfers);
 };
 
 interface OccupancyRow {
@@ -54,7 +58,7 @@ export const OccupancyView: React.FC<OccupancyViewProps> = ({ stations }) => {
       const seed = hashString(station.code);
       const phase = (seed % 1000) / 1000;
       const oscillation = Math.sin(now / 60_000 + phase * Math.PI * 2);
-      const weight = centralityWeight(station.position, totalStations);
+      const weight = flowWeight(station, totalStations);
 
       // Tendência: compara a leitura corrente contra a curva-base (sem a oscilação de curto prazo),
       // ou seja, se o fluxo está momentaneamente acima ou abaixo do esperado para o horário.
@@ -167,7 +171,7 @@ export const OccupancyView: React.FC<OccupancyViewProps> = ({ stations }) => {
                             flex: 1,
                             height: '0.5rem',
                             borderRadius: '999px',
-                            background: 'var(--uni-border)',
+                            background: 'var(--cco-border)',
                             overflow: 'hidden',
                           }}
                         >
@@ -178,10 +182,10 @@ export const OccupancyView: React.FC<OccupancyViewProps> = ({ stations }) => {
                               borderRadius: '999px',
                               background:
                                 row.percent >= SUPERLOTACAO_THRESHOLD
-                                  ? 'var(--uni-danger)'
+                                  ? 'var(--cco-danger)'
                                   : row.percent >= ELEVADA_THRESHOLD
-                                    ? 'var(--uni-warning)'
-                                    : 'var(--uni-success)',
+                                    ? 'var(--cco-warning)'
+                                    : 'var(--cco-success)',
                             }}
                           />
                         </div>

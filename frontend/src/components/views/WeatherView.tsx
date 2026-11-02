@@ -13,11 +13,11 @@ interface WeatherViewProps {
 /**
  * Fração das estações tratadas como suscetíveis a alagamento.
  *
- * Antes eram dois códigos fixos da Linha 6-Laranja (o trecho que cruza a faixa do
- * Rio Tietê), o que deixava o painel inerte na malha de qualquer outro cliente. A
- * suscetibilidade agora sai do hash do código da estação: estável entre recargas,
- * e válida para qualquer malha. Onde o trecho sensível é real, o procedimento de
- * METEOROLOGIA da linha é que o nomeia.
+ * Antes eram códigos fixos de uma linha (a faixa do Rio Tietê na Linha 6, depois
+ * a várzea do Tamanduateí na Linha 2), o que deixava o painel inerte na malha de
+ * qualquer outro cliente. A suscetibilidade agora sai do hash do código da
+ * estação: estável entre recargas, e válida para qualquer malha. Onde o trecho
+ * sensível é real, o procedimento de METEOROLOGIA da linha é que o nomeia.
  */
 const FLOOD_PRONE_RATIO = 0.15;
 
@@ -66,9 +66,9 @@ const deriveWeather = (station: Station, bucket: number): StationWeather => {
   const windRisk: RiskLevel = windKmH > 60 ? 'CRÍTICO' : windKmH > 45 ? 'ATENÇÃO' : 'NORMAL';
 
   const advisories: string[] = [];
-  if (floodRisk !== 'NORMAL') advisories.push('Risco de alagamento no trecho da estação — ver os procedimentos de METEOROLOGIA da linha.');
-  if (heatRisk !== 'NORMAL') advisories.push('Risco de dilatação da via permanente por calor — monitore trechos sensíveis.');
-  if (windRisk !== 'NORMAL') advisories.push('Vento acima do limite operacional da catenária — avalie restrição de velocidade.');
+  if (floodRisk !== 'NORMAL') advisories.push('Risco de alagamento no trecho da estação — monitore os acessos e siga os procedimentos de METEOROLOGIA da linha.');
+  if (heatRisk !== 'NORMAL') advisories.push('Calor elevado nas plataformas — reforce a ventilação e monitore a temperatura dos equipamentos.');
+  if (windRisk !== 'NORMAL') advisories.push('Rajadas fortes — risco de queda de árvores e objetos sobre acessos e poços de ventilação.');
 
   return {
     station,
@@ -125,7 +125,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ stations }) => {
         <article className="rp-metric" data-status={maxWind > 60 ? 'CRÍTICO' : maxWind > 45 ? 'ATENÇÃO' : 'NORMAL'}>
           <span className="rp-metric__label">Vento máximo</span>
           <span className="rp-metric__value">{formatNumber(maxWind, 0)} km/h</span>
-          <span className="rp-metric__hint">Limite operacional da catenária: 60 km/h</span>
+          <span className="rp-metric__hint">Limite para acessos e poços de ventilação: 60 km/h</span>
         </article>
         <article className="rp-metric" data-status={rainingStations > 0 ? 'ATENÇÃO' : 'NORMAL'}>
           <span className="rp-metric__label">Estações sob chuva</span>
@@ -135,7 +135,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ stations }) => {
         <article className="rp-metric" data-status={alertCount > 0 ? 'CRÍTICO' : 'NORMAL'}>
           <span className="rp-metric__label">Estações em risco</span>
           <span className="rp-metric__value">{alertCount}</span>
-          <span className="rp-metric__hint">Alagamento, calor na via ou vento na catenária</span>
+          <span className="rp-metric__hint">Alagamento, calor nas plataformas ou vento nos acessos</span>
         </article>
       </div>
 
@@ -168,7 +168,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ stations }) => {
               {reading.advisories.length > 0 && (
                 <ul className="rp-stack rp-stack--tight" style={{ marginTop: 'var(--sp-2)' }}>
                   {reading.advisories.map((advisory) => (
-                    <li key={advisory} className="rp-hint" style={{ color: 'var(--uni-warning)' }}>
+                    <li key={advisory} className="rp-hint" style={{ color: 'var(--cco-warning)' }}>
                       ⚠ {advisory}
                     </li>
                   ))}

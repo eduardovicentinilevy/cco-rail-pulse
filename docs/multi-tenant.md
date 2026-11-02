@@ -8,7 +8,9 @@ documento propunha está anotado na seção 9.
 ## 1. O problema hoje
 
 A malha inteira é uma constante de código. `backend/domain/line.ts` declara
-`LINE_NAME` e as 15 estações da Linha 6-Laranja, e a partir dela pendem:
+`LINE_NAME` e as estações da linha — eram as 15 da Linha 6-Laranja quando este
+desenho foi escrito e viraram as 14 da Linha 2-Verde enquanto o PR aguardava
+revisão, o que é a demonstração do problema —, e a partir dela pendem:
 
 | Ponto de acoplamento | Arquivo |
 | --- | --- |
@@ -40,8 +42,8 @@ Três tabelas, nesta hierarquia: **cliente → linha → estação**.
 ```sql
 CREATE TABLE tenants (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug        VARCHAR(40) UNIQUE NOT NULL,   -- 'linha-uni'
-  name        VARCHAR(120) NOT NULL,         -- 'Linha Uni'
+  slug        VARCHAR(40) UNIQUE NOT NULL,   -- 'metro-sp'
+  name        VARCHAR(120) NOT NULL,         -- 'Metrô de São Paulo'
   is_active   BOOLEAN NOT NULL DEFAULT TRUE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -49,8 +51,8 @@ CREATE TABLE tenants (
 CREATE TABLE lines (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  code        VARCHAR(20) NOT NULL,          -- 'L6'
-  name        VARCHAR(120) NOT NULL,         -- 'Linha 6-Laranja (Linha Uni)'
+  code        VARCHAR(20) NOT NULL,          -- 'L2'
+  name        VARCHAR(120) NOT NULL,         -- 'Linha 2-Verde'
   is_active   BOOLEAN NOT NULL DEFAULT TRUE,
   UNIQUE (tenant_id, code)
 );
@@ -62,7 +64,8 @@ CREATE TABLE stations (
   name                VARCHAR(120) NOT NULL,
   position            INTEGER NOT NULL,      -- ordem física ('order' é palavra reservada)
   substation          VARCHAR(20) NOT NULL,
-  nominal_voltage_kv  NUMERIC(5,2) NOT NULL,
+  nominal_voltage_v   NUMERIC(6,1) NOT NULL, -- volts no terceiro trilho; ver seção 9
+  connections         TEXT[] NOT NULL DEFAULT '{}', -- integrações sinalizadas na estação
   headway_seconds     INTEGER,
   map_x               NUMERIC(6,5),          -- ver seção 9
   map_y               NUMERIC(6,5),
@@ -86,9 +89,9 @@ concessionária, e não custa nada agora.
   `UNIQUE (station_id, bucket_at)`.
 
 A migração é idempotente, no mesmo estilo self-healing do
-`migrations.ts` atual: cria as tabelas, semeia o cliente `linha-uni` com a
-linha `L6` e as 15 estações a partir da constante de hoje (que vira
-`backend/infrastructure/database/seeds/linha-uni.ts`), preenche
+`migrations.ts` atual: cria as tabelas, semeia o cliente de demonstração
+(`metro-sp`) com a sua linha e as suas estações a partir da constante de hoje
+(que vira `backend/infrastructure/database/seeds/metro-sp.ts`), preenche
 `tenant_id`/`line_id` das linhas existentes apontando para ela e só então
 aplica `NOT NULL`. Banco em produção sobe sem intervenção manual.
 
@@ -123,8 +126,8 @@ aplica `NOT NULL`. Banco em produção sobe sem intervenção manual.
   `GET /api/network/stations`, que já existe; o que sobra do arquivo é o
   esqueleto de carregamento.
 - Nome da linha e do cliente vêm de um `LineContext` alimentado pela API. Some
-  toda string literal "Linha 6-Laranja" da interface, inclusive `document.title`
-  e o `<title>` do `index.html`.
+  toda string literal com o nome da linha e com os seus terminais da interface,
+  inclusive `document.title` e o `<title>` do `index.html`.
 - `LineMap.tsx` passa a desenhar a partir de `map_x`/`map_y` das estações, e
   distribui as estações num eixo reto quando a linha não tem coordenadas
   cadastradas.
@@ -206,3 +209,41 @@ O que mudou entre o desenho e o que foi entregue:
   passou a sair do hash do código da estação, estável entre recargas e válida em
   qualquer malha. Onde o trecho sensível é real, quem o nomeia é o procedimento
   de METEOROLOGIA daquela linha, que é dado semeado por linha.
+
+- **A malha fixa que a master trocou no meio do caminho virou semeadura.**
+  Enquanto este PR esperava revisão, a master substituiu a Linha 6-Laranja pela
+  Linha 2-Verde: outras 14 estações, subestações retificadoras, integrações e um
+  traçado novo, tudo de novo em constante de código. É exatamente o que este
+  passo converte em dado, então a malha nova entrou como semeadura
+  (`seeds/metro-sp.ts`) e o cliente de demonstração passou a se chamar
+  `metro-sp` / "Metrô de São Paulo", com a linha `L2`. As coordenadas do mapa
+  vieram do `ROUTE` da master normalizadas (x/1000, y/440) para o 0–1 das
+  colunas `map_x`/`map_y`. Nada da malha ficou em código.
+
+- **As integrações da estação são cadastro; a cor delas é apresentação.** A
+  master trouxe as baldeações com número e cor fixos por linha. Quais
+  integrações a estação tem é dado (`stations.connections`), porque muda de
+  cliente para cliente; a tabela de cores conhecidas da rede de São Paulo ficou
+  no frontend, com um fallback neutro, para que a integração de um cliente que
+  não esteja na tabela ainda apareça desenhada.
+
+- **O modelo elétrico continua em código.** A master trocou a catenária em kV
+  pelo terceiro trilho de 750 Vcc, com limiares de 700 V e 640 V. A tensão
+  nominal de cada subestação é dado por estação (`nominal_voltage_v`), mas os
+  limiares de atenção e crítico seguem constantes em `domain/line.ts`: são a
+  regra da instalação, não do cliente. Um cliente de catenária em kV exigiria
+  esses limiares por linha — é o próximo item desta lista a virar dado, se
+  aparecer.
+
+- **A semeadura é aditiva, nunca refaz a malha.** A master, sem noção de
+  cliente, podia simplesmente reescrever a linha a cada boot. Aqui a semeadura
+  usa `ON CONFLICT DO NOTHING`: a malha de um cliente que já foi editada em
+  produção não é revertida por um deploy. O que a master fazia como limpeza
+  global do estado antigo (trens em estações que não existem mais, procedimentos
+  substituídos, categorias de OS renomeadas) passou a ser por linha
+  (`purgeSupersededLineData(lineId)`) — uma limpeza do cliente de demonstração
+  não pode alcançar o dado de outro cliente.
+
+- **A decoração geográfica da Linha 2 também ficou fora do mapa compartilhado.**
+  Pela mesma razão do Rio Tietê: a Av. Paulista e o Rio Tamanduateí são
+  cartografia de uma linha só. Decoração de mapa por linha segue no PR 2.

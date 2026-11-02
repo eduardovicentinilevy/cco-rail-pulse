@@ -1,6 +1,8 @@
 // frontend/src/components/dashboard/TrackSchematic.tsx
 import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
+import { formatVoltage } from '../../lib/format';
+import { ConnectionBadges } from '../common/ConnectionBadges';
 
 interface TrackSchematicProps {
   stations: Station[];
@@ -12,7 +14,7 @@ interface TrackSchematicProps {
 }
 
 /**
- * Esquemático ATS da malha tronco.
+ * Esquemático CBTC da via, de Vila Madalena a Vila Prudente.
  *
  * As composições exibidas são as reais, vindas do backend via WebSocket — antes
  * o traçado animava trens fictícios que não correspondiam ao estado do sistema.
@@ -43,10 +45,10 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
   }, [trains]);
 
   return (
-    <section className="rp-track" aria-label="Esquemático ATS da malha tronco">
+    <section className="rp-track" aria-label={`Esquemático da via — ${lineName}`}>
       <div className="rp-row rp-row--between" style={{ marginBottom: 'var(--sp-4)' }}>
         <div className="rp-row">
-          <h2 className="rp-section-title">ATS / Malha Tronco — {lineName}</h2>
+          <h2 className="rp-section-title">Via CBTC — {lineName}</h2>
           <span className="rp-badge" data-status={trains.length > 0 ? 'NORMAL' : 'WARNING'}>
             <span className="rp-dot rp-dot--pulse" aria-hidden="true" />
             {trains.length} composições
@@ -72,7 +74,7 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
                 data-status={station.status}
                 data-alert={isAlert}
                 aria-pressed={isSelected}
-                aria-label={`Estação ${station.name}, status ${station.status}, ${station.voltageKV.toFixed(2)} kV`}
+                aria-label={`Estação ${station.name}, status ${station.status}, ${formatVoltage(station.voltageV)}`}
                 onClick={() => onSelectStation(station)}
               >
                 <span className="rp-station-node__trains">
@@ -94,6 +96,7 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
                 </span>
 
                 <span className="rp-station-node__name">{station.name}</span>
+                <ConnectionBadges connections={station.connections} />
               </button>
             );
           })}

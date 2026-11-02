@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 import type { PoolClient } from 'pg';
 import { db, withTransaction } from './postgres';
 import { env } from '../../config/env';
-import { LINHA_UNI_SEED, SEED_PROCEDURES, SEED_TEAM, SEED_TRAINS } from './seeds/linha-uni';
+import { METRO_SP_SEED, SEED_PROCEDURES, SEED_TEAM, SEED_TRAINS } from './seeds/metro-sp';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('DB-MIGRATE');
@@ -41,7 +41,8 @@ const TENANCY_DDL = `
     name                VARCHAR(120) NOT NULL,
     position            INTEGER NOT NULL,
     substation          VARCHAR(20) NOT NULL,
-    nominal_voltage_kv  NUMERIC(5, 2) NOT NULL,
+    nominal_voltage_v   NUMERIC(6, 1) NOT NULL,
+    connections         TEXT[] NOT NULL DEFAULT '{}',
     headway_seconds     INTEGER,
     map_x               NUMERIC(6, 5),
     map_y               NUMERIC(6, 5),
@@ -96,7 +97,7 @@ const OPERATIONAL_DDL = `
     train_id              VARCHAR(20) NOT NULL,
     current_station_code  VARCHAR(10) NOT NULL,
     speed_kmh             NUMERIC(5, 1) NOT NULL,
-    voltage_kv            NUMERIC(5, 2) NOT NULL,
+    voltage_v             NUMERIC(6, 1) NOT NULL,
     status                VARCHAR(20) NOT NULL,
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (line_id, train_id)
@@ -145,9 +146,9 @@ const OPERATIONAL_DDL = `
     id          BIGSERIAL PRIMARY KEY,
     station_id  UUID NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
     bucket_at   TIMESTAMPTZ NOT NULL,
-    min_kv      NUMERIC(5, 2) NOT NULL,
-    avg_kv      NUMERIC(5, 2) NOT NULL,
-    max_kv      NUMERIC(5, 2) NOT NULL,
+    min_v       NUMERIC(6, 1) NOT NULL,
+    avg_v       NUMERIC(6, 1) NOT NULL,
+    max_v       NUMERIC(6, 1) NOT NULL,
     readings    INTEGER NOT NULL,
     UNIQUE (station_id, bucket_at)
   );
@@ -206,6 +207,47 @@ const INDEX_DDL = `
   CREATE INDEX IF NOT EXISTS idx_procedures_category ON procedures (line_id, category);
 `;
 
+/**
+ * Bancos anteriores guardavam tensão de catenária em kV.
+ *
+ * A tração passou a ser por terceiro trilho em 750 Vcc, então as colunas de
+ * tensão viram volts e ganham precisão. Vale para as três tabelas que a
+ * guardam, inclusive `stations`, que é onde a tensão de referência do trecho
+ * virou dado cadastrado. Em bancos novos os blocos IF não fazem nada.
+ */
+const LEGACY_VOLTAGE_COLUMNS_DDL = `
+  DO $$
+  BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'trains' AND column_name = 'voltage_kv') THEN
+      ALTER TABLE trains RENAME COLUMN voltage_kv TO voltage_v;
+      ALTER TABLE trains ALTER COLUMN voltage_v TYPE NUMERIC(6, 1);
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'telemetry_samples' AND column_name = 'min_kv') THEN
+      ALTER TABLE telemetry_samples RENAME COLUMN min_kv TO min_v;
+      ALTER TABLE telemetry_samples RENAME COLUMN avg_kv TO avg_v;
+      ALTER TABLE telemetry_samples RENAME COLUMN max_kv TO max_v;
+      ALTER TABLE telemetry_samples
+        ALTER COLUMN min_v TYPE NUMERIC(6, 1),
+        ALTER COLUMN avg_v TYPE NUMERIC(6, 1),
+        ALTER COLUMN max_v TYPE NUMERIC(6, 1);
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'stations' AND column_name = 'nominal_voltage_kv') THEN
+      ALTER TABLE stations RENAME COLUMN nominal_voltage_kv TO nominal_voltage_v;
+      ALTER TABLE stations ALTER COLUMN nominal_voltage_v TYPE NUMERIC(6, 1);
+    END IF;
+  END $$;
+
+  ALTER TABLE stations ADD COLUMN IF NOT EXISTS connections TEXT[] NOT NULL DEFAULT '{}';
+`;
+
+/** Procedimentos semeados na versão da Linha 6-Laranja, substituídos pela biblioteca atual. */
+const LEGACY_PROCEDURE_TITLES = [
+  'Desenergização de trecho da catenária',
+  'Subtensão ou sobretensão em subestação (TSS)',
+  'Risco de alagamento no entorno do Rio Tietê',
+  'Falha de comunicação com o sistema ATS',
+];
+
 const hasColumn = async (table: string, column: string): Promise<boolean> => {
   const result = await db.query(
     `SELECT 1 FROM information_schema.columns
@@ -234,13 +276,61 @@ const dropConstraints = async (client: PoolClient, table: string, names: string[
   }
 };
 
+/**
+ * Remove de uma linha o que sobrou de uma malha anterior.
+ *
+ * O cenário é o de um banco que já rodou a versão da Linha 6-Laranja: a malha
+ * mudou, e composição ou série histórica apontando para estação que não existe
+ * mais naquela linha não tem como ser exibida. A versão anterior disto varria o
+ * banco inteiro, comparando com a lista fixa de estações do código; aqui a
+ * comparação é com a malha cadastrada **daquela linha**, senão a limpeza de um
+ * cliente alcançaria os dados do outro.
+ *
+ * A série histórica não aparece aqui porque pende da estação por chave
+ * estrangeira com `ON DELETE CASCADE`: remover a estação já a leva embora.
+ *
+ * Ocorrências, comunicações e ordens de serviço ficam: são registro histórico,
+ * e o código de estação nelas é texto, não referência.
+ */
+const purgeSupersededLineData = async (lineId: string): Promise<void> => {
+  const trains = await db.query(
+    `DELETE FROM trains
+      WHERE line_id = $1
+        AND current_station_code NOT IN (SELECT code FROM stations WHERE line_id = $1)`,
+    [lineId],
+  );
+  const procedures = await db.query(`DELETE FROM procedures WHERE line_id = $1 AND title = ANY($2::text[])`, [
+    lineId,
+    LEGACY_PROCEDURE_TITLES,
+  ]);
+  // A categoria de OS de subestação de tração (TSS, em CA) virou subestação
+  // retificadora (SR, em CC). As OSs ficam; só o rótulo da categoria muda.
+  await db.query(
+    `UPDATE work_orders SET category = 'SUBESTACAO_SR' WHERE line_id = $1 AND category = 'TSS_SUBESTACAO'`,
+    [lineId],
+  );
+
+  if ((trains.rowCount ?? 0) + (procedures.rowCount ?? 0) > 0) {
+    logger.info(
+      `Dados da malha anterior removidos: ${trains.rowCount ?? 0} composição(ões), ` +
+        `${procedures.rowCount ?? 0} procedimento(s).`,
+    );
+  }
+};
+
 export const runMigrations = async (): Promise<void> => {
   await db.query(TENANCY_DDL);
+  // Antes da semeadura: `stations` pode existir de uma versão anterior, com a
+  // tensão em kV e sem as integrações, e o INSERT abaixo já usa as colunas novas.
+  await db.query(LEGACY_VOLTAGE_COLUMNS_DDL);
 
   const { tenantId, lineId } = await seedTenancy();
 
   await db.query(OPERATIONAL_DDL);
   await upgradeLegacySchema(tenantId, lineId);
+  // Depois do backfill: é ele que traz para esta linha os dados gravados antes
+  // de existir noção de cliente, e é entre eles que pode haver malha anterior.
+  await purgeSupersededLineData(lineId);
   await db.query(INDEX_DDL);
   await renameLegacyOperatorRole();
 
@@ -255,7 +345,7 @@ export const runMigrations = async (): Promise<void> => {
 
 /** Cria o cliente de demonstração e a sua malha, se ainda não existirem. */
 const seedTenancy = async (): Promise<{ tenantId: string; lineId: string }> => {
-  const seed = LINHA_UNI_SEED;
+  const seed = METRO_SP_SEED;
 
   const tenant = await db.query<{ id: string }>(
     `INSERT INTO tenants (slug, name) VALUES ($1, $2)
@@ -279,8 +369,8 @@ const seedTenancy = async (): Promise<{ tenantId: string; lineId: string }> => {
   for (const station of lineSeed.stations) {
     await db.query(
       `INSERT INTO stations
-         (line_id, code, name, position, substation, nominal_voltage_kv, headway_seconds, map_x, map_y)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (line_id, code, name, position, substation, nominal_voltage_v, connections, headway_seconds, map_x, map_y)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10)
        ON CONFLICT (line_id, code) DO NOTHING`,
       [
         lineId,
@@ -288,7 +378,8 @@ const seedTenancy = async (): Promise<{ tenantId: string; lineId: string }> => {
         station.name,
         station.position,
         station.substation,
-        station.nominalVoltageKV,
+        station.nominalVoltageV,
+        [...station.connections],
         station.headwaySeconds,
         station.mapX,
         station.mapY,
@@ -444,6 +535,7 @@ const upgradeLegacySchema = async (tenantId: string, lineId: string): Promise<vo
 };
 
 
+
 /**
  * Renomeia o perfil `OPERATOR_SOC` (jargão de centro de operações de segurança,
  * herdado por engano) para `OPERADOR`. Idempotente: em bancos novos não há
@@ -500,7 +592,7 @@ const seedTrains = async (lineId: string): Promise<void> => {
   for (const [trainId, stationCode, speed, voltage, status] of SEED_TRAINS) {
     if (!knownCodes.has(stationCode)) continue;
     await db.query(
-      `INSERT INTO trains (line_id, train_id, current_station_code, speed_kmh, voltage_kv, status)
+      `INSERT INTO trains (line_id, train_id, current_station_code, speed_kmh, voltage_v, status)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (line_id, train_id) DO NOTHING`,
       [lineId, trainId, stationCode, speed, voltage, status],

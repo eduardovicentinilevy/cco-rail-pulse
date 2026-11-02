@@ -5,7 +5,7 @@ export interface TrainResponseDTO {
   trainId: string;
   currentStationCode: string;
   speedKmH: number;
-  voltageKV: number;
+  voltageV: number;
   status: TrainStatus;
   updatedAt: string;
 }
@@ -20,6 +20,6 @@ export interface StationTelemetryDTO {
   /** Chave da estação na malha — é por ela que a série histórica é gravada. */
   stationId: string;
   currentStationCode: string;
-  voltageKV: number;
+  voltageV: number;
   status: 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO';
 }

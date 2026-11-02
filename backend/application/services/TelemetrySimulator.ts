@@ -1,22 +1,13 @@
 // backend/application/services/TelemetrySimulator.ts
+import { classifyVoltage as classify } from '../../domain/line';
 import type { LineCatalog } from '../../domain/line';
 import { domainEventBus } from '../events/event-bus';
 import type { StationTelemetryDTO } from '../dtos/TrainDTO';
 
-/** Abaixo deste valor a catenária é considerada crítica para tração. */
-const CRITICAL_THRESHOLD_KV = 22.5;
-/** Abaixo deste valor a subestação entra em atenção. */
-const WARNING_THRESHOLD_KV = 23.8;
-/** Amplitude máxima da variação por ciclo, em kV. */
-const DRIFT_STEP_KV = 0.12;
-/** Desvio máximo tolerado em relação à tensão nominal, em kV. */
-const MAX_DRIFT_KV = 0.5;
-
-const classify = (voltageKV: number): StationTelemetryDTO['status'] => {
-  if (voltageKV < CRITICAL_THRESHOLD_KV) return 'CRÍTICO';
-  if (voltageKV < WARNING_THRESHOLD_KV) return 'ATENÇÃO';
-  return 'NORMAL';
-};
+/** Amplitude máxima da variação por ciclo, em volts. */
+const DRIFT_STEP_V = 4;
+/** Desvio máximo tolerado em relação à tensão de referência do trecho, em volts. */
+export const MAX_DRIFT_V = 16;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -39,7 +30,7 @@ export class TelemetrySimulator {
     private readonly intervalMs: number,
   ) {
     for (const station of catalog.stations) {
-      this.readings.set(station.code, station.nominalVoltageKV);
+      this.readings.set(station.code, station.nominalVoltageV);
     }
   }
 
@@ -54,12 +45,12 @@ export class TelemetrySimulator {
   /** Estado corrente da malha, enviado a cada painel que se conecta. */
   public snapshot(): StationTelemetryDTO[] {
     return this.catalog.stations.map((station) => {
-      const voltageKV = this.readings.get(station.code) ?? station.nominalVoltageKV;
+      const voltageV = this.readings.get(station.code) ?? station.nominalVoltageV;
       return {
         stationId: station.id,
         currentStationCode: station.code,
-        voltageKV,
-        status: classify(voltageKV),
+        voltageV,
+        status: classify(voltageV),
       };
     });
   }
@@ -82,18 +73,18 @@ export class TelemetrySimulator {
 
   private tick(): StationTelemetryDTO[] {
     return this.catalog.stations.map((station) => {
-      const previous = this.readings.get(station.code) ?? station.nominalVoltageKV;
-      const drift = (Math.random() - 0.5) * 2 * DRIFT_STEP_KV;
+      const previous = this.readings.get(station.code) ?? station.nominalVoltageV;
+      const drift = (Math.random() - 0.5) * 2 * DRIFT_STEP_V;
       // Leve atração de volta ao valor nominal, evitando deriva acumulada.
-      const pull = (station.nominalVoltageKV - previous) * 0.15;
+      const pull = (station.nominalVoltageV - previous) * 0.15;
       const next = clamp(
-        Number((previous + drift + pull).toFixed(2)),
-        station.nominalVoltageKV - MAX_DRIFT_KV,
-        station.nominalVoltageKV + MAX_DRIFT_KV,
+        Number((previous + drift + pull).toFixed(1)),
+        station.nominalVoltageV - MAX_DRIFT_V,
+        station.nominalVoltageV + MAX_DRIFT_V,
       );
 
       this.readings.set(station.code, next);
-      return { stationId: station.id, currentStationCode: station.code, voltageKV: next, status: classify(next) };
+      return { stationId: station.id, currentStationCode: station.code, voltageV: next, status: classify(next) };
     });
   }
 }

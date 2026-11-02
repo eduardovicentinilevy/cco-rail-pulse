@@ -61,9 +61,9 @@ npx tsx backend/presentation/http/server.ts >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 wait_for_health
 
-TOKEN_UNI="$(token_for linha-uni)"
+TOKEN_UNI="$(token_for metro-sp)"
 TOKEN_OUTRO="$(token_for metro-ci)"
-[ -n "$TOKEN_UNI" ] || fail "login no cliente linha-uni não devolveu token"
+[ -n "$TOKEN_UNI" ] || fail "login no cliente metro-sp não devolveu token"
 [ -n "$TOKEN_OUTRO" ] || fail "login no cliente metro-ci não devolveu token"
 
 get() { curl -sf "$BASE_URL$2" -H "Authorization: Bearer $1"; }
@@ -72,12 +72,12 @@ MALHA_UNI="$(get "$TOKEN_UNI" /api/network/stations)"
 MALHA_OUTRO="$(get "$TOKEN_OUTRO" /api/network/stations)"
 
 # Cada sessão nomeia a sua própria linha — o nome vem do banco, não de constante.
-grep -q '"code":"L6"' <<<"$MALHA_UNI" || fail "a sessão de linha-uni não recebeu a linha L6"
+grep -q '"code":"L2"' <<<"$MALHA_UNI" || fail "a sessão de metro-sp não recebeu a linha L2"
 grep -q '"code":"M1"' <<<"$MALHA_OUTRO" || fail "a sessão de metro-ci não recebeu a linha M1"
 
 # E nenhuma estação da outra.
-if grep -q '"code":"JAB"' <<<"$MALHA_UNI"; then fail "estação do metro-ci vazou para a sessão de linha-uni"; fi
-if grep -q '"code":"SJQ"' <<<"$MALHA_OUTRO"; then fail "estação de linha-uni vazou para a sessão de metro-ci"; fi
+if grep -q '"code":"JAB"' <<<"$MALHA_UNI"; then fail "estação do metro-ci vazou para a sessão de metro-sp"; fi
+if grep -q '"code":"VPT"' <<<"$MALHA_OUTRO"; then fail "estação de metro-sp vazou para a sessão de metro-ci"; fi
 
 # Mesma numeração de composição (T-01), composições diferentes: cada uma circula
 # por estações da sua própria linha. Comparar contra a malha, e não contra uma
@@ -92,14 +92,14 @@ codigos_da_malha() {
 
 T01_UNI="$(estacao_da_t01 "$TOKEN_UNI")"
 T01_OUTRO="$(estacao_da_t01 "$TOKEN_OUTRO")"
-[ -n "$T01_UNI" ] || fail "a sessão de linha-uni não enxerga a composição T-01"
+[ -n "$T01_UNI" ] || fail "a sessão de metro-sp não enxerga a composição T-01"
 [ -n "$T01_OUTRO" ] || fail "a sessão de metro-ci não enxerga a composição T-01"
 
 grep -qw "$T01_UNI" <<<"$(codigos_da_malha "$MALHA_UNI")" \
-  || fail "a T-01 de linha-uni está em $T01_UNI, que não é estação da sua linha"
+  || fail "a T-01 de metro-sp está em $T01_UNI, que não é estação da sua linha"
 grep -qw "$T01_OUTRO" <<<"$(codigos_da_malha "$MALHA_OUTRO")" \
   || fail "a T-01 de metro-ci está em $T01_OUTRO, que não é estação da sua linha"
-echo "  T-01 de linha-uni em $T01_UNI; T-01 de metro-ci em $T01_OUTRO — composições distintas."
+echo "  T-01 de metro-sp em $T01_UNI; T-01 de metro-ci em $T01_OUTRO — composições distintas."
 
 # Abrir ocorrência numa estação de outra linha é erro de validação, não sucesso.
 STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/api/incidents" \
@@ -109,7 +109,7 @@ STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/api/incident
 
 # A equipe de um cliente não lista o operador homônimo do outro.
 EQUIPE_OUTRO="$(get "$TOKEN_OUTRO" /api/team)"
-if grep -q 'Lívia Nakamura' <<<"$EQUIPE_OUTRO"; then fail "equipe de linha-uni vazou para a sessão de metro-ci"; fi
+if grep -q 'Lívia Nakamura' <<<"$EQUIPE_OUTRO"; then fail "equipe de metro-sp vazou para a sessão de metro-ci"; fi
 
 # --- Alarmes, comunicações e procedimentos ---------------------------------
 # As três seções mais novas também pendem da linha. Abrir uma ocorrência gera
@@ -118,7 +118,7 @@ MARCA="ISOLAMENTO-$$"
 curl -sf -o /dev/null -X POST "$BASE_URL/api/incidents" \
   -H "Authorization: Bearer $TOKEN_UNI" -H 'Content-Type: application/json' \
   -d "{\"title\":\"$MARCA\",\"description\":\"Ocorrência de verificação do isolamento.\",\"category\":\"ENERGIA\",\"severity\":\"CRÍTICA\"}" \
-  || fail "não foi possível abrir a ocorrência de verificação em linha-uni"
+  || fail "não foi possível abrir a ocorrência de verificação em metro-sp"
 
 # A gravação do alarme é assíncrona em relação à resposta da ocorrência.
 for _ in $(seq 1 10); do
@@ -126,19 +126,19 @@ for _ in $(seq 1 10); do
   grep -q "$MARCA" <<<"$ALARMES_UNI" && break
   sleep 1
 done
-grep -q "$MARCA" <<<"$ALARMES_UNI" || fail "o alarme da ocorrência não chegou à Central de Alarmes de linha-uni"
+grep -q "$MARCA" <<<"$ALARMES_UNI" || fail "o alarme da ocorrência não chegou à Central de Alarmes de metro-sp"
 
 ALARMES_OUTRO="$(get "$TOKEN_OUTRO" '/api/alarms?limit=50')"
-if grep -q "$MARCA" <<<"$ALARMES_OUTRO"; then fail "alarme de linha-uni vazou para a sessão de metro-ci"; fi
+if grep -q "$MARCA" <<<"$ALARMES_OUTRO"; then fail "alarme de metro-sp vazou para a sessão de metro-ci"; fi
 
 # Comunicação registrada num cliente não aparece no diário do outro.
 curl -sf -o /dev/null -X POST "$BASE_URL/api/communications" \
   -H "Authorization: Bearer $TOKEN_UNI" -H 'Content-Type: application/json' \
   -d "{\"channel\":\"RADIO_TREM\",\"direction\":\"ENVIADA\",\"message\":\"$MARCA — contato de verificação.\"}" \
-  || fail "não foi possível registrar a comunicação de verificação em linha-uni"
+  || fail "não foi possível registrar a comunicação de verificação em metro-sp"
 
 COMUNICACOES_OUTRO="$(get "$TOKEN_OUTRO" '/api/communications?limit=50')"
-if grep -q "$MARCA" <<<"$COMUNICACOES_OUTRO"; then fail "comunicação de linha-uni vazou para a sessão de metro-ci"; fi
+if grep -q "$MARCA" <<<"$COMUNICACOES_OUTRO"; then fail "comunicação de metro-sp vazou para a sessão de metro-ci"; fi
 
 # Uma comunicação citando estação da outra linha é recusada pela malha da sessão.
 STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/api/communications" \
@@ -146,13 +146,13 @@ STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/api/communic
   -d '{"channel":"RADIO_TREM","direction":"ENVIADA","stationCode":"JAB","message":"Contato com estação de outro cliente."}')"
 [ "$STATUS" = "400" ] || fail "comunicação em estação de outra linha devolveu HTTP $STATUS, esperado 400"
 
-# O manual é da linha: metro-ci nasce com o seu próprio, vazio, e não herda o de linha-uni.
+# O manual é da linha: metro-ci nasce com o seu próprio, vazio, e não herda o de metro-sp.
 PROCEDIMENTOS_UNI="$(get "$TOKEN_UNI" /api/procedures)"
 PROCEDIMENTOS_OUTRO="$(get "$TOKEN_OUTRO" /api/procedures)"
 grep -q 'frenagem de emergência' <<<"$PROCEDIMENTOS_UNI" \
-  || fail "a sessão de linha-uni não recebeu o manual semeado da sua linha"
+  || fail "a sessão de metro-sp não recebeu o manual semeado da sua linha"
 if grep -q 'frenagem de emergência' <<<"$PROCEDIMENTOS_OUTRO"; then
-  fail "o manual de linha-uni vazou para a sessão de metro-ci"
+  fail "o manual de metro-sp vazou para a sessão de metro-ci"
 fi
 echo "  Alarme, comunicação e manual ficaram na linha de origem."
 
@@ -161,14 +161,14 @@ echo "  Alarme, comunicação e manual ficaram na linha de origem."
 # clientes, então o vizinho não pode nem listá-la nem abri-la pelo id.
 OS_UNI="$(curl -sf -X POST "$BASE_URL/api/work-orders" \
   -H "Authorization: Bearer $TOKEN_UNI" -H 'Content-Type: application/json' \
-  -d "{\"title\":\"$MARCA — disjuntor da TSS\",\"description\":\"Ordem de verificação do isolamento.\",\"category\":\"TSS_SUBESTACAO\",\"priority\":\"ALTA\"}")" \
-  || fail "não foi possível abrir a ordem de serviço de verificação em linha-uni"
+  -d "{\"title\":\"$MARCA — disjuntor da SR\",\"description\":\"Ordem de verificação do isolamento.\",\"category\":\"SUBESTACAO_SR\",\"priority\":\"ALTA\"}")" \
+  || fail "não foi possível abrir a ordem de serviço de verificação em metro-sp"
 
 OS_ID="$(sed -n 's/.*"id":"\{0,1\}\([0-9]\{1,\}\)"\{0,1\}.*/\1/p' <<<"$OS_UNI" | head -1)"
 [ -n "$OS_ID" ] || fail "não foi possível ler o id da ordem de serviço criada"
 
 ORDENS_OUTRO="$(get "$TOKEN_OUTRO" '/api/work-orders?limit=50')"
-if grep -q "$MARCA" <<<"$ORDENS_OUTRO"; then fail "ordem de serviço de linha-uni vazou para a sessão de metro-ci"; fi
+if grep -q "$MARCA" <<<"$ORDENS_OUTRO"; then fail "ordem de serviço de metro-sp vazou para a sessão de metro-ci"; fi
 
 # Chutar o id não atravessa a fronteira: a linha entra no WHERE junto do id.
 STATUS="$(curl -s -o /dev/null -w '%{http_code}' \
