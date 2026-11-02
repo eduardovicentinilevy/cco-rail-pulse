@@ -7,9 +7,9 @@ import { ValidationError } from '../shared/errors';
 const buildIncident = (overrides: Partial<{ status: 'ABERTA' | 'EM_ANDAMENTO' | 'RESOLVIDA'; openedAt: Date }> = {}) =>
   new Incident(
     '1',
-    'Sobrecorrente no pantógrafo do T-04',
-    'Leitura de corrente acima do limite no trecho FGO-SMA durante a partida.',
-    'FGO',
+    'Sobrecorrente na sapata coletora do T-04',
+    'Leitura de corrente acima do limite no trecho CNS-TRI durante a partida.',
+    'CNS',
     'T-04',
     'ENERGIA',
     'ALTA',
@@ -94,7 +94,7 @@ describe('Incident — serialização', () => {
 
     assert.equal(snapshot.openedAt, '2026-09-16T10:00:00.000Z');
     assert.equal(snapshot.resolvedAt, null);
-    assert.equal(snapshot.stationCode, 'FGO');
+    assert.equal(snapshot.stationCode, 'CNS');
     assert.equal(snapshot.severity, 'ALTA');
   });
 });

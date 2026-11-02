@@ -7,7 +7,7 @@ import {
   isCommunicationChannel,
   isCommunicationDirection,
 } from '../../../domain/communications';
-import { isKnownStation } from '../../../domain/line';
+import { isKnownStation, LINE_NAME } from '../../../domain/line';
 import { CommunicationRepository } from '../../../infrastructure/database/repositories/CommunicationRepository';
 import { ValidationError } from '../../../shared/errors';
 import { toBoundedInt } from '../../../shared/http';
@@ -65,7 +65,7 @@ communicationRouter.post('/', async (req: AuthenticatedRequest, res) => {
 
   const stationCode = optionalText(body.stationCode)?.toUpperCase() ?? null;
   if (stationCode && !isKnownStation(stationCode)) {
-    throw new ValidationError(`A estação "${stationCode}" não pertence à malha da Linha 6-Laranja.`);
+    throw new ValidationError(`A estação "${stationCode}" não pertence à malha da ${LINE_NAME}.`);
   }
 
   const communication = await CommunicationRepository.create({

@@ -1,6 +1,6 @@
 // backend/application/use-cases/BuildShiftReportUseCase.ts
 import { db } from '../../infrastructure/database/postgres';
-import { LINE_STATIONS, findStation } from '../../domain/line';
+import { LINE_STATIONS, VOLTAGE_WARNING_V, findStation } from '../../domain/line';
 import { ValidationError } from '../../shared/errors';
 
 export interface ShiftCommand {
@@ -24,9 +24,9 @@ export interface ShiftIncident {
 export interface ShiftVoltageExtreme {
   stationCode: string;
   stationName: string;
-  minKV: number;
-  avgKV: number;
-  maxKV: number;
+  minV: number;
+  avgV: number;
+  maxV: number;
   /** Janelas em que a leitura ficou abaixo do limiar de atenção. */
   degradedBuckets: number;
 }
@@ -45,9 +45,6 @@ export interface ShiftReport {
   /** Estações cuja tensão esteve na faixa de atenção ou crítica no período. */
   degradedStations: number;
 }
-
-/** Abaixo deste valor a catenária sai da faixa nominal (mesmo limiar do simulador). */
-const WARNING_THRESHOLD_KV = 23.8;
 
 /** Janela máxima aceita para o relatório, em horas — um turno não passa disso. */
 const MAX_WINDOW_HOURS = 24;
@@ -139,16 +136,16 @@ export class BuildShiftReportUseCase {
            CASE severity WHEN 'CRÍTICA' THEN 0 WHEN 'ALTA' THEN 1 WHEN 'MÉDIA' THEN 2 ELSE 3 END,
            opened_at ASC`,
       ),
-      db.query<{ station_code: string; min_kv: string; avg_kv: string; max_kv: string; degraded: string }>(
+      db.query<{ station_code: string; min_v: string; avg_v: string; max_v: string; degraded: string }>(
         `SELECT station_code,
-                MIN(min_kv)::text AS min_kv,
-                AVG(avg_kv)::text AS avg_kv,
-                MAX(max_kv)::text AS max_kv,
-                COUNT(*) FILTER (WHERE min_kv < $2)::text AS degraded
+                MIN(min_v)::text AS min_v,
+                AVG(avg_v)::text AS avg_v,
+                MAX(max_v)::text AS max_v,
+                COUNT(*) FILTER (WHERE min_v < $2)::text AS degraded
          FROM telemetry_samples
          WHERE bucket_at >= $1
          GROUP BY station_code`,
-        [since, WARNING_THRESHOLD_KV],
+        [since, VOLTAGE_WARNING_V],
       ),
     ]);
 
@@ -156,9 +153,9 @@ export class BuildShiftReportUseCase {
       .map((row) => ({
         stationCode: row.station_code,
         stationName: findStation(row.station_code)?.name ?? row.station_code,
-        minKV: Number(row.min_kv),
-        avgKV: Number(Number(row.avg_kv).toFixed(2)),
-        maxKV: Number(row.max_kv),
+        minV: Number(row.min_v),
+        avgV: Number(Number(row.avg_v).toFixed(1)),
+        maxV: Number(row.max_v),
         degradedBuckets: Number(row.degraded),
       }))
       // A ordem da malha é mais útil na leitura do que a alfabética.

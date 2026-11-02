@@ -49,7 +49,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ request, onClose }
         </>
       }
     >
-      <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--uni-text-muted)' }}>{message}</p>
+      <p style={{ fontSize: 'var(--fs-sm)', lineHeight: 1.6, color: 'var(--cco-text-muted)' }}>{message}</p>
     </Modal>
   );
 };

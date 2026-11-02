@@ -6,6 +6,7 @@ import { useClock, useElapsed } from '../../hooks/useClock';
 import { DEFAULT_AVATAR_URL } from '../../config/env';
 import type { CriticalAlerts } from '../../hooks/useCriticalAlerts';
 import type { Theme } from '../../hooks/useTheme';
+import { LINE_NAME, LINE_TERMINALS } from '../../data/stations';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
@@ -54,7 +55,9 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="rp-header__left">
           <div className="truncate">
             <h1 className="rp-header__title">Centro de Controle Operacional</h1>
-            <p className="rp-header__subtitle">Supervisão ATS &amp; telemetria SCADA • Brasilândia ➔ São Joaquim</p>
+            <p className="rp-header__subtitle">
+              {LINE_NAME} • CBTC &amp; telemetria SCADA • {LINE_TERMINALS.west} ➔ {LINE_TERMINALS.east}
+            </p>
           </div>
         </div>
 

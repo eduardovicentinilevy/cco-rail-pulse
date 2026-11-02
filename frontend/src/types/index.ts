@@ -5,15 +5,20 @@ export type TrainStatus = 'NORMAL' | 'ATENÇÃO' | 'EMERGÊNCIA';
 export type AlarmLevel = 'INFO' | 'WARNING' | 'CRITICAL';
 
 export interface Station {
-  /** Ordem física no traçado (1 = Brasilândia). */
+  /** Ordem física no traçado (1 = Vila Madalena). */
   order: number;
   code: string;
   name: string;
+  /** Subestação retificadora (SR) que alimenta o terceiro trilho no trecho. */
   substation: string;
-  nominalVoltageKV: number;
-  voltageKV: number;
+  /** Tensão de referência do terceiro trilho, em Vcc. */
+  nominalVoltageV: number;
+  /** Última leitura SCADA do terceiro trilho, em Vcc. */
+  voltageV: number;
   status: StationStatus;
   headway: string;
+  /** Integrações com outras linhas e modais. */
+  connections: string[];
 }
 
 /** Estado de uma composição, espelhando `TrainSnapshot` do backend. */
@@ -21,7 +26,7 @@ export interface Train {
   trainId: string;
   currentStationCode: string;
   speedKmH: number;
-  voltageKV: number;
+  voltageV: number;
   status: TrainStatus;
   updatedAt: string;
 }
@@ -62,7 +67,7 @@ export interface AuditLogPage {
 /** Leitura de telemetria de uma subestação, publicada pelo barramento de eventos. */
 export interface StationTelemetry {
   currentStationCode: string;
-  voltageKV: number;
+  voltageV: number;
   status: StationStatus;
 }
 
@@ -137,7 +142,8 @@ export const WORK_ORDER_STATUSES = ['ABERTA', 'EM_ANDAMENTO', 'CONCLUÍDA', 'CAN
 export type WorkOrderStatus = (typeof WORK_ORDER_STATUSES)[number];
 
 export const WORK_ORDER_CATEGORIES = [
-  'TSS_SUBESTACAO',
+  'SUBESTACAO_SR',
+  'TERCEIRO_TRILHO',
   'VIA_PERMANENTE',
   'SINALIZACAO_ATS',
   'MATERIAL_RODANTE',
@@ -276,16 +282,16 @@ export interface RoleOption {
 export interface HistorySample {
   stationCode: string;
   bucketAt: string;
-  minKV: number;
-  avgKV: number;
-  maxKV: number;
+  minV: number;
+  avgV: number;
+  maxV: number;
 }
 
 export interface HistorySummaryRow {
   stationCode: string;
-  minKV: number;
-  avgKV: number;
-  maxKV: number;
+  minV: number;
+  avgV: number;
+  maxV: number;
   buckets: number;
 }
 
@@ -312,9 +318,9 @@ export interface ShiftIncident {
 export interface ShiftVoltageExtreme {
   stationCode: string;
   stationName: string;
-  minKV: number;
-  avgKV: number;
-  maxKV: number;
+  minV: number;
+  avgV: number;
+  maxV: number;
   degradedBuckets: number;
 }
 

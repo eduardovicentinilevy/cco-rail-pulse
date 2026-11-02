@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { wsService } from '../services/websocket.service';
 import { api, ApiError } from '../services/api';
-import { headwayFor, LINE_STATIONS } from '../data/stations';
+import { connectionsFor, headwayFor, LINE_STATIONS } from '../data/stations';
 import type {
   AlarmEvent,
   AlarmLevel,
@@ -51,8 +51,8 @@ import type { PaletteAction } from './common/CommandPalette';
 import { useCriticalAlerts } from '../hooks/useCriticalAlerts';
 import { useFavorites } from '../hooks/useFavorites';
 import type { Theme } from '../hooks/useTheme';
-import type { VoltageSample } from './TSSChartWidget';
-import { formatTime } from '../lib/format';
+import type { VoltageSample } from './VoltageChartWidget';
+import { formatTime, formatVoltage } from '../lib/format';
 
 interface CCODashboardProps {
   session: OperatorSession;
@@ -124,7 +124,7 @@ const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
     label: 'Supervisão',
     items: [
       { key: 'overview', label: 'Painel executivo', icon: '◉' },
-      { key: 'ats', label: 'Malha ATS', icon: '⌖' },
+      { key: 'ats', label: 'Via CBTC', icon: '⌖' },
       { key: 'incidents', label: 'Ocorrências', icon: '⚠' },
       { key: 'alarms', label: 'Central de Alarmes', icon: '◍' },
       { key: 'occupancy', label: 'Ocupação', icon: '◐' },
@@ -135,7 +135,7 @@ const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
   {
     label: 'Energia & ativos',
     items: [
-      { key: 'energy', label: 'Telemetria TSS', icon: '⚡' },
+      { key: 'energy', label: 'Energia de tração', icon: '⚡' },
       { key: 'history', label: 'Série histórica', icon: '◫' },
       { key: 'assets', label: 'Saúde de ativos', icon: '⚙' },
       { key: 'workorders', label: 'Ordens de serviço', icon: '🛠' },
@@ -270,6 +270,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         setStations(
           (stationsPayload.stations as unknown as Station[]).map((station) => ({
             ...station,
+            connections: Array.isArray(station.connections) ? station.connections : connectionsFor(station.code),
             headway: headwayFor(station.code),
           })),
         );
@@ -313,18 +314,18 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       }
     };
 
-    const handleTelemetryBatch = (batch: Array<{ currentStationCode: string; voltageKV: number; status: StationStatus }>) => {
+    const handleTelemetryBatch = (batch: Array<{ currentStationCode: string; voltageV: number; status: StationStatus }>) => {
       setStations((previous) => {
         const updates = new Map(batch.map((item) => [item.currentStationCode, item]));
         return previous.map((station) => {
           const update = updates.get(station.code);
-          return update ? { ...station, voltageKV: update.voltageKV, status: update.status } : station;
+          return update ? { ...station, voltageV: update.voltageV, status: update.status } : station;
         });
       });
 
       setHistory((previous) => {
         const readings: Record<string, number> = {};
-        for (const item of batch) readings[item.currentStationCode] = item.voltageKV;
+        for (const item of batch) readings[item.currentStationCode] = item.voltageV;
         return [...previous, { time: formatTime(), readings }].slice(-MAX_HISTORY_SAMPLES);
       });
     };
@@ -462,7 +463,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
   // O título da aba funciona como alerta periférico quando o painel está em segundo plano.
   useEffect(() => {
-    document.title = criticalAlarms > 0 ? `(${criticalAlarms}) RailPulse CCO` : 'RailPulse CCO — Linha 6-Laranja';
+    document.title = criticalAlarms > 0 ? `(${criticalAlarms}) RailPulse CCO` : 'RailPulse CCO — Linha 2-Verde';
   }, [criticalAlarms]);
 
   // Atalhos de teclado: 1–6 alternam abas, "/" foca a busca da malha.
@@ -588,7 +589,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       label: `${station.code} — ${station.name}`,
       group: 'Estações',
       icon: '⌖',
-      hint: `${station.voltageKV.toFixed(2)} kV`,
+      hint: formatVoltage(station.voltageV),
       keywords: `${station.substation} ${station.status}`,
       run: () => {
         setSelectedCode(station.code);
@@ -724,7 +725,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         {activeTab === 'ats' && (
           <div className="rp-stack rp-animate-in">
             <div className="rp-row rp-row--between">
-              <h2 className="rp-section-title">Supervisão da malha tronco</h2>
+              <h2 className="rp-section-title">Supervisão da via — Vila Madalena ↔ Vila Prudente</h2>
               <div className="rp-segmented" role="group" aria-label="Forma de visualização da malha">
                 <button
                   type="button"

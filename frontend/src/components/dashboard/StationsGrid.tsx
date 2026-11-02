@@ -3,6 +3,7 @@ import React from 'react';
 import type { Station, Train } from '../../types';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
+import { formatVoltage } from '../../lib/format';
 
 interface StationsGridProps {
   stations: Station[];
@@ -56,7 +57,7 @@ export const StationsGrid: React.FC<StationsGridProps> = ({
 
               <span className="rp-station-card__footer">
                 <span>
-                  Tensão <strong>{station.voltageKV.toFixed(2)} kV</strong>
+                  Tensão <strong>{formatVoltage(station.voltageV)}</strong>
                 </span>
                 <span>
                   Trens <strong>{stationTrains.length > 0 ? stationTrains.map((t) => t.trainId).join(', ') : '—'}</strong>

@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { db } from '../../../infrastructure/database/postgres';
 import { env } from '../../../config/env';
+import { LINE_NAME, LINE_OPERATOR } from '../../../domain/line';
 
 export const healthRouter: Router = Router();
 
@@ -69,7 +70,8 @@ healthRouter.get('/health/ready', async (_req, res) => {
 healthRouter.get('/health', async (_req, res) => {
   const base = {
     service: 'railpulse-cco',
-    line: 'Linha 6-Laranja (Linha Uni)',
+    line: LINE_NAME,
+    operator: LINE_OPERATOR,
     version: env.appVersion,
     environment: env.nodeEnv,
     architecture: 'Event-Driven (EDA)',

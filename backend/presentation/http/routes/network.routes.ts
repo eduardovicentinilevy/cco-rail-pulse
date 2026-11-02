@@ -24,7 +24,7 @@ export const createNetworkRouter = (simulator: TelemetrySimulator): Router => {
         const reading = telemetry.get(station.code);
         return {
           ...station,
-          voltageKV: reading?.voltageKV ?? station.nominalVoltageKV,
+          voltageV: reading?.voltageV ?? station.nominalVoltageV,
           status: reading?.status ?? 'NORMAL',
         };
       }),

@@ -9,11 +9,11 @@ const buildWorkOrder = (
 ) =>
   new WorkOrder(
     '1',
-    'Substituir disjuntor da TSS Freguesia do Ó',
+    'Substituir disjuntor extrarrápido da SR-06 Alto do Ipiranga',
     'Disjuntor com sinais de sobreaquecimento identificados na última ronda de manutenção.',
-    'TSS-FGO',
-    'FGO',
-    'TSS_SUBESTACAO',
+    'SR-06',
+    'AIP',
+    'SUBESTACAO_SR',
     'ALTA',
     overrides.status ?? 'ABERTA',
     'EDP-042',
@@ -46,7 +46,7 @@ describe('WorkOrder — validação de entrada', () => {
   it('trata a identificação do ativo como opcional', () => {
     assert.equal(WorkOrder.assertAssetCode(''), null);
     assert.equal(WorkOrder.assertAssetCode('   '), null);
-    assert.equal(WorkOrder.assertAssetCode(' TSS-FGO '), 'TSS-FGO');
+    assert.equal(WorkOrder.assertAssetCode(' SR-06 '), 'SR-06');
   });
 
   it('rejeita identificação do ativo acima de 80 caracteres', () => {
@@ -137,8 +137,8 @@ describe('WorkOrder — serialização', () => {
 
     assert.equal(snapshot.openedAt, '2026-09-16T10:00:00.000Z');
     assert.equal(snapshot.completedAt, null);
-    assert.equal(snapshot.stationCode, 'FGO');
-    assert.equal(snapshot.assetCode, 'TSS-FGO');
+    assert.equal(snapshot.stationCode, 'AIP');
+    assert.equal(snapshot.assetCode, 'SR-06');
     assert.equal(snapshot.priority, 'ALTA');
   });
 });

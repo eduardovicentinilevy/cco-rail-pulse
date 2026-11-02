@@ -9,7 +9,7 @@ import {
   isIncidentSeverity,
   isIncidentStatus,
 } from '../../../domain/entities/Incident';
-import { isKnownStation } from '../../../domain/line';
+import { isKnownStation, LINE_NAME } from '../../../domain/line';
 import { IncidentRepository } from '../../../infrastructure/database/repositories/IncidentRepository';
 import { operatorRepository } from '../../../infrastructure/repositories/pg-operator.repository';
 import { domainEventBus } from '../../../application/events/event-bus';
@@ -83,7 +83,7 @@ incidentRouter.post('/', async (req: AuthenticatedRequest, res) => {
 
   const stationCode = optionalText(body.stationCode)?.toUpperCase() ?? null;
   if (stationCode && !isKnownStation(stationCode)) {
-    throw new ValidationError(`A estação "${stationCode}" não pertence à malha da Linha 6-Laranja.`);
+    throw new ValidationError(`A estação "${stationCode}" não pertence à malha da ${LINE_NAME}.`);
   }
 
   const assignedTo = optionalText(body.assignedTo)?.toUpperCase() ?? null;

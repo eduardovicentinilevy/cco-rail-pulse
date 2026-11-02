@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import type { OperatorSession } from '../../types';
 import { Modal } from '../common/Modal';
 import { DEFAULT_AVATAR_URL } from '../../config/env';
+import { LINE_TERMINALS } from '../../data/stations';
 
 interface UserProfileModalProps {
   session: OperatorSession;
@@ -71,7 +72,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ session, onU
       }
     >
       <form id="rp-profile-form" className="rp-stack" onSubmit={handleSubmit} noValidate>
-        <div className="rp-row" style={{ padding: 'var(--sp-4)', background: 'var(--uni-bg-primary)', border: '1px solid var(--uni-border)', borderRadius: 'var(--radius-md)' }}>
+        <div className="rp-row" style={{ padding: 'var(--sp-4)', background: 'var(--cco-bg-primary)', border: '1px solid var(--cco-border)', borderRadius: 'var(--radius-md)' }}>
           <img
             className="rp-profile__avatar rp-profile__avatar--lg"
             src={trimmed || DEFAULT_AVATAR_URL}
@@ -122,7 +123,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ session, onU
         <div className="rp-terminal__metrics">
           <div className="rp-metric-row">
             <span>Eixo operacional</span>
-            <strong>Brasilândia ➔ São Joaquim</strong>
+            <strong>
+              {LINE_TERMINALS.west} ➔ {LINE_TERMINALS.east}
+            </strong>
           </div>
           <div className="rp-metric-row">
             <span>Perfil de acesso</span>
