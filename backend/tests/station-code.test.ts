@@ -23,6 +23,9 @@ describe('StationCode', () => {
 
   it('aceita qualquer código de 3 caracteres: pertencer à malha é pergunta do catálogo', () => {
     assert.doesNotThrow(() => new StationCode('XYZ'));
+    // Dígitos valem no formato; o que recusa um código é a malha da linha.
+    assert.doesNotThrow(() => new StationCode('1AB'));
+    assert.throws(() => new StationCode('14'), /exatamente 3 caracteres/);
   });
 
   it('compara por valor', () => {

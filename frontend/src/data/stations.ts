@@ -3,13 +3,15 @@
 //
 // Este arquivo já guardou um catálogo fixo das estações da linha, duplicando o
 // backend. A malha agora vem inteira de GET /api/network/stations, e o que sobra
-// aqui são as conversões de exibição.
-import type { Station } from '../types';
+// aqui são as conversões de exibição e a leitura defensiva do payload.
+import type { Station, StationStatus } from '../types';
+import { formatVoltage } from '../lib/format';
 
 /**
  * Limiares de subtensão do terceiro trilho (750 Vcc), iguais aos de
  * `backend/domain/line.ts` — o painel classifica a leitura que recebe sem
- * precisar de uma segunda ida ao servidor.
+ * precisar de uma segunda ida ao servidor. São a regra elétrica da instalação,
+ * não da linha: a tensão de referência de cada trecho é que vem cadastrada.
  */
 export const TRACTION_NOMINAL_V = 750;
 export const VOLTAGE_WARNING_V = 700;
@@ -30,6 +32,60 @@ export const formatHeadway = (seconds: number | null): string => {
   const rest = Math.round(seconds % 60);
   if (minutes === 0) return `${rest}s`;
   return `${minutes}min ${String(rest).padStart(2, '0')}s`;
+};
+
+const STATION_STATUSES: readonly StationStatus[] = ['NORMAL', 'ATENÇÃO', 'CRÍTICO'];
+
+export const isStationStatus = (value: unknown): value is StationStatus =>
+  typeof value === 'string' && (STATION_STATUSES as readonly string[]).includes(value);
+
+export const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+const textOr = (value: unknown, fallback: string): string => (typeof value === 'string' && value ? value : fallback);
+
+const numberOr = (value: unknown, fallback: number | null): number | null => (isFiniteNumber(value) ? value : fallback);
+
+/**
+ * Converte um item de GET /api/network/stations no modelo do painel.
+ *
+ * O frontend e o backend sobem separados: uma aba aberta durante um deploy, ou
+ * um backend de outra versão, pode mandar campos ausentes ou com outro nome.
+ * Todo campo inválido cai num neutro em vez de chegar `undefined` à interface —
+ * onde um `formatVoltage(undefined)` derrubaria o console inteiro.
+ *
+ * O preenchimento não tem para onde recorrer além do neutro: não existe mais um
+ * catálogo local de onde completar o que faltou, e não poderia existir — a
+ * estação `VMD` de um cliente não é a de outro, então adivinhar nome, trecho ou
+ * tensão a partir de uma malha escrita no código mostraria dado errado com cara
+ * de certo.
+ */
+export const normalizeStation = (raw: Record<string, unknown>): Station | null => {
+  if (typeof raw.code !== 'string' || raw.code.length === 0) return null;
+
+  const nominalVoltageV = isFiniteNumber(raw.nominalVoltageV) ? raw.nominalVoltageV : TRACTION_NOMINAL_V;
+  const voltageV = isFiniteNumber(raw.voltageV) ? raw.voltageV : nominalVoltageV;
+
+  return {
+    position: isFiniteNumber(raw.position) ? raw.position : 0,
+    code: raw.code,
+    name: textOr(raw.name, raw.code),
+    substation: textOr(raw.substation, '—'),
+    nominalVoltageV,
+    voltageV,
+    status: isStationStatus(raw.status) ? raw.status : classifyVoltage(voltageV),
+    headwaySeconds: numberOr(raw.headwaySeconds, null),
+    connections: Array.isArray(raw.connections)
+      ? raw.connections.filter((item): item is string => typeof item === 'string')
+      : [],
+    mapX: numberOr(raw.mapX, null),
+    mapY: numberOr(raw.mapY, null),
+  };
+};
+
+/** Nome acessível de uma estação: o que um leitor de tela anuncia nos botões da malha. */
+export const stationAccessibleName = (station: Station): string => {
+  const base = `Estação ${station.name}, status ${station.status}, ${formatVoltage(station.voltageV)}`;
+  return station.connections.length > 0 ? `${base}, integração com ${station.connections.join(', ')}` : base;
 };
 
 /** Identidade visual das integrações: número e cor como na sinalização das estações. */

@@ -47,6 +47,16 @@ describe('TelemetrySimulator', () => {
     }
   });
 
+  it('expõe a última leitura de cada estação para as composições', () => {
+    const simulator = new TelemetrySimulator(catalog, 1000);
+    const snapshot = simulator.snapshot();
+
+    for (const reading of snapshot) {
+      assert.equal(simulator.readingFor(reading.currentStationCode), reading.voltageV);
+    }
+    assert.equal(simulator.readingFor('XYZ'), undefined);
+  });
+
   it('start é idempotente e stop encerra o ciclo', () => {
     const simulator = new TelemetrySimulator(catalog, 1000);
     simulator.start();

@@ -28,8 +28,25 @@ describe('TrainSession — telemetria', () => {
   it('atualiza o carimbo de tempo', () => {
     const train = buildTrain();
     const before = train.updatedAt.getTime();
-    train.updateTelemetry(50, 24.5, 'NORMAL');
+    train.updateTelemetry(50, 748, 'NORMAL');
     assert.ok(train.updatedAt.getTime() > before);
+  });
+});
+
+describe('TrainSession — deslocamento', () => {
+  it('passa a ler a tensão do terceiro trilho da nova estação', () => {
+    const train = buildTrain();
+    train.moveTo('AIP', 618.4);
+
+    assert.equal(train.currentStationCode, 'AIP');
+    assert.equal(train.voltageV, 618.4);
+  });
+
+  it('rejeita tensão inválida sem mover a composição', () => {
+    const train = buildTrain();
+    assert.throws(() => train.moveTo('SUM', Number.NaN), ValidationError);
+    assert.equal(train.currentStationCode, 'VMD');
+    assert.equal(train.voltageV, 752);
   });
 });
 

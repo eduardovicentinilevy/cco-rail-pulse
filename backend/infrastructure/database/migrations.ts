@@ -213,16 +213,25 @@ const INDEX_DDL = `
  * A tração passou a ser por terceiro trilho em 750 Vcc, então as colunas de
  * tensão viram volts e ganham precisão. Vale para as três tabelas que a
  * guardam, inclusive `stations`, que é onde a tensão de referência do trecho
- * virou dado cadastrado. Em bancos novos os blocos IF não fazem nada.
+ * virou dado cadastrado. Cada bloco confere a própria coluna, então o DDL é
+ * seguro num banco migrado pela metade, e em banco novo não faz nada. As
+ * consultas olham só o schema corrente — o mesmo que o `ALTER TABLE` resolve —
+ * para que uma cópia antiga em outro schema não dispare a renomeação.
  */
 const LEGACY_VOLTAGE_COLUMNS_DDL = `
   DO $$
   BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'trains' AND column_name = 'voltage_kv') THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'trains' AND column_name = 'voltage_kv'
+    ) THEN
       ALTER TABLE trains RENAME COLUMN voltage_kv TO voltage_v;
       ALTER TABLE trains ALTER COLUMN voltage_v TYPE NUMERIC(6, 1);
     END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'telemetry_samples' AND column_name = 'min_kv') THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'telemetry_samples' AND column_name = 'min_kv'
+    ) THEN
       ALTER TABLE telemetry_samples RENAME COLUMN min_kv TO min_v;
       ALTER TABLE telemetry_samples RENAME COLUMN avg_kv TO avg_v;
       ALTER TABLE telemetry_samples RENAME COLUMN max_kv TO max_v;
@@ -231,7 +240,10 @@ const LEGACY_VOLTAGE_COLUMNS_DDL = `
         ALTER COLUMN avg_v TYPE NUMERIC(6, 1),
         ALTER COLUMN max_v TYPE NUMERIC(6, 1);
     END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'stations' AND column_name = 'nominal_voltage_kv') THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'stations' AND column_name = 'nominal_voltage_kv'
+    ) THEN
       ALTER TABLE stations RENAME COLUMN nominal_voltage_kv TO nominal_voltage_v;
       ALTER TABLE stations ALTER COLUMN nominal_voltage_v TYPE NUMERIC(6, 1);
     END IF;
@@ -292,30 +304,59 @@ const dropConstraints = async (client: PoolClient, table: string, names: string[
  * Ocorrências, comunicações e ordens de serviço ficam: são registro histórico,
  * e o código de estação nelas é texto, não referência.
  */
+/**
+ * Detecção do que ainda está por converter nesta linha.
+ *
+ * No master a limpeza era gatilhada pela existência das colunas em kV, o que é
+ * uma consulta só; aqui a pergunta é feita sobre o dado em si, porque a
+ * renomeação das colunas acontece antes de a linha existir e não pode ficar na
+ * mesma transação que a limpeza. Perguntando pelo dado, um processo que caia no
+ * meio é refeito no boot seguinte, e um banco já convertido paga uma consulta.
+ */
+const HAS_SUPERSEDED_LINE_DATA_SQL = `
+  SELECT EXISTS (
+    SELECT 1 FROM trains
+     WHERE line_id = $1
+       AND current_station_code NOT IN (SELECT code FROM stations WHERE line_id = $1)
+    UNION ALL
+    SELECT 1 FROM procedures WHERE line_id = $1 AND title = ANY($2::text[])
+    UNION ALL
+    SELECT 1 FROM work_orders WHERE line_id = $1 AND category = 'TSS_SUBESTACAO'
+  ) AS superseded
+`;
+
 const purgeSupersededLineData = async (lineId: string): Promise<void> => {
-  const trains = await db.query(
-    `DELETE FROM trains
-      WHERE line_id = $1
-        AND current_station_code NOT IN (SELECT code FROM stations WHERE line_id = $1)`,
-    [lineId],
-  );
-  const procedures = await db.query(`DELETE FROM procedures WHERE line_id = $1 AND title = ANY($2::text[])`, [
+  const detection = await db.query<{ superseded: boolean }>(HAS_SUPERSEDED_LINE_DATA_SQL, [
     lineId,
     LEGACY_PROCEDURE_TITLES,
   ]);
-  // A categoria de OS de subestação de tração (TSS, em CA) virou subestação
-  // retificadora (SR, em CC). As OSs ficam; só o rótulo da categoria muda.
-  await db.query(
-    `UPDATE work_orders SET category = 'SUBESTACAO_SR' WHERE line_id = $1 AND category = 'TSS_SUBESTACAO'`,
-    [lineId],
-  );
+  if (!detection.rows[0]?.superseded) return;
 
-  if ((trains.rowCount ?? 0) + (procedures.rowCount ?? 0) > 0) {
-    logger.info(
-      `Dados da malha anterior removidos: ${trains.rowCount ?? 0} composição(ões), ` +
-        `${procedures.rowCount ?? 0} procedimento(s).`,
+  // Numa transação só: a linha nunca fica com parte da malha anterior removida.
+  await withTransaction(async (client) => {
+    const trains = await client.query(
+      `DELETE FROM trains
+        WHERE line_id = $1
+          AND current_station_code NOT IN (SELECT code FROM stations WHERE line_id = $1)`,
+      [lineId],
     );
-  }
+    const procedures = await client.query(`DELETE FROM procedures WHERE line_id = $1 AND title = ANY($2::text[])`, [
+      lineId,
+      LEGACY_PROCEDURE_TITLES,
+    ]);
+    // A categoria de OS de subestação de tração (TSS, em CA) virou subestação
+    // retificadora (SR, em CC). As OSs ficam; só o rótulo da categoria muda.
+    const workOrders = await client.query(
+      `UPDATE work_orders SET category = 'SUBESTACAO_SR' WHERE line_id = $1 AND category = 'TSS_SUBESTACAO'`,
+      [lineId],
+    );
+
+    logger.info(
+      `Dados da malha anterior migrados: ${trains.rowCount ?? 0} composição(ões) removida(s), ` +
+        `${procedures.rowCount ?? 0} procedimento(s) substituído(s), ` +
+        `${workOrders.rowCount ?? 0} OS(s) recategorizada(s).`,
+    );
+  });
 };
 
 export const runMigrations = async (): Promise<void> => {
@@ -533,8 +574,6 @@ const upgradeLegacySchema = async (tenantId: string, lineId: string): Promise<vo
     logger.info('procedures migrada: manual por linha, título único dentro dela.');
   }
 };
-
-
 
 /**
  * Renomeia o perfil `OPERATOR_SOC` (jargão de centro de operações de segurança,

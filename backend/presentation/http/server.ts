@@ -17,6 +17,8 @@ const logger = createLogger('BOOT');
 
 const registry = new SimulationRegistry(env.telemetryIntervalMs, env.trainMotionIntervalMs);
 const archiver = new TelemetryArchiver(env.telemetryBucketSeconds, env.telemetryRetentionDays);
+// Quem liga a telemetria de uma linha ao deslocamento das suas composições é o
+// `SimulationRegistry`, que cria o par por linha.
 const app = createApp(registry);
 const server = http.createServer(app);
 

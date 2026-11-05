@@ -1,7 +1,8 @@
 // frontend/src/components/dashboard/LineMap.tsx
 import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
-import { formatVoltage } from '../../lib/format';
+import { stationAccessibleName } from '../../data/stations';
+import { projectStation, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
 import { buildCurveSegments, curveToPath } from '../../lib/curve';
 import type { Point } from '../../lib/curve';
 import { useTrainMotion } from '../../hooks/useTrainMotion';
@@ -15,25 +16,18 @@ interface LineMapProps {
   onSelectStation: (station: Station) => void;
 }
 
-const VIEW_WIDTH = 1000;
-const VIEW_HEIGHT = 440;
+/** Etiqueta do trem: largura e passo vertical entre etiquetas empilhadas. */
+const TAG_WIDTH = 40;
+const TAG_STEP = 18;
+/** Caixa aproximada do rótulo da estação (3 caracteres mono, 12px), com folga. */
+const LABEL_HALF_WIDTH = 16;
+const LABEL_HEIGHT = 12;
 
-/**
- * Posição de uma estação na tela.
- *
- * Vem de `mapX`/`mapY` do catálogo — coordenadas normalizadas (0–1) cadastradas
- * por linha. Antes o traçado da Linha 6-Laranja estava escrito neste arquivo, o
- * que desenhava a mesma linha para qualquer cliente. Sem coordenada cadastrada,
- * a estação é distribuída uniformemente ao longo de um eixo reto, para que uma
- * linha recém-cadastrada ainda apareça no mapa.
- */
-const positionOf = (station: Station, index: number, total: number): { x: number; y: number } => {
-  if (station.mapX != null && station.mapY != null) {
-    return { x: station.mapX * VIEW_WIDTH, y: station.mapY * VIEW_HEIGHT };
-  }
-
-  const progress = total > 1 ? index / (total - 1) : 0.5;
-  return { x: 70 + progress * (VIEW_WIDTH - 140), y: VIEW_HEIGHT / 2 };
+/** Fio da lateral do trem até o meio da etiqueta empilhada no nível `stack`. */
+const leaderPoints = (stack: number): string => {
+  const side = -TAG_WIDTH / 2 - 4;
+  const tagMiddle = -22.5 - stack * TAG_STEP;
+  return `-10,-8 ${side},-8 ${side},${tagMiddle} ${-TAG_WIDTH / 2},${tagMiddle}`;
 };
 
 const STATUS_COLOR: Record<Station['status'], string> = {
@@ -50,7 +44,7 @@ export const LineMap: React.FC<LineMapProps> = ({
   onSelectStation,
 }) => {
   const points = useMemo(
-    () => stations.map((station, index) => ({ station, ...positionOf(station, index, stations.length) })),
+    () => stations.map((station, index) => ({ station, ...projectStation(station, index, stations.length) })),
     [stations],
   );
 
@@ -65,23 +59,46 @@ export const LineMap: React.FC<LineMapProps> = ({
   const animatedPositions = useTrainMotion(trains, stationIndex, points, segments);
 
   const trainMarkers = useMemo(() => {
-    // Composições na mesma estação empilham as etiquetas em vez de sobrepô-las.
-    const perStation = new Map<string, number>();
+    // Empilha pela posição DESENHADA, não pela estação: um trem ainda em trânsito
+    // não disputa lugar com quem está parado, e dois trens que se cruzam no meio
+    // do trecho também não se sobrepõem.
+    const placed: Array<{ x: number; tagY: number }> = [];
     return trains
       .map((train) => ({ train, position: animatedPositions.get(train.trainId) }))
       .filter((marker): marker is { train: Train; position: Point } => marker.position != null)
       .map((marker) => {
-        const stack = perStation.get(marker.train.currentStationCode) ?? 0;
-        perStation.set(marker.train.currentStationCode, stack + 1);
+        const tagY = (level: number) => marker.position.y - level * TAG_STEP;
+        let stack = 0;
+        while (
+          placed.some(
+            (other) =>
+              Math.abs(other.x - marker.position.x) < TAG_WIDTH + 2 && Math.abs(other.tagY - tagY(stack)) < TAG_STEP,
+          )
+        ) {
+          stack += 1;
+        }
+        placed.push({ x: marker.position.x, tagY: tagY(stack) });
         return { ...marker, stack };
       });
   }, [trains, animatedPositions]);
 
-  /** Onde há composição, a etiqueta do trem ocupa o espaço acima do nó. */
-  const occupiedAbove = useMemo(
-    () => new Set(trains.map((train) => train.currentStationCode)),
-    [trains],
+  /** Caixas das etiquetas de trem como desenhadas neste quadro (posição + empilhamento). */
+  const tagBoxes = useMemo(
+    () =>
+      trainMarkers.map(({ position, stack }) => {
+        const top = position.y - 30 - stack * TAG_STEP;
+        return { left: position.x - TAG_WIDTH / 2, right: position.x + TAG_WIDTH / 2, top, bottom: top + 15 };
+      }),
+    [trainMarkers],
   );
+
+  /** Área do rótulo [left, right] com linha de base em `baseline` encoberta por etiquetas de trem. */
+  const labelCoverage = (left: number, right: number, baseline: number): number =>
+    tagBoxes.reduce((total, box) => {
+      const width = Math.min(box.right, right) - Math.max(box.left, left);
+      const height = Math.min(box.bottom, baseline + 2) - Math.max(box.top, baseline - LABEL_HEIGHT);
+      return width > 0 && height > 0 ? total + width * height : total;
+    }, 0);
 
   return (
     <div className="rp-map">
@@ -116,16 +133,26 @@ export const LineMap: React.FC<LineMapProps> = ({
             style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
           >
             <circle r="13" className="rp-map__train-halo" data-status={train.status} />
+            {/* Etiqueta empilhada: um fio pela lateral esquerda da pilha liga a etiqueta
+                ao trem — por fora, para não riscar as etiquetas de baixo. */}
+            {stack > 0 && (
+              <polyline
+                points={leaderPoints(stack)}
+                className="rp-map__train-leader"
+                data-status={train.status}
+                fill="none"
+              />
+            )}
             <rect
-              x="-20"
-              y={-30 - stack * 18}
-              width="40"
+              x={-TAG_WIDTH / 2}
+              y={-30 - stack * TAG_STEP}
+              width={TAG_WIDTH}
               height="15"
               rx="4"
               className="rp-map__train-tag"
               data-status={train.status}
             />
-            <text y={-19 - stack * 18} className="rp-map__train-label">
+            <text y={-19 - stack * TAG_STEP} className="rp-map__train-label">
               {train.trainId}
             </text>
           </g>
@@ -133,15 +160,23 @@ export const LineMap: React.FC<LineMapProps> = ({
 
         {points.map(({ station, x, y }, index) => {
           const isSelected = station.code === selectedStation.code;
-          // Rótulos alternam acima e abaixo para não colidirem entre si; onde há
-          // composição, o rótulo desce para não ser coberto pela etiqueta do trem.
-          const labelAbove = index % 2 === 0 && !occupiedAbove.has(station.code);
+          // Rótulos alternam acima e abaixo para não colidirem entre si. Se etiquetas
+          // de trem — desta estação ou de uma vizinha próxima — encobrirem o lado
+          // preferido mais do que o outro, o rótulo troca de lado.
+          const above = y - 16;
+          const below = y + 26;
+          const [preferred, alternate] = index % 2 === 0 ? [above, below] : [below, above];
+          // O terminal oeste ancora o texto no início; os demais, no centro.
+          const [left, right] =
+            index === 0 ? [x, x + 2 * LABEL_HALF_WIDTH] : [x - LABEL_HALF_WIDTH, x + LABEL_HALF_WIDTH];
+          const labelY =
+            labelCoverage(left, right, preferred) <= labelCoverage(left, right, alternate) ? preferred : alternate;
           // O terminal leste fica no fim de uma subida: o rótulo vai à direita
           // do nó, longe do trilho e da etiqueta de trem.
           const isEastTerminal = index === points.length - 1;
           const label = isEastTerminal
             ? { x: x + 13, y: y + 4, anchor: 'start' as const }
-            : { x, y: labelAbove ? y - 16 : y + 26, anchor: index === 0 ? ('start' as const) : ('middle' as const) };
+            : { x, y: labelY, anchor: index === 0 ? ('start' as const) : ('middle' as const) };
 
           return (
             <g
@@ -151,7 +186,7 @@ export const LineMap: React.FC<LineMapProps> = ({
               data-selected={isSelected}
               role="button"
               tabIndex={0}
-              aria-label={`Estação ${station.name}, status ${station.status}, ${formatVoltage(station.voltageV)}`}
+              aria-label={stationAccessibleName(station)}
               aria-pressed={isSelected}
               onClick={() => onSelectStation(station)}
               onKeyDown={(event) => {

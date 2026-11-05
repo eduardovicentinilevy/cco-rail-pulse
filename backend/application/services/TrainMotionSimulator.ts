@@ -25,6 +25,12 @@ const JITTER_RATIO = 0.35;
 /** Granularidade da checagem interna. O intervalo por trem é o parâmetro do construtor, não este valor. */
 const POLL_MS = 500;
 
+/** Leitura corrente do terceiro trilho numa estação, em volts (`undefined` se não houver). */
+export type VoltageLookup = (stationCode: string) => number | undefined;
+
+// Sem telemetria ao vivo, o trem assume a tensão nominal do trecho, que vem do
+// catálogo da própria linha — não há mais uma malha global a consultar.
+
 export const jitteredDelay = (baseMs: number, random = Math.random): number => {
   const factor = 1 + (random() * 2 - 1) * JITTER_RATIO;
   return Math.round(baseMs * factor);
@@ -55,6 +61,11 @@ export class TrainMotionSimulator {
   constructor(
     private readonly catalog: LineCatalog,
     private readonly intervalMs: number,
+    /**
+     * Leitura ao vivo do terceiro trilho, normalmente a do `TelemetrySimulator`
+     * da mesma linha. Sem ela, vale a tensão nominal da estação no catálogo.
+     */
+    private readonly voltageAt: VoltageLookup = () => undefined,
   ) {}
 
   public get lineId(): string {
@@ -134,7 +145,8 @@ export class TrainMotionSimulator {
       if (!nextStation) return null;
 
       this.directions.set(trainId, direction);
-      train.moveTo(nextStation.code);
+      // A composição que entra numa estação passa a ler a tensão do trecho dali.
+      train.moveTo(nextStation.code, this.voltageAt(nextStation.code) ?? nextStation.nominalVoltageV);
       await TrainRepository.save(this.catalog.id, train, client);
 
       return train.toSnapshot();

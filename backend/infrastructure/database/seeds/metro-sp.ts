@@ -6,6 +6,8 @@
 // Aqui elas são apenas dados de semeadura de um cliente entre outros; o domínio
 // lê a malha do banco.
 
+import { TRACTION_NOMINAL_V, VOLTAGE_CRITICAL_V, VOLTAGE_WARNING_V } from '../../../domain/line';
+
 export interface StationSeed {
   readonly position: number;
   readonly code: string;
@@ -114,7 +116,7 @@ export const SEED_PROCEDURES: ReadonlyArray<{
   {
     category: 'ENERGIA',
     title: 'Desenergização de trecho do terceiro trilho',
-    summary: 'Corte controlado da alimentação de tração (750 Vcc) para intervenção segura na via.',
+    summary: `Corte controlado da alimentação de tração (${TRACTION_NOMINAL_V} Vcc) para intervenção segura na via.`,
     steps: [
       'Confirme com a manutenção qual subestação retificadora (SR) e qual seção elétrica precisam ser isoladas.',
       'Retire ou retenha nas plataformas as composições da seção antes do corte — nenhuma pode ficar entre estações.',
@@ -126,11 +128,12 @@ export const SEED_PROCEDURES: ReadonlyArray<{
   {
     category: 'ENERGIA',
     title: 'Subtensão no terceiro trilho (SR)',
-    summary: 'Leitura abaixo da faixa operacional — menos de 700 V (atenção) ou 640 V (crítico) em 750 Vcc.',
+    summary:
+      `Leitura abaixo da faixa operacional — menos de ${VOLTAGE_WARNING_V} V (atenção) ou ${VOLTAGE_CRITICAL_V} V (crítico) em ${TRACTION_NOMINAL_V} Vcc.`,
     steps: [
       'Verifique no painel de Telemetria SR se o desvio é pontual (pico de demanda) ou uma tendência sustentada.',
       'Compare com as estações vizinhas da mesma SR: um desvio isolado sugere medição, não alimentação.',
-      'Abaixo de 640 V, restrinja a velocidade das composições na seção — a tração perde desempenho e pode haver parada entre estações.',
+      `Abaixo de ${VOLTAGE_CRITICAL_V} V, restrinja a velocidade das composições na seção — a tração perde desempenho e pode haver parada entre estações.`,
       'Acione a manutenção de energia informando a SR, a leitura e o horário de início do desvio.',
       'Abra uma ocorrência de categoria ENERGIA se o desvio persistir por mais de cinco minutos.',
     ],

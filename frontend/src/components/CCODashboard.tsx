@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { wsService } from '../services/websocket.service';
 import { api, ApiError } from '../services/api';
-
+import { isFiniteNumber, isStationStatus, normalizeStation } from '../data/stations';
 import type {
   AlarmEvent,
   AlarmLevel,
@@ -271,7 +271,14 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         ]);
         if (cancelled) return;
 
-        const catalog = stationsPayload.stations as unknown as Station[];
+        // Campo ausente ou de outra versão do backend cai num neutro em vez de
+        // chegar `undefined` à interface; item sem código é descartado.
+        const catalog = stationsPayload.stations
+          .map((station) => normalizeStation(station as unknown as Record<string, unknown>))
+          .filter((station): station is Station => station !== null);
+        // Uma resposta vazia é resposta: pode ser uma linha recém-cadastrada,
+        // ainda sem malha. Manter a malha anterior na tela mostraria a estação
+        // de outra linha como se fosse desta.
         setStations(catalog);
         // A estação em foco é a primeira da malha recebida, seja ela qual for.
         setSelectedCode((current) => (catalog.some((s) => s.code === current) ? current : (catalog[0]?.code ?? '')));
@@ -321,13 +328,21 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         const updates = new Map(batch.map((item) => [item.currentStationCode, item]));
         return previous.map((station) => {
           const update = updates.get(station.code);
-          return update ? { ...station, voltageV: update.voltageV, status: update.status } : station;
+          // Leitura malformada (outra versão do backend) não sobrescreve a última boa.
+          if (!update || !isFiniteNumber(update.voltageV)) return station;
+          return {
+            ...station,
+            voltageV: update.voltageV,
+            status: isStationStatus(update.status) ? update.status : station.status,
+          };
         });
       });
 
       setHistory((previous) => {
         const readings: Record<string, number> = {};
-        for (const item of batch) readings[item.currentStationCode] = item.voltageV;
+        for (const item of batch) {
+          if (isFiniteNumber(item.voltageV)) readings[item.currentStationCode] = item.voltageV;
+        }
         return [...previous, { time: formatTime(), readings }].slice(-MAX_HISTORY_SAMPLES);
       });
     };

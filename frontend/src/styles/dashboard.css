@@ -387,34 +387,10 @@
   border-radius: var(--radius-md);
 }
 
-.rp-map__river {
-  stroke: var(--map-river-stroke);
-  stroke-width: 14;
-  stroke-linecap: round;
-}
-
-.rp-map__river-label {
-  fill: var(--map-river-label);
-  font-size: 13px;
-  font-style: italic;
-  font-family: var(--cco-font);
-}
-
-/* Eixo da Av. Paulista: faixa larga e apagada sob o trilho, só como referência. */
-.rp-map__avenue {
-  stroke: var(--map-avenue-stroke);
-  stroke-width: 26;
-  stroke-linecap: round;
-}
-
-.rp-map__avenue-label {
-  fill: var(--map-avenue-label);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-family: var(--cco-font);
-}
+/* A decoração geográfica da linha (rio, avenida e os seus rótulos) saiu do mapa
+   compartilhado: é cartografia de uma linha só, e desenhada aqui apareceria
+   sobre a linha de qualquer cliente. Volta com a identidade visual por cliente,
+   junto do estilo que ela precisar. */
 
 .rp-map__rail {
   stroke-width: 5;
@@ -467,7 +443,8 @@
   pointer-events: none;
 }
 
-.rp-map__station[data-selected='true'] .rp-map__label { fill: var(--cco-green); }
+/* Texto: usa o verde de tinta, que clareia no tema escuro (o sólido cai a ~3:1). */
+.rp-map__station[data-selected='true'] .rp-map__label { fill: var(--cco-green-ink); }
 
 /* O deslocamento entre estações é interpolado quadro a quadro em JS (useTrainMotion) —
    uma transição CSS aqui competiria com esse cálculo e produziria um movimento "borrado". */
@@ -478,6 +455,12 @@
 .rp-map__train-halo {
   fill: var(--rp-status, var(--cco-green));
   opacity: 0.18;
+}
+
+.rp-map__train-leader {
+  stroke: var(--rp-status, var(--cco-green));
+  stroke-width: 1;
+  opacity: 0.6;
 }
 
 .rp-map__train-tag {

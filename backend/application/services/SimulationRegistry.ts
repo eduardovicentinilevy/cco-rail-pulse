@@ -54,7 +54,11 @@ export class SimulationRegistry {
     }
 
     const telemetry = new TelemetrySimulator(catalog, this.telemetryIntervalMs);
-    const motion = new TrainMotionSimulator(catalog, this.trainMotionIntervalMs);
+    // A composição que entra numa estação lê a tensão do terceiro trilho dali,
+    // da telemetria da própria linha — nunca da de outra.
+    const motion = new TrainMotionSimulator(catalog, this.trainMotionIntervalMs, (code) =>
+      telemetry.readingFor(code),
+    );
 
     telemetry.start();
     motion.start();
