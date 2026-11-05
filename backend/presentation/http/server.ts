@@ -22,7 +22,8 @@ const SESSION_PURGE_INTERVAL_MS = 3_600_000;
 
 const simulator = new TelemetrySimulator(env.telemetryIntervalMs);
 const archiver = new TelemetryArchiver(env.telemetryBucketSeconds, env.telemetryRetentionDays);
-const trainMotion = new TrainMotionSimulator(env.trainMotionIntervalMs);
+// A composição que entra numa estação passa a ler a tensão do terceiro trilho dali.
+const trainMotion = new TrainMotionSimulator(env.trainMotionIntervalMs, (code) => simulator.readingFor(code));
 const app = createApp(simulator);
 const server = http.createServer(app);
 

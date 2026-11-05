@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { wsService } from '../services/websocket.service';
 import { api, ApiError } from '../services/api';
-import { connectionsFor, headwayFor, LINE_STATIONS } from '../data/stations';
+import { isFiniteNumber, isStationStatus, LINE_STATIONS, normalizeStation } from '../data/stations';
 import type {
   AlarmEvent,
   AlarmLevel,
@@ -267,13 +267,11 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         ]);
         if (cancelled) return;
 
-        setStations(
-          (stationsPayload.stations as unknown as Station[]).map((station) => ({
-            ...station,
-            connections: Array.isArray(station.connections) ? station.connections : connectionsFor(station.code),
-            headway: headwayFor(station.code),
-          })),
-        );
+        const catalog = stationsPayload.stations
+          .map(normalizeStation)
+          .filter((station): station is Station => station !== null);
+        // Uma resposta vazia não apaga a malha: o catálogo local continua na tela.
+        if (catalog.length > 0) setStations(catalog);
         setTrains(trainsPayload as unknown as Train[]);
       } catch (error) {
         if (cancelled) return;
@@ -319,13 +317,21 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         const updates = new Map(batch.map((item) => [item.currentStationCode, item]));
         return previous.map((station) => {
           const update = updates.get(station.code);
-          return update ? { ...station, voltageV: update.voltageV, status: update.status } : station;
+          // Leitura malformada (outra versão do backend) não sobrescreve a última boa.
+          if (!update || !isFiniteNumber(update.voltageV)) return station;
+          return {
+            ...station,
+            voltageV: update.voltageV,
+            status: isStationStatus(update.status) ? update.status : station.status,
+          };
         });
       });
 
       setHistory((previous) => {
         const readings: Record<string, number> = {};
-        for (const item of batch) readings[item.currentStationCode] = item.voltageV;
+        for (const item of batch) {
+          if (isFiniteNumber(item.voltageV)) readings[item.currentStationCode] = item.voltageV;
+        }
         return [...previous, { time: formatTime(), readings }].slice(-MAX_HISTORY_SAMPLES);
       });
     };

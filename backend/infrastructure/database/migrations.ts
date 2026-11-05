@@ -1,8 +1,15 @@
 // backend/infrastructure/database/migrations.ts
 import bcrypt from 'bcrypt';
-import { db } from './postgres';
+import type { PoolClient } from 'pg';
+import { db, withTransaction } from './postgres';
 import { env } from '../../config/env';
-import { LINE_STATION_CODES, LINE_STATIONS } from '../../domain/line';
+import {
+  LINE_STATION_CODES,
+  LINE_STATIONS,
+  TRACTION_NOMINAL_V,
+  VOLTAGE_CRITICAL_V,
+  VOLTAGE_WARNING_V,
+} from '../../domain/line';
 import { generateCompliantPassword } from '../../domain/password-policy';
 import { operatorRepository } from '../repositories/pg-operator.repository';
 import { createLogger } from '../../shared/logger';
@@ -182,17 +189,37 @@ const DDL = `
 
 /**
  * Bancos criados na versão da Linha 6-Laranja guardavam tensão de catenária em kV.
+ * As consultas olham só o schema corrente — o mesmo que `ALTER TABLE trains`
+ * resolve —, para que uma cópia antiga em outro schema não dispare a migração.
+ */
+const HAS_LEGACY_VOLTAGE_COLUMNS_SQL = `
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND ((table_name = 'trains' AND column_name = 'voltage_kv')
+        OR (table_name = 'telemetry_samples' AND column_name = 'min_kv'))
+  ) AS legacy
+`;
+
+/**
  * A Linha 2-Verde é alimentada por terceiro trilho em 750 Vcc: renomeia as colunas
- * e amplia a precisão uma única vez — em bancos novos os blocos IF não fazem nada.
+ * e amplia a precisão. Cada bloco confere a própria coluna, então o DDL também é
+ * seguro num banco migrado pela metade.
  */
 const LEGACY_VOLTAGE_COLUMNS_DDL = `
   DO $$
   BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'trains' AND column_name = 'voltage_kv') THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'trains' AND column_name = 'voltage_kv'
+    ) THEN
       ALTER TABLE trains RENAME COLUMN voltage_kv TO voltage_v;
       ALTER TABLE trains ALTER COLUMN voltage_v TYPE NUMERIC(6, 1);
     END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'telemetry_samples' AND column_name = 'min_kv') THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'telemetry_samples' AND column_name = 'min_kv'
+    ) THEN
       ALTER TABLE telemetry_samples RENAME COLUMN min_kv TO min_v;
       ALTER TABLE telemetry_samples RENAME COLUMN avg_kv TO avg_v;
       ALTER TABLE telemetry_samples RENAME COLUMN max_kv TO max_v;
@@ -251,7 +278,7 @@ const SEED_PROCEDURES: ReadonlyArray<{
   {
     category: 'ENERGIA',
     title: 'Desenergização de trecho do terceiro trilho',
-    summary: 'Corte controlado da alimentação de tração (750 Vcc) para intervenção segura na via.',
+    summary: `Corte controlado da alimentação de tração (${TRACTION_NOMINAL_V} Vcc) para intervenção segura na via.`,
     steps: [
       'Confirme com a manutenção qual subestação retificadora (SR) e qual seção elétrica precisam ser isoladas.',
       'Retire ou retenha nas plataformas as composições da seção antes do corte — nenhuma pode ficar entre estações.',
@@ -263,11 +290,11 @@ const SEED_PROCEDURES: ReadonlyArray<{
   {
     category: 'ENERGIA',
     title: 'Subtensão no terceiro trilho (SR)',
-    summary: 'Leitura abaixo da faixa operacional — menos de 700 V (atenção) ou 640 V (crítico) em 750 Vcc.',
+    summary: `Leitura abaixo da faixa operacional — menos de ${VOLTAGE_WARNING_V} V (atenção) ou ${VOLTAGE_CRITICAL_V} V (crítico) em ${TRACTION_NOMINAL_V} Vcc.`,
     steps: [
       'Verifique no painel de Telemetria SR se o desvio é pontual (pico de demanda) ou uma tendência sustentada.',
       'Compare com as estações vizinhas da mesma SR: um desvio isolado sugere medição, não alimentação.',
-      'Abaixo de 640 V, restrinja a velocidade das composições na seção — a tração perde desempenho e pode haver parada entre estações.',
+      `Abaixo de ${VOLTAGE_CRITICAL_V} V, restrinja a velocidade das composições na seção — a tração perde desempenho e pode haver parada entre estações.`,
       'Acione a manutenção de energia informando a SR, a leitura e o horário de início do desvio.',
       'Abra uma ocorrência de categoria ENERGIA se o desvio persistir por mais de cinco minutos.',
     ],
@@ -328,22 +355,40 @@ const SEED_PROCEDURES: ReadonlyArray<{
  * série histórica medida em kV e os procedimentos substituídos. Ocorrências, OSs
  * e comunicações antigas ficam: são registro histórico, não estado da malha.
  */
-const purgeLegacyLineData = async (): Promise<void> => {
+const purgeLegacyLineData = async (client: PoolClient): Promise<void> => {
   const codes = [...LINE_STATION_CODES];
-  const trains = await db.query(`DELETE FROM trains WHERE current_station_code <> ALL($1::text[])`, [codes]);
-  const samples = await db.query(`DELETE FROM telemetry_samples WHERE station_code <> ALL($1::text[])`, [codes]);
-  const procedures = await db.query(`DELETE FROM procedures WHERE title = ANY($1::text[])`, [LEGACY_PROCEDURE_TITLES]);
+  const trains = await client.query(`DELETE FROM trains WHERE current_station_code <> ALL($1::text[])`, [codes]);
+  const samples = await client.query(`DELETE FROM telemetry_samples WHERE station_code <> ALL($1::text[])`, [codes]);
+  const procedures = await client.query(`DELETE FROM procedures WHERE title = ANY($1::text[])`, [
+    LEGACY_PROCEDURE_TITLES,
+  ]);
   // A categoria de OS de subestação de tração (TSS, em CA) virou subestação
   // retificadora (SR, em CC). As OSs ficam; só o rótulo da categoria muda.
-  await db.query(`UPDATE work_orders SET category = 'SUBESTACAO_SR' WHERE category = 'TSS_SUBESTACAO'`);
+  const workOrders = await client.query(
+    `UPDATE work_orders SET category = 'SUBESTACAO_SR' WHERE category = 'TSS_SUBESTACAO'`,
+  );
 
-  const removed = (trains.rowCount ?? 0) + (samples.rowCount ?? 0) + (procedures.rowCount ?? 0);
-  if (removed > 0) {
-    logger.info(
-      `Dados da malha anterior removidos: ${trains.rowCount ?? 0} composição(ões), ` +
-        `${samples.rowCount ?? 0} janela(s) de telemetria, ${procedures.rowCount ?? 0} procedimento(s).`,
-    );
-  }
+  logger.info(
+    `Dados da malha anterior migrados: ${trains.rowCount ?? 0} composição(ões) e ` +
+      `${samples.rowCount ?? 0} janela(s) de telemetria removidas, ${procedures.rowCount ?? 0} procedimento(s) ` +
+      `substituído(s), ${workOrders.rowCount ?? 0} OS(s) recategorizada(s).`,
+  );
+};
+
+/**
+ * Migração única da malha da Linha 6 para a Linha 2. Só roda quando as colunas
+ * em kV ainda existem — nos boots seguintes é uma única consulta ao catálogo.
+ * Renomear as colunas e limpar os dados antigos acontece na mesma transação: se
+ * o processo cair no meio, nada fica pela metade e o próximo boot refaz tudo.
+ */
+const migrateLegacyLine = async (): Promise<void> => {
+  const detection = await db.query<{ legacy: boolean }>(HAS_LEGACY_VOLTAGE_COLUMNS_SQL);
+  if (!detection.rows[0]?.legacy) return;
+
+  await withTransaction(async (client) => {
+    await client.query(LEGACY_VOLTAGE_COLUMNS_DDL);
+    await purgeLegacyLineData(client);
+  });
 };
 
 /**
@@ -464,9 +509,8 @@ const flagLegacyDemoPasswords = async (): Promise<void> => {
 
 export const runMigrations = async (): Promise<void> => {
   await db.query(DDL);
-  await db.query(LEGACY_VOLTAGE_COLUMNS_DDL);
+  await migrateLegacyLine();
   await renameLegacyOperatorRole();
-  await purgeLegacyLineData();
   logger.info('Schema verificado (self-healing DDL aplicado).');
 
   await seedInitialOperator();
