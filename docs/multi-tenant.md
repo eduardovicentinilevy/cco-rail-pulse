@@ -247,3 +247,38 @@ O que mudou entre o desenho e o que foi entregue:
 - **A decoração geográfica da Linha 2 também ficou fora do mapa compartilhado.**
   Pela mesma razão do Rio Tietê: a Av. Paulista e o Rio Tamanduateí são
   cartografia de uma linha só. Decoração de mapa por linha segue no PR 2.
+
+- **A leitura ao vivo do terceiro trilho entrou por linha.** A master passou a
+  fazer a composição que entra numa estação ler a tensão daquele trecho, ligando
+  o simulador de telemetria ao de deslocamento no `server.ts` — o que funciona
+  com um simulador por processo. Aqui existe um par por linha, então quem liga os
+  dois é o `SimulationRegistry`: a composição lê a telemetria da sua própria
+  linha, e sem leitura ao vivo vale a tensão nominal cadastrada na estação.
+
+- **A leitura defensiva do payload não tem catálogo local para onde recorrer.** A
+  master endureceu o painel contra resposta de outra versão do backend
+  completando o campo que falta com a malha fixa do frontend. Aqui o
+  preenchimento é neutro — tensão nominal da instalação, trecho "—", sem
+  integrações — porque a estação `VMD` de um cliente não é a de outro: completar
+  com uma malha escrita no código mostraria o dado errado com cara de certo. Uma
+  resposta vazia, pela mesma razão, passou a ser resposta: pode ser uma linha
+  recém-cadastrada, e manter a malha anterior na tela mostraria a estação de
+  outra linha.
+
+- **A geometria do mapa é projeção, não catálogo.** A master juntou todo o
+  desenho numa projeção só, feita das coordenadas geográficas das estações
+  escritas no próprio módulo. A ideia da projeção única ficou; o que entra nela é
+  a coordenada normalizada cadastrada por estação. Isso também mostra para que
+  servem as colunas de latitude e longitude previstas acima: um cliente que
+  queira mapa cartográfico cadastra lat/lon, e `map_x`/`map_y` passam a ser
+  derivadas.
+
+- **A limpeza da malha anterior é gatilhada pelo dado, não pelas colunas em kV.**
+  A master renomeia as colunas e limpa os dados antigos na mesma transação, e
+  decide se roda pela existência das colunas em kV. Aqui a renomeação precisa
+  acontecer antes de a linha existir — ela é pré-requisito da semeadura —, então
+  uma transação não pode abraçar as duas etapas. A detecção passou a perguntar
+  pelo dado em si (composição em estação inexistente, procedimento substituído,
+  OS na categoria antiga): é uma consulta por linha, como no master, e um
+  processo que caia entre a renomeação e a limpeza é refeito no boot seguinte.
+  Com o gatilho pela coluna, um banco já renomeado nunca mais limparia.
