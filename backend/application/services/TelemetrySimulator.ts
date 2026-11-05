@@ -31,6 +31,11 @@ export class TelemetrySimulator {
     return this.timer !== null;
   }
 
+  /** Última leitura de uma estação, em volts. */
+  public readingFor(stationCode: string): number | undefined {
+    return this.readings.get(stationCode);
+  }
+
   /** Estado corrente da malha, enviado a cada painel que se conecta. */
   public snapshot(): StationTelemetryDTO[] {
     return LINE_STATIONS.map((station) => {

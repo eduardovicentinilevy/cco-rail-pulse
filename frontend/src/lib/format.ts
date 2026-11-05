@@ -30,8 +30,12 @@ export const formatDuration = (totalSeconds: number): string => {
 export const formatNumber = (value: number, fractionDigits = 1): string =>
   value.toLocaleString('pt-BR', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits });
 
-/** Tensão do terceiro trilho em volts inteiros — a precisão útil para o operador. */
-export const formatVoltage = (voltageV: number): string => `${formatNumber(voltageV, 0)} V`;
+/**
+ * Tensão do terceiro trilho em volts inteiros — a precisão útil para o operador.
+ * Uma leitura ausente vira "— V" em vez de lançar exceção no meio da renderização.
+ */
+export const formatVoltage = (voltageV: number | null | undefined): string =>
+  typeof voltageV === 'number' && Number.isFinite(voltageV) ? `${formatNumber(voltageV, 0)} V` : '— V';
 
 /** Escapa um valor para CSV (RFC 4180). */
 const escapeCsv = (value: unknown): string => {

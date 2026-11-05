@@ -33,7 +33,7 @@ export const AnalyticsReportsView: React.FC<AnalyticsReportsViewProps> = ({ stat
   // Distribuição real das ocorrências da sessão por categoria inferida da mensagem.
   const interferences = useMemo<Interference[]>(() => {
     const buckets: Record<string, { count: number; status: string }> = {
-      'Alimentação aérea': { count: 0, status: 'ATENÇÃO' },
+      'Energia de tração': { count: 0, status: 'ATENÇÃO' },
       'Sinalização / CBTC': { count: 0, status: 'INFO' },
       'Comandos operacionais': { count: 0, status: 'CRÍTICO' },
       'Via permanente': { count: 0, status: 'NORMAL' },
@@ -43,8 +43,13 @@ export const AnalyticsReportsView: React.FC<AnalyticsReportsViewProps> = ({ stat
       const message = alarm.message.toLowerCase();
       if (message.includes('comando')) buckets['Comandos operacionais'].count += 1;
       else if (message.includes('tensão') || message.includes('terceiro trilho') || message.includes('subestação')) {
-        buckets['Alimentação aérea'].count += 1;
-      } else if (message.includes('ats') || message.includes('sinal') || message.includes('baliza')) {
+        buckets['Energia de tração'].count += 1;
+      } else if (
+        message.includes('cbtc') ||
+        message.includes('ats') ||
+        message.includes('sinal') ||
+        message.includes('baliza')
+      ) {
         buckets['Sinalização / CBTC'].count += 1;
       } else buckets['Via permanente'].count += 1;
     }

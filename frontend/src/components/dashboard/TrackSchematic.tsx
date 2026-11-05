@@ -1,8 +1,7 @@
 // frontend/src/components/dashboard/TrackSchematic.tsx
 import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
-import { formatVoltage } from '../../lib/format';
-import { LINE_NAME, LINE_TERMINALS } from '../../data/stations';
+import { LINE_NAME, LINE_TERMINALS, stationAccessibleName } from '../../data/stations';
 import { ConnectionBadges } from '../common/ConnectionBadges';
 
 interface TrackSchematicProps {
@@ -64,7 +63,8 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
                 data-status={station.status}
                 data-alert={isAlert}
                 aria-pressed={isSelected}
-                aria-label={`Estação ${station.name}, status ${station.status}, ${formatVoltage(station.voltageV)}`}
+                // O nome acessível substitui o conteúdo do botão: as integrações vão nele.
+                aria-label={stationAccessibleName(station)}
                 onClick={() => onSelectStation(station)}
               >
                 <span className="rp-station-node__trains">

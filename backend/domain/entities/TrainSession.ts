@@ -53,8 +53,17 @@ export class TrainSession {
     this.updatedAt = new Date();
   }
 
-  public moveTo(stationCode: string): void {
+  /**
+   * Leva a composição a outra estação. A tensão lida pela sapata coletora passa
+   * a ser a do terceiro trilho do novo trecho — sem isso o trem carregaria para
+   * sempre a leitura da estação em que foi semeado.
+   */
+  public moveTo(stationCode: string, voltageV: number): void {
+    if (!Number.isFinite(voltageV) || voltageV < 0) {
+      throw new ValidationError('A tensão de terceiro trilho é inválida.');
+    }
     this.currentStationCode = stationCode;
+    this.voltageV = voltageV;
     this.updatedAt = new Date();
   }
 

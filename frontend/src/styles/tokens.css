@@ -21,7 +21,7 @@
      a cor sólida é a mesma nos dois temas: badges e botões preenchidos
      continuam legíveis sem um segundo tom. */
   --cco-green: #007e5e;
-  --cco-green-bright: #00956f; /* Realce / hover */
+  --cco-green-bright: #00956f; /* Traços e realces sem texto (ex.: trilho do mapa) */
   --cco-green-deep: #005a43;   /* Sombras e gradientes */
   --cco-green-soft: rgba(0, 126, 94, 0.12);
   --cco-green-softer: rgba(0, 126, 94, 0.06);
@@ -30,13 +30,6 @@
      branco); no escuro precisa clarear, já que o verde sólido cai a ~3:1
      sobre o grafite. */
   --cco-green-ink: #007e5e;
-
-  /* Grafite — o par neutro da marca: títulos, ícones de navegação e texto
-     sobre os realces em verde claro. */
-  --cco-graphite: #232a28;
-  --cco-graphite-bright: #3b4541;
-  --cco-graphite-soft: rgba(35, 42, 40, 0.10);
-  --cco-graphite-softer: rgba(35, 42, 40, 0.05);
 
   /* --- Status ------------------------------------------------------------ */
   /* O "normal" é um verde-folha, mais amarelado que a marca: lado a lado, o
@@ -52,6 +45,8 @@
   --cco-info-soft: rgba(51, 99, 194, 0.12);
 
   /* --- Texto ------------------------------------------------------------ */
+  /* O grafite da marca vive aqui e nas superfícies escuras: o texto principal
+     é um grafite esverdeado, não um preto neutro. */
   --cco-text-main: #17201d;
   --cco-text-muted: #56605c;
   --cco-text-dim: #838c88;
@@ -154,12 +149,6 @@
 
   --cco-green-ink: #3fc79c;
   --cco-green-bright: #1aa680;
-
-  /* Sobre o fundo escuro o grafite some; o par neutro vira um cinza claro. */
-  --cco-graphite: #c9d2ce;
-  --cco-graphite-bright: #e3e9e6;
-  --cco-graphite-soft: rgba(201, 210, 206, 0.10);
-  --cco-graphite-softer: rgba(201, 210, 206, 0.05);
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.32);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38);
