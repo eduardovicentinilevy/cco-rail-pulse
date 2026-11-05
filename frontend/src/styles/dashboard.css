@@ -467,7 +467,8 @@
   pointer-events: none;
 }
 
-.rp-map__station[data-selected='true'] .rp-map__label { fill: var(--cco-green); }
+/* Texto: usa o verde de tinta, que clareia no tema escuro (o sólido cai a ~3:1). */
+.rp-map__station[data-selected='true'] .rp-map__label { fill: var(--cco-green-ink); }
 
 /* O deslocamento entre estações é interpolado quadro a quadro em JS (useTrainMotion) —
    uma transição CSS aqui competiria com esse cálculo e produziria um movimento "borrado". */
@@ -478,6 +479,12 @@
 .rp-map__train-halo {
   fill: var(--rp-status, var(--cco-green));
   opacity: 0.18;
+}
+
+.rp-map__train-leader {
+  stroke: var(--rp-status, var(--cco-green));
+  stroke-width: 1;
+  opacity: 0.6;
 }
 
 .rp-map__train-tag {

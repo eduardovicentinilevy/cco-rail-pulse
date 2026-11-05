@@ -1,5 +1,5 @@
 // backend/application/services/TrainMotionSimulator.ts
-import { LINE_STATION_CODES } from '../../domain/line';
+import { findStation, LINE_STATION_CODES } from '../../domain/line';
 import { withTransaction } from '../../infrastructure/database/postgres';
 import { TrainRepository } from '../../infrastructure/database/repositories/TrainRepository';
 import { domainEventBus } from '../events/event-bus';
@@ -25,6 +25,12 @@ const JITTER_RATIO = 0.35;
 /** Granularidade da checagem interna. O intervalo por trem é o parâmetro do construtor, não este valor. */
 const POLL_MS = 500;
 
+/** Leitura corrente do terceiro trilho numa estação, em volts (`undefined` se não houver). */
+export type VoltageLookup = (stationCode: string) => number | undefined;
+
+/** Sem telemetria ao vivo, o trem assume a tensão de referência do trecho. */
+const referenceVoltage: VoltageLookup = (stationCode) => findStation(stationCode)?.nominalVoltageV;
+
 export const jitteredDelay = (baseMs: number, random = Math.random): number => {
   const factor = 1 + (random() * 2 - 1) * JITTER_RATIO;
   return Math.round(baseMs * factor);
@@ -48,7 +54,10 @@ export class TrainMotionSimulator {
   private readonly nextAdvanceAt = new Map<string, number>();
   private isTicking = false;
 
-  constructor(private readonly intervalMs: number) {}
+  constructor(
+    private readonly intervalMs: number,
+    private readonly voltageAt: VoltageLookup = referenceVoltage,
+  ) {}
 
   public get isRunning(): boolean {
     return this.timer !== null;
@@ -121,7 +130,8 @@ export class TrainMotionSimulator {
       const direction = nextDirection(currentIndex, maxIndex, this.directions.get(trainId) ?? 1);
 
       this.directions.set(trainId, direction);
-      train.moveTo(LINE_STATION_CODES[currentIndex + direction]);
+      const nextCode = LINE_STATION_CODES[currentIndex + direction];
+      train.moveTo(nextCode, this.voltageAt(nextCode) ?? referenceVoltage(nextCode) ?? train.voltageV);
       await TrainRepository.save(train, client);
 
       return train.toSnapshot();

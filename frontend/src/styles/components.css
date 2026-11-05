@@ -108,8 +108,10 @@
 }
 
 .rp-btn--primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--cco-green-bright) 0%, var(--cco-green) 100%);
-  border-color: var(--cco-green-bright);
+  /* O hover escurece em vez de clarear: o verde claro com texto branco cairia
+     abaixo de 4.5:1. Sobre o verde profundo o contraste passa de 8:1. */
+  background: var(--cco-green-deep);
+  border-color: var(--cco-green-deep);
 }
 
 .rp-btn--outline {

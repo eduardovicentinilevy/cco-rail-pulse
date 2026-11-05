@@ -3,13 +3,19 @@
 -- (terceiro trilho, 750 Vcc). Muda a unidade das colunas de tensão e descarta o
 -- estado operacional da malha anterior, que não existe mais no traçado.
 
--- Tensão: de kV de catenária para V de terceiro trilho. Os blocos IF rodam uma
--- única vez; em bancos que já nasceram com as colunas em volts não fazem nada.
+-- Tensão: de kV de catenária para V de terceiro trilho. Cada bloco confere a
+-- própria coluna, então o arquivo também é seguro num banco migrado pela metade;
+-- em bancos que já nasceram com as colunas em volts não faz nada.
+--
+-- A busca no catálogo é restrita ao schema corrente — o mesmo que o
+-- `ALTER TABLE trains` logo abaixo resolve. Sem isso, uma cópia antiga da tabela
+-- em outro schema do mesmo banco disparava o renomeio na tabela errada.
 DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'trains' AND column_name = 'voltage_kv'
+    WHERE table_schema = current_schema()
+      AND table_name = 'trains' AND column_name = 'voltage_kv'
   ) THEN
     ALTER TABLE trains RENAME COLUMN voltage_kv TO voltage_v;
     ALTER TABLE trains ALTER COLUMN voltage_v TYPE NUMERIC(6, 1);
@@ -17,7 +23,8 @@ BEGIN
 
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'telemetry_samples' AND column_name = 'min_kv'
+    WHERE table_schema = current_schema()
+      AND table_name = 'telemetry_samples' AND column_name = 'min_kv'
   ) THEN
     ALTER TABLE telemetry_samples RENAME COLUMN min_kv TO min_v;
     ALTER TABLE telemetry_samples RENAME COLUMN avg_kv TO avg_v;

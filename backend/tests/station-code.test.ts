@@ -20,6 +20,12 @@ describe('StationCode', () => {
     assert.throws(() => new StationCode('XYZ'), ValidationError);
   });
 
+  it('aceita dígitos no formato — a recusa de "1AB" vem do catálogo, não do formato', () => {
+    // O formato exige só 3 caracteres; dígitos são válidos (a Linha 6 tinha "14B").
+    assert.throws(() => new StationCode('1AB'), /não pertence à malha/);
+    assert.throws(() => new StationCode('14'), /exatamente 3 caracteres/);
+  });
+
   it('rejeita códigos da malha anterior (Linha 6)', () => {
     assert.throws(() => new StationCode('BRA'), ValidationError);
     assert.throws(() => new StationCode('14B'), ValidationError);
