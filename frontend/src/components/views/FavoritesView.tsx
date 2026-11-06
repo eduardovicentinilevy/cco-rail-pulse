@@ -5,6 +5,7 @@ import type { FavoritesControls } from '../../hooks/useFavorites';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
 import { formatVoltage } from '../../lib/format';
+import { directionArrow, PHASE_LABELS } from '../../data/trains';
 
 interface FavoritesViewProps {
   stations: Station[];
@@ -93,7 +94,10 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ stations, trains, 
               {favoriteTrains.map((train) => (
                 <li key={train.trainId} className="rp-feed__item" data-status={train.status}>
                   <span className="rp-feed__source">{train.trainId}</span>
-                  <span className="rp-feed__message truncate">{train.currentStationCode} • {train.speedKmH} km/h</span>
+                  <span className="rp-feed__message truncate">
+                    {directionArrow(train.direction)} {train.currentStationCode}
+                    {train.nextStationCode ? ` → ${train.nextStationCode}` : ''} • {PHASE_LABELS[train.phase]}
+                  </span>
                   <StatusPill status={train.status} solid />
                   <button type="button" className="rp-btn rp-btn--link" onClick={() => onGoToTrain(train)}>
                     Ver na malha

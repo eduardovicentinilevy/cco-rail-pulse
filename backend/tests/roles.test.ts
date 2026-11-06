@@ -18,6 +18,12 @@ describe('Controle de acesso por perfil', () => {
     assert.equal(can('ADMIN', 'MANAGE_OPERATORS'), true);
   });
 
+  it('manobra de energia no terceiro trilho exige ao menos supervisor', () => {
+    assert.equal(can('OPERADOR', 'CONTROL_POWER'), false);
+    assert.equal(can('SUPERVISOR', 'CONTROL_POWER'), true);
+    assert.equal(can('ADMIN', 'CONTROL_POWER'), true);
+  });
+
   it('administrar o sistema é exclusivo do ADMIN', () => {
     assert.equal(can('SUPERVISOR', 'ADMINISTER_SYSTEM'), false);
     assert.equal(can('ADMIN', 'ADMINISTER_SYSTEM'), true);

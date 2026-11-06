@@ -21,14 +21,65 @@ export interface Station {
   connections: string[];
 }
 
+/** 1 = sentido Vila Prudente (leste); -1 = sentido Vila Madalena (oeste). */
+export type Direction = 1 | -1;
+
+/** Situação operacional, derivada no backend (`TrainSession.phase`). */
+export type TrainPhase = 'PLATAFORMA' | 'RETIDO' | 'EM_MARCHA' | 'PARADO_ENTRE_ESTACOES' | 'IMOBILIZADO';
+
 /** Estado de uma composição, espelhando `TrainSnapshot` do backend. */
 export interface Train {
   trainId: string;
+  /** Estação onde está parada, ou de onde partiu se estiver em marcha. */
   currentStationCode: string;
   speedKmH: number;
   voltageV: number;
   status: TrainStatus;
   updatedAt: string;
+  direction: Direction;
+  phase: TrainPhase;
+  /** Destino do trecho em curso; `null` parada na plataforma. */
+  nextStationCode: string | null;
+  holdReason: string | null;
+  /** Andamento no trecho no instante em que o snapshot chegou. */
+  movement: { progress: number; remainingMs: number | null } | null;
+  /** `performance.now()` da chegada do snapshot — base da animação, imune ao relógio do servidor. */
+  syncedAt: number;
+}
+
+/** Seção de alimentação do terceiro trilho (uma por subestação retificadora). */
+export interface PowerSection {
+  substation: string;
+  energized: boolean;
+  reason: string | null;
+  changedBy: string | null;
+  changedAt: string;
+  stationCodes: string[];
+  trainsRunning?: number;
+}
+
+export interface ArrivalEntry {
+  trainId: string;
+  etaSeconds: number;
+  atPlatform: boolean;
+  held: boolean;
+}
+
+export interface StationArrivalBoard {
+  code: string;
+  name: string;
+  /** Sentido Vila Prudente. */
+  east: ArrivalEntry[];
+  /** Sentido Vila Madalena. */
+  west: ArrivalEntry[];
+}
+
+export interface ArrivalsPayload {
+  generatedAt: string;
+  timeScale: number;
+  directions: { east: string; west: string };
+  service: { trainsInService: number; cycleSeconds: number; headwaySeconds: number | null };
+  stations: StationArrivalBoard[];
 }
 
 export interface AlarmEvent {

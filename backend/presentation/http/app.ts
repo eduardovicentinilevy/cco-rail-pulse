@@ -19,6 +19,9 @@ import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { RateLimiter, rateLimit } from './middlewares/rate-limit.middleware';
 import { rateLimitStore } from '../../infrastructure/rate-limit/pg-rate-limit.store';
 import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
+import type { TrainMotionSimulator } from '../../application/services/TrainMotionSimulator';
+import type { PowerGrid } from '../../application/services/PowerGrid';
+import { createEnergyRouter } from './routes/energy.routes';
 
 /**
  * Cabeçalhos de segurança básicos, sem adicionar dependências ao bundle.
@@ -50,7 +53,13 @@ const securityHeaders: express.RequestHandler = (_req, res, next) => {
  */
 const apiLimiter = new RateLimiter(env.apiMaxRequests, env.apiWindowMs, rateLimitStore);
 
-export const createApp = (simulator: TelemetrySimulator): Express => {
+export interface AppServices {
+  simulator: TelemetrySimulator;
+  operation: TrainMotionSimulator;
+  powerGrid: PowerGrid;
+}
+
+export const createApp = ({ simulator, operation, powerGrid }: AppServices): Express => {
   const app = express();
 
   app.disable('x-powered-by');
@@ -68,7 +77,8 @@ export const createApp = (simulator: TelemetrySimulator): Express => {
   app.use('/api/auth', authRouter);
   app.use('/api/operator', operatorRouter);
   app.use('/api/audit-logs', auditRouter);
-  app.use('/api/network', createNetworkRouter(simulator));
+  app.use('/api/network', createNetworkRouter(simulator, operation));
+  app.use('/api/energy', createEnergyRouter(powerGrid, operation));
   app.use('/api/incidents', incidentRouter);
   app.use('/api/work-orders', workOrderRouter);
   app.use('/api/team', teamRouter);
