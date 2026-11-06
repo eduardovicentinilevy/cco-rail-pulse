@@ -5,12 +5,15 @@ import { TrainRepository } from '../../../infrastructure/database/repositories/T
 import { TelemetryRepository } from '../../../infrastructure/database/repositories/TelemetryRepository';
 import { verifyJwt } from '../middlewares/auth.middleware';
 import type { TelemetrySimulator } from '../../../application/services/TelemetrySimulator';
+import type { TrainMotionSimulator } from '../../../application/services/TrainMotionSimulator';
+import { cycleTimeMs, DIRECTION_LABELS } from '../../../domain/operation';
+import { env } from '../../../config/env';
 
 /**
  * Rotas de malha: catálogo de estações e estado persistido das composições.
  * O frontend usa estes endpoints como carga inicial antes do WebSocket assumir.
  */
-export const createNetworkRouter = (simulator: TelemetrySimulator): Router => {
+export const createNetworkRouter = (simulator: TelemetrySimulator, operation: TrainMotionSimulator): Router => {
   const router = Router();
 
   router.use(verifyJwt);
@@ -33,7 +36,45 @@ export const createNetworkRouter = (simulator: TelemetrySimulator): Router => {
 
   router.get('/trains', async (_req, res) => {
     const trains = await TrainRepository.findAll();
-    res.status(200).json(trains.map((train) => train.toSnapshot()));
+    const now = new Date();
+    res.status(200).json(trains.map((train) => train.toSnapshot(now)));
+  });
+
+  /**
+   * Previsão de chegadas por estação e sentido de partida, como no painel de
+   * passageiros. `etaSeconds` já está no relógio do painel (com a aceleração da simulação).
+   */
+  router.get('/arrivals', async (_req, res) => {
+    const now = new Date();
+    const fleet = await TrainRepository.findAll();
+    // Em serviço: composições que não estão imobilizadas pelo CCO.
+    const inService = fleet.filter((train) => train.status !== 'EMERGÊNCIA').length;
+    const cycleSeconds = Math.round(cycleTimeMs() / 1000 / env.simulationTimeScale);
+    const toPayload = (list: ReturnType<TrainMotionSimulator['arrivals']>[number]['byDirection'][1]) =>
+      list.map(({ trainId, etaMs, atPlatform, held }) => ({
+        trainId,
+        etaSeconds: Math.round(etaMs / 1000),
+        atPlatform,
+        held,
+      }));
+
+    res.status(200).json({
+      generatedAt: now.toISOString(),
+      timeScale: env.simulationTimeScale,
+      directions: { east: DIRECTION_LABELS[1], west: DIRECTION_LABELS[-1] },
+      service: {
+        trainsInService: inService,
+        cycleSeconds,
+        // Intervalo médio em cada plataforma: a volta completa dividida pela frota.
+        headwaySeconds: inService > 0 ? Math.round(cycleSeconds / inService) : null,
+      },
+      stations: operation.arrivals(now).map((station) => ({
+        code: station.stationCode,
+        name: station.stationName,
+        east: toPayload(station.byDirection[1]),
+        west: toPayload(station.byDirection[-1]),
+      })),
+    });
   });
 
   /**

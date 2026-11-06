@@ -4,6 +4,7 @@ import type { StationTelemetryDTO } from '../dtos/TrainDTO';
 import type { TrainSnapshot } from '../../domain/entities/TrainSession';
 import type { IncidentSnapshot } from '../../domain/entities/Incident';
 import type { WorkOrderSnapshot } from '../../domain/entities/WorkOrder';
+import type { PowerSectionSnapshot } from '../services/PowerGrid';
 
 export interface SystemAlert {
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
@@ -18,6 +19,8 @@ export interface DomainEvents {
   'incident:changed': [IncidentSnapshot];
   'workorder:changed': [WorkOrderSnapshot];
   'system:alert': [SystemAlert];
+  /** Seção do terceiro trilho energizada ou desenergizada pelo CCO. */
+  'power:changed': [PowerSectionSnapshot];
   /** Operador desativado — o gateway WS derruba qualquer socket já aberto em nome dele. */
   'operator:deactivated': [{ operatorId: string }];
 }

@@ -110,6 +110,11 @@
   width: 100%;
 }
 
+/* Crachá do trem no esquemático: a situação reforça a cor de status. */
+.rp-train-badge[data-phase='RETIDO'] { border-style: dashed; border-color: var(--cco-warning); }
+.rp-train-badge[data-phase='PARADO_ENTRE_ESTACOES'],
+.rp-train-badge[data-phase='IMOBILIZADO'] { border-color: var(--cco-danger); background-color: var(--cco-danger-soft); }
+
 .rp-train-badge {
   display: flex;
   align-items: center;
@@ -493,6 +498,11 @@
   stroke-width: 1.5;
 }
 
+/* Situação do trem no mapa: retido em tracejado, parado/imobilizado com fundo de alerta. */
+.rp-map__train-tag[data-phase='RETIDO'] { stroke: var(--cco-warning); stroke-dasharray: 3 2; }
+.rp-map__train-tag[data-phase='PARADO_ENTRE_ESTACOES'],
+.rp-map__train-tag[data-phase='IMOBILIZADO'] { stroke: var(--cco-danger); fill: var(--cco-danger-soft); }
+
 .rp-map__train-label {
   fill: var(--cco-text-main);
   font-family: var(--cco-font-mono);
@@ -529,3 +539,23 @@
   background: var(--grad-accent);
   color: #fff;
 }
+
+/* --- Seção desenergizada ----------------------------------------------------- */
+.rp-sr-card[data-energized='false'] {
+  border-color: var(--cco-danger);
+  background-image: repeating-linear-gradient(135deg, var(--cco-danger-soft) 0 6px, transparent 6px 14px);
+}
+
+/* --- Quadro de chegadas ------------------------------------------------------- */
+.rp-arrivals-table th[scope='colgroup'] { text-align: left; color: var(--cco-text-main); }
+.rp-arrivals-table td { white-space: nowrap; }
+
+.rp-arrival {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.rp-arrival__eta { color: var(--cco-text-muted); }
+.rp-arrival__eta[data-state='platform'] { color: var(--cco-green-ink); font-weight: 700; }
+.rp-arrival__eta[data-state='arriving'] { color: var(--cco-warning); font-weight: 700; }

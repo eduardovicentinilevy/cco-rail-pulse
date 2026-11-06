@@ -17,6 +17,8 @@ export const PERMISSIONS = {
   MANAGE_INCIDENTS: 'OPERADOR',
   /** Consultar o cadastro de operadores. */
   VIEW_OPERATORS: 'OPERADOR',
+  /** Energizar e desenergizar seções do terceiro trilho (manobra de energia). */
+  CONTROL_POWER: 'SUPERVISOR',
   /** Criar operadores e alterar perfis/ativação. */
   MANAGE_OPERATORS: 'SUPERVISOR',
   /** Remover definitivamente registros do cadastro. */

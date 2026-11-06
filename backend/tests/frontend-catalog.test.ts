@@ -45,6 +45,7 @@ interface FrontendCatalog {
 }
 
 interface FrontendGeometry {
+  STATION_COORDS: Record<string, { lat: number; lon: number }>;
   ROUTE: Record<string, { x: number; y: number }>;
   VIEW_WIDTH: number;
   VIEW_HEIGHT: number;
@@ -112,6 +113,13 @@ describe('Contrato frontend ↔ domínio da malha', () => {
     for (const [code, point] of Object.entries(geometry.ROUTE)) {
       assert.ok(point.x >= 0 && point.x <= geometry.VIEW_WIDTH, `${code} fora do quadro (x=${point.x})`);
       assert.ok(point.y >= 0 && point.y <= geometry.VIEW_HEIGHT, `${code} fora do quadro (y=${point.y})`);
+    }
+  });
+
+  it('desenha o mapa com as mesmas coordenadas que medem as distâncias da marcha', async () => {
+    const geometry = await frontendModule<FrontendGeometry>('lineGeometry.ts');
+    for (const station of LINE_STATIONS) {
+      assert.deepEqual(geometry.STATION_COORDS[station.code], { lat: station.lat, lon: station.lon }, station.code);
     }
   });
 

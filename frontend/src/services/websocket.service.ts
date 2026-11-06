@@ -2,15 +2,17 @@
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { SOCKET_URL } from '../config/env';
-import type { CommandAck, Incident, StationTelemetry, SystemAlert, Train, WorkOrder } from '../types';
+import type { CommandAck, Incident, PowerSection, StationTelemetry, SystemAlert, WorkOrder } from '../types';
 
 /** Eventos emitidos pelo gateway do CCO em direção ao painel. */
 export interface ServerEvents {
   'telemetry:batch': (batch: StationTelemetry[]) => void;
-  'train:sync': (trains: Train[]) => void;
-  'train:updated': (train: Train) => void;
+  // Snapshots crus: o painel os passa por `normalizeTrain` antes de usar.
+  'train:sync': (trains: unknown[]) => void;
+  'train:updated': (train: unknown) => void;
   'incident:changed': (incident: Incident) => void;
   'workorder:changed': (workOrder: WorkOrder) => void;
+  'power:changed': (section: PowerSection) => void;
   'alert:critical': (alert: SystemAlert) => void;
   'train:command:acknowledged': (ack: CommandAck) => void;
 }

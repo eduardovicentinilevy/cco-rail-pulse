@@ -3,11 +3,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { wsService } from '../services/websocket.service';
 import { api, ApiError } from '../services/api';
 import { isFiniteNumber, isStationStatus, LINE_STATIONS, normalizeStation } from '../data/stations';
+import { normalizeTrain, normalizeTrains, PHASE_LABELS } from '../data/trains';
 import type {
   AlarmEvent,
   AlarmLevel,
+  ArrivalsPayload,
   OperationalCommand,
   OperatorSession,
+  PowerSection,
   Station,
   StationStatus,
   Train,
@@ -27,6 +30,7 @@ import { EnergyView } from './views/EnergyView';
 import { AnalyticsReportsView } from './views/AnalyticsReportsView';
 import { AssetMaintenanceView } from './views/AssetMaintenanceView';
 import { TimetableDispatchView } from './views/TimetableDispatchView';
+import { ArrivalsView } from './views/ArrivalsView';
 import { IncidentsView } from './views/IncidentsView';
 import { WorkOrdersView } from './views/WorkOrdersView';
 import { WeatherView } from './views/WeatherView';
@@ -84,7 +88,11 @@ type TabKey =
   | 'settings'
   | 'weather'
   | 'favorites'
-  | 'wall';
+  | 'wall'
+  | 'arrivals';
+
+/** Intervalo entre consultas da previsão de chegadas, como num painel de passageiros. */
+const ARRIVALS_REFRESH_MS = 5_000;
 
 /** Ordem da navegação — também define a ordem dos atalhos numéricos (1–9 e 0, até a décima seção). */
 const NAV_ORDER: readonly TabKey[] = [
@@ -109,6 +117,7 @@ const NAV_ORDER: readonly TabKey[] = [
   'weather',
   'favorites',
   'wall',
+  'arrivals',
 ];
 
 const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
@@ -125,6 +134,7 @@ const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
     items: [
       { key: 'overview', label: 'Painel executivo', icon: '◉' },
       { key: 'ats', label: 'Via CBTC', icon: '⌖' },
+      { key: 'arrivals', label: 'Chegadas & intervalos', icon: '⏱' },
       { key: 'incidents', label: 'Ocorrências', icon: '⚠' },
       { key: 'alarms', label: 'Central de Alarmes', icon: '◍' },
       { key: 'occupancy', label: 'Ocupação', icon: '◐' },
@@ -184,6 +194,10 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [stations, setStations] = useState<Station[]>(LINE_STATIONS);
   const [trains, setTrains] = useState<Train[]>([]);
+  const [powerSections, setPowerSections] = useState<PowerSection[]>([]);
+  const [arrivals, setArrivals] = useState<ArrivalsPayload | null>(null);
+  /** `performance.now()` da última previsão recebida — base das contagens regressivas. */
+  const [arrivalsFetchedAt, setArrivalsFetchedAt] = useState(0);
   const [history, setHistory] = useState<VoltageSample[]>([]);
   const [selectedCode, setSelectedCode] = useState<string>(LINE_STATIONS[0].code);
   const [searchQuery, setSearchQuery] = useState('');
@@ -261,9 +275,10 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
     const bootstrap = async () => {
       try {
-        const [stationsPayload, trainsPayload] = await Promise.all([
+        const [stationsPayload, trainsPayload, powerPayload] = await Promise.all([
           api.stations(session.token),
           api.trains(session.token),
+          api.powerSections(session.token),
         ]);
         if (cancelled) return;
 
@@ -272,7 +287,8 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           .filter((station): station is Station => station !== null);
         // Uma resposta vazia não apaga a malha: o catálogo local continua na tela.
         if (catalog.length > 0) setStations(catalog);
-        setTrains(trainsPayload as unknown as Train[]);
+        setTrains(normalizeTrains(trainsPayload));
+        setPowerSections(powerPayload.sections);
       } catch (error) {
         if (cancelled) return;
         if (error instanceof ApiError && error.isAuthError) {
@@ -336,7 +352,11 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       });
     };
 
-    const upsertTrain = (train: Train) =>
+    const handleTrainSync = (list: unknown[]) => setTrains(normalizeTrains(list));
+
+    const upsertTrain = (raw: unknown) => {
+      const train = normalizeTrain(raw);
+      if (!train) return;
       setTrains((previous) => {
         const index = previous.findIndex((item) => item.trainId === train.trainId);
         if (index === -1) return [...previous, train];
@@ -344,6 +364,15 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         next[index] = train;
         return next;
       });
+    };
+
+    const handlePowerChanged = (section: PowerSection) => {
+      setPowerSections((previous) =>
+        previous.some((item) => item.substation === section.substation)
+          ? previous.map((item) => (item.substation === section.substation ? { ...item, ...section } : item))
+          : [...previous, section],
+      );
+    };
 
     const handleCriticalAlert = (alert: { message: string; severity?: AlarmLevel }) => {
       addAlarm('REDE', alert.message, alert.severity ?? 'INFO');
@@ -393,11 +422,12 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
     socket.on('disconnect', handleDisconnect);
     socket.on('connect_error', handleConnectError);
     socket.on('telemetry:batch', handleTelemetryBatch);
-    socket.on('train:sync', setTrains);
+    socket.on('train:sync', handleTrainSync);
     socket.on('train:updated', upsertTrain);
     socket.on('alert:critical', handleCriticalAlert);
     socket.on('incident:changed', handleIncidentChanged);
     socket.on('workorder:changed', handleWorkOrderChanged);
+    socket.on('power:changed', handlePowerChanged);
     socket.on('train:command:acknowledged', handleCommandAck);
 
     return () => {
@@ -405,14 +435,45 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       socket.off('disconnect', handleDisconnect);
       socket.off('connect_error', handleConnectError);
       socket.off('telemetry:batch', handleTelemetryBatch);
-      socket.off('train:sync', setTrains);
+      socket.off('train:sync', handleTrainSync);
       socket.off('train:updated', upsertTrain);
       socket.off('alert:critical', handleCriticalAlert);
       socket.off('incident:changed', handleIncidentChanged);
       socket.off('workorder:changed', handleWorkOrderChanged);
+      socket.off('power:changed', handlePowerChanged);
       socket.off('train:command:acknowledged', handleCommandAck);
     };
   }, [session.token, addAlarm, addToast, notifyCritical, onExpireSession]);
+
+  // Previsão de chegadas: consultada só enquanto alguma tela a exibe. A contagem
+  // regressiva entre duas consultas corre localmente, a partir de `arrivalsFetchedAt`.
+  const needsArrivals = activeTab === 'ats' || activeTab === 'arrivals' || activeTab === 'timetable';
+  useEffect(() => {
+    if (!needsArrivals) return;
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const payload = await api.arrivals(session.token);
+        if (cancelled) return;
+        setArrivals(payload);
+        setArrivalsFetchedAt(performance.now());
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof ApiError && error.isAuthError) {
+          onExpireSession('Sua sessão expirou. Autentique-se novamente para reassumir o turno.');
+        }
+        // Falha transitória: a última previsão segue na tela, com a contagem local.
+      }
+    };
+
+    void load();
+    const timer = window.setInterval(() => void load(), ARRIVALS_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [needsArrivals, session.token, onExpireSession]);
 
   // Contador de ocorrências abertas exibido no cabeçalho; recarrega a cada mudança.
   useEffect(() => {
@@ -517,6 +578,27 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
     setActiveTab('ats');
   }, []);
 
+  const handleGoToStationCode = useCallback((code: string) => {
+    setSelectedCode(code);
+    setActiveTab('ats');
+  }, []);
+
+  /** Resposta da manobra de energia — o evento `power:changed` também chega, e é idempotente. */
+  const handlePowerSectionChanged = useCallback((section: PowerSection) => {
+    setPowerSections((previous) =>
+      previous.map((item) => (item.substation === section.substation ? { ...item, ...section } : item)),
+    );
+  }, []);
+
+  // Tempo desde a última previsão, para as contagens regressivas da estação selecionada.
+  // Só corre com a Via CBTC aberta — é a única tela que mostra a estação selecionada.
+  const [arrivalsElapsedMs, setArrivalsElapsedMs] = useState(0);
+  useEffect(() => {
+    if (activeTab !== 'ats') return;
+    const timer = window.setInterval(() => setArrivalsElapsedMs(performance.now() - arrivalsFetchedAt), 1000);
+    return () => window.clearInterval(timer);
+  }, [activeTab, arrivalsFetchedAt]);
+
   const handleSendCommand = useCallback(
     (trainId: string, command: OperationalCommand) => {
       const delivered = wsService.sendCommand(trainId, command, selectedStation.code);
@@ -605,7 +687,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
     const trainActions = trains.map((train) => ({
       id: `train-${train.trainId}`,
-      label: `${train.trainId} — ${train.speedKmH} km/h`,
+      label: `${train.trainId} — ${PHASE_LABELS[train.phase]}`,
       group: 'Composições',
       icon: '▭',
       hint: train.currentStationCode,
@@ -823,6 +905,10 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
               <SelectedStationPanel
                 station={selectedStation}
                 trains={selectedStationTrains}
+                arrivals={arrivals?.stations.find((board) => board.code === selectedStation.code)}
+                directionLabels={arrivals?.directions}
+                arrivalsElapsedMs={arrivalsElapsedMs}
+                power={powerSections.find((section) => section.substation === selectedStation.substation)}
                 pendingCommand={pendingCommand}
                 isStationFavorite={favorites.isStationFavorite(selectedStation.code)}
                 onToggleStationFavorite={favorites.toggleStationFavorite}
@@ -865,7 +951,26 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           <CamerasView session={session} stations={stations} onNotify={addToast} onAuthError={onExpireSession} />
         )}
 
-        {activeTab === 'energy' && <EnergyView stations={stations} history={history} />}
+        {activeTab === 'energy' && (
+          <EnergyView
+            stations={stations}
+            history={history}
+            trains={trains}
+            powerSections={powerSections}
+            session={session}
+            onPowerChanged={handlePowerSectionChanged}
+            onNotify={addToast}
+            onAuthError={onExpireSession}
+          />
+        )}
+        {activeTab === 'arrivals' && (
+          <ArrivalsView
+            arrivals={arrivals}
+            fetchedAt={arrivalsFetchedAt}
+            trains={trains}
+            onSelectStation={handleGoToStationCode}
+          />
+        )}
         {activeTab === 'history' && (
           <HistoryView session={session} stations={stations} onAuthError={onExpireSession} />
         )}
@@ -880,7 +985,9 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           />
         )}
         {activeTab === 'analytics' && <AnalyticsReportsView stations={stations} trains={trains} alarms={alarms} />}
-        {activeTab === 'timetable' && <TimetableDispatchView trains={trains} stations={stations} />}
+        {activeTab === 'timetable' && (
+          <TimetableDispatchView trains={trains} stations={stations} service={arrivals?.service ?? null} />
+        )}
         {activeTab === 'handover' && (
           <ShiftHandoverView session={session} shiftStartedAt={shiftStartedAt} onAuthError={onExpireSession} />
         )}

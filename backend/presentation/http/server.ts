@@ -9,6 +9,9 @@ import { registerCcoGateway } from '../websocket/cco.gateway';
 import { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 import { TelemetryArchiver } from '../../application/services/TelemetryArchiver';
 import { TrainMotionSimulator } from '../../application/services/TrainMotionSimulator';
+import { PowerGrid } from '../../application/services/PowerGrid';
+import { VoltageAlarmMonitor } from '../../application/services/VoltageAlarmMonitor';
+import { PowerSectionRepository } from '../../infrastructure/database/repositories/PowerSectionRepository';
 import { runMigrations } from '../../infrastructure/database/migrations';
 import { closeDatabase, db } from '../../infrastructure/database/postgres';
 import { domainEventBus } from '../../application/events/event-bus';
@@ -16,11 +19,22 @@ import { AlarmRepository } from '../../infrastructure/database/repositories/Alar
 
 const logger = createLogger('BOOT');
 
-const simulator = new TelemetrySimulator(env.telemetryIntervalMs);
+const powerGrid = new PowerGrid(PowerSectionRepository);
+// Telemetria e operação se alimentam mutuamente: os trens em marcha derrubam a
+// tensão da seção, e o trem que chega a uma estação passa a ler a tensão dali.
+// As funções só rodam depois do `start()` — a referência cruzada é segura.
+const simulator = new TelemetrySimulator(env.telemetryIntervalMs, {
+  loadAt: (substation) => trainMotion.runningLoad(substation),
+  isEnergized: powerGrid.isEnergized,
+});
+const trainMotion = new TrainMotionSimulator({
+  timeScale: env.simulationTimeScale,
+  voltageAt: (code) => simulator.readingFor(code),
+  isEnergized: powerGrid.isEnergized,
+});
 const archiver = new TelemetryArchiver(env.telemetryBucketSeconds, env.telemetryRetentionDays);
-// A composição que entra numa estação passa a ler a tensão do terceiro trilho dali.
-const trainMotion = new TrainMotionSimulator(env.trainMotionIntervalMs, (code) => simulator.readingFor(code));
-const app = createApp(simulator);
+const alarmMonitor = new VoltageAlarmMonitor();
+const app = createApp({ simulator, operation: trainMotion, powerGrid });
 const server = http.createServer(app);
 
 const io = new SocketIOServer(server, {
@@ -58,6 +72,7 @@ const shutdown = async (signal: string): Promise<void> => {
 
   simulator.stop();
   trainMotion.stop();
+  alarmMonitor.stop();
   // Descarrega a janela pendente antes de derrubar o barramento.
   await archiver.stop().catch((error) => logger.error('Falha ao encerrar o arquivamento.', error));
   domainEventBus.removeAllListeners();
@@ -77,14 +92,20 @@ const bootstrap = async (): Promise<void> => {
     logger.info('Conexão com PostgreSQL estabelecida.');
 
     await runMigrations();
+    await powerGrid.load();
     archiver.start();
+    alarmMonitor.start();
     simulator.start();
     trainMotion.start();
 
     server.listen(env.port, () => {
       logger.info(`RailPulse CCO (${env.nodeEnv}) ativo em http://localhost:${env.port}`);
       logger.info(`Telemetria SCADA emitindo a cada ${env.telemetryIntervalMs}ms.`);
-      logger.info(`Composições avançando uma estação a cada ${env.trainMotionIntervalMs}ms.`);
+      logger.info(
+        env.simulationTimeScale === 1
+          ? 'Operação simulada em tempo real.'
+          : `Operação simulada com relógio acelerado ${env.simulationTimeScale}×.`,
+      );
     });
   } catch (error) {
     logger.error('Falha crítica de inicialização. Servidor abortado.', error);

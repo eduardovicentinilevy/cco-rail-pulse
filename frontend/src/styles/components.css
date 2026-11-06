@@ -137,6 +137,11 @@
   border-color: transparent;
 }
 
+.rp-btn--sm {
+  padding: 0.3rem 0.7rem;
+  font-size: var(--fs-xs);
+}
+
 .rp-btn--link {
   background: none;
   border: none;
