@@ -339,3 +339,12 @@ O que mudou entre o desenho e o que foi entregue:
   cardeal. Os três passaram a sair da malha da sessão: os terminais são a primeira
   e a última estação recebidas, e o intervalo-alvo é o menor `headway_seconds`
   cadastrado.
+
+- **Uma linha cadastrada depois do boot entra em simulação sob demanda.** A
+  master sobe a simulação uma vez, no boot, porque a malha era única e nascia
+  com o processo. Aqui um cliente novo é cadastro: a linha dele pode nascer com
+  o servidor já de pé, e sem isto a manobra de energia e o quadro de chegadas
+  dela viriam vazios até alguém reiniciar o serviço — "cadastro, não deploy"
+  valendo só até o próximo boot. As rotas de malha e de energia chamam
+  `SimulationRegistry.ensureLine(lineId)` antes de ler o estado simulado; a
+  chamada é idempotente e custa uma consulta a um `Map` no caso normal.

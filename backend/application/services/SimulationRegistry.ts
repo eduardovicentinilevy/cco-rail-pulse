@@ -110,6 +110,20 @@ export class SimulationRegistry {
     }
   }
 
+  /**
+   * Garante que uma linha esteja simulada e devolve o conjunto dela.
+   *
+   * Uma linha cadastrada depois do boot não passou por `startAll`, e sem isto a
+   * manobra de energia e o quadro de chegadas dela viriam vazios até alguém
+   * reiniciar o servidor — o oposto de "um cliente novo é cadastro, não deploy".
+   * `startLine` é idempotente, então chamar isto a cada requisição custa uma
+   * consulta a um `Map` no caso normal.
+   */
+  public async ensureLine(lineId: string): Promise<void> {
+    if (this.simulations.has(lineId)) return;
+    await this.startLine(lineId);
+  }
+
   /** Estado corrente da malha de uma linha; vazio quando a linha não está simulada. */
   public snapshotOf(lineId: string): ReturnType<TelemetrySimulator['snapshot']> {
     return this.simulations.get(lineId)?.telemetry.snapshot() ?? [];

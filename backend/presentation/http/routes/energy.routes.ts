@@ -22,8 +22,11 @@ export const createEnergyRouter = (registry: SimulationRegistry): Router => {
 
   router.use(verifyJwt, withLineCatalog);
 
-  router.get('/sections', (req: ScopedRequest, res) => {
+  router.get('/sections', async (req: ScopedRequest, res) => {
     const lineId = req.catalog!.id;
+    // Uma linha cadastrada depois do boot ainda não tem simulação: sobe a dela
+    // aqui, em vez de responder sem seção nenhuma até o próximo reinício.
+    await registry.ensureLine(lineId);
     const grid = registry.gridOf(lineId);
     const motion = registry.motionOf(lineId);
 
@@ -44,6 +47,7 @@ export const createEnergyRouter = (registry: SimulationRegistry): Router => {
         throw new ValidationError('Informe `energized` (true para energizar, false para desenergizar).');
       }
       const catalog = req.catalog!;
+      await registry.ensureLine(catalog.id);
       const grid = registry.gridOf(catalog.id);
       if (!grid) {
         // Linha sem simulação ativa: não há disjuntor para manobrar, e inventar um

@@ -21,8 +21,9 @@ export const createNetworkRouter = (registry: SimulationRegistry): Router => {
 
   router.use(verifyJwt, withLineCatalog);
 
-  router.get('/stations', (req: ScopedRequest, res) => {
+  router.get('/stations', async (req: ScopedRequest, res) => {
     const catalog = req.catalog!;
+    await registry.ensureLine(catalog.id);
     const telemetry = new Map(registry.snapshotOf(catalog.id).map((item) => [item.currentStationCode, item]));
 
     res.status(200).json({
@@ -75,8 +76,9 @@ export const createNetworkRouter = (registry: SimulationRegistry): Router => {
         atPlatform,
         held,
       }));
-    // Linha sem simulação ativa (recém-cadastrada, ou sem malha): o quadro existe
-    // e vem vazio, em vez de a rota falhar.
+    // Linha cadastrada depois do boot: sobe a simulação dela antes de projetar.
+    // Sem malha cadastrada não há o que simular, e aí o quadro vem vazio.
+    await registry.ensureLine(catalog.id);
     const board = registry.motionOf(catalog.id)?.arrivals(now) ?? [];
 
     res.status(200).json({

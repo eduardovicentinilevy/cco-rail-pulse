@@ -14,10 +14,12 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3333}"
 PSQL=(psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -U "${DB_USER:-postgres}" -d "${DB_NAME:-railpulse_cco}")
 SERVER_LOG="${SERVER_LOG:-$(mktemp -t railpulse-isolation-XXXXXX.log)}"
-SERVER_PID=""
+SERVER_PGID=""
 
+# `npx tsx` gera um filho node, e matar só o pai deixaria a porta ocupada para a
+# próxima execução. Daí o grupo de processos próprio, derrubado por inteiro.
 cleanup() {
-  [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true
+  [ -n "$SERVER_PGID" ] && kill -- -"$SERVER_PGID" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -55,10 +57,17 @@ HASH="$("${PSQL[@]}" -t -A -c "SELECT password_hash FROM operators WHERE login_i
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -q -v hash="$HASH" -f "$(dirname "$0")/fixtures/second-tenant.sql"
 
 # --- Sobe o backend --------------------------------------------------------
+# Um servidor que já esteja de pé nesta porta foi iniciado antes de o segundo
+# cliente existir, e responderia a esta verificação com o estado de antes dela.
+if curl -sf "$BASE_URL/health" >/dev/null 2>&1; then
+  echo "FALHOU: já há um backend respondendo em $BASE_URL — encerre-o antes desta verificação." >&2
+  exit 1
+fi
+
 # A saída vai para um arquivo: herdando o stdout, o servidor mantém o pipe aberto
 # e trava quem estiver lendo a saída deste script.
-npx tsx backend/presentation/http/server.ts >"$SERVER_LOG" 2>&1 &
-SERVER_PID=$!
+setsid npx tsx backend/presentation/http/server.ts >"$SERVER_LOG" 2>&1 &
+SERVER_PGID=$!
 wait_for_health
 
 TOKEN_UNI="$(token_for metro-sp)"
