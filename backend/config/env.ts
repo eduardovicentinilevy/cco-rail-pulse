@@ -21,6 +21,12 @@ const toBool = (value: string | undefined, fallback: boolean): boolean => {
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 };
 
+/** Número decimal limitado a [min, max]; ausente ou inválido cai no padrão. */
+const toBoundedNumber = (value: string | undefined, fallback: number, min: number, max: number): number => {
+  const parsed = Number.parseFloat(value ?? '');
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+};
+
 const toList = (value: string | undefined): string[] =>
   (value ?? '')
     .split(',')
@@ -74,8 +80,12 @@ export const env = {
   /** Semeia o operador de demonstração e a malha. Desligue em produção real. */
   seedOnBoot: toBool(process.env.DB_SEED_ON_BOOT, true),
   telemetryIntervalMs: toInt(process.env.TELEMETRY_INTERVAL_MS, 3000),
-  /** Intervalo entre avanços de uma estação na simulação de deslocamento das composições. */
-  trainMotionIntervalMs: toInt(process.env.TRAIN_MOTION_INTERVAL_MS, 4000),
+  /**
+   * Aceleração do relógio da operação simulada. 1 = tempo real (percursos de 50–115 s
+   * entre estações, paradas de 25–35 s, manobra de 2 min nos terminais); 10 = tudo
+   * dez vezes mais rápido, útil para demonstrações. Limitado a 1–60.
+   */
+  simulationTimeScale: toBoundedNumber(process.env.SIMULATION_TIME_SCALE, 1, 1, 60),
   seedOperatorId: process.env.SEED_OPERATOR_ID ?? 'EDP-042',
   seedOperatorName: process.env.SEED_OPERATOR_NAME ?? 'Eduardo Vicentini Levy',
   seedOperatorPassword: process.env.SEED_OPERATOR_PASSWORD || '123456',

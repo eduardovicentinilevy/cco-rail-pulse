@@ -49,7 +49,8 @@ de verdade — saiba exatamente o que está vendo, a tabela abaixo separa o que 
 | --- | --- | --- |
 | Autenticação, 2FA/TOTP, RBAC, JWT | **Real** | Implementação própria, sem mocks — inclusive o segundo fator segue RFC 4226/6238 de verdade |
 | Persistência (PostgreSQL), auditoria, ciclo de vida de ocorrências | **Real** | Escritas e leituras de banco de verdade; nada é mantido só em memória |
-| Tensão do terceiro trilho por subestação (SR) e deslocamento dos trens | **Simulação declarada** | *Random walk* ancorado em valores de referência de um sistema de 750 Vcc — plausível, mas gerado no servidor, não lido de campo. A numeração das SRs e o cenário degradado da SR-06 são fictícios |
+| Tensão do terceiro trilho por subestação (SR) | **Simulação declarada** | *Random walk* ancorado em valores de referência de um sistema de 750 Vcc, com queda proporcional aos trens em marcha na seção — gerado no servidor, não lido de campo. A numeração das SRs e o cenário degradado da SR-06 são fictícios |
+| Marcha das composições | **Simulação declarada** | Motor de operação com distâncias reais entre estações, perfil de aceleração/frenagem, paradas, manobra nos terminais, separação por bloco e regulação de intervalo — física simplificada, não um simulador homologado de sinalização |
 | Ocupação de plataformas | **Simulação declarada** | Estimativa calculada no navegador (horário de pico + posição da estação no traçado), sem qualquer sensor de fato |
 | CFTV | **Simulação declarada** | Status de câmera sorteado de forma determinística por estação — não há vídeo nem integração real; "Reportar falha" abre uma ocorrência de verdade no banco |
 | Estações, ordem, nomes e integrações da Linha 2-Verde | **Real** | Confere com o traçado e a nomenclatura oficiais; os códigos de 3 letras são do projeto e o mapa é projetado a partir das coordenadas das estações, com o eixo vertical comprimido |
@@ -85,14 +86,18 @@ modelo do projeto segue isso de ponta a ponta:
 
 ## 🚀 Principais Funcionalidades
 
-* 🚉 **Supervisão CBTC da via:** Acompanhamento interativo das composições (`T-01`, `T-04`, `T-07`, `T-10`, `T-13`, `T-16`) ao longo das 14 estações da Linha 2, com as integrações sinalizadas no número e na cor de cada linha.
-* ⚡ **Energia de tração em tempo real:** Tensão do terceiro trilho (Vcc) por subestação retificadora via WebSocket, com curvas comparáveis em cores estáveis e validadas para daltonismo (`Recharts`).
+* 🚉 **Supervisão CBTC da via:** Doze composições circulando nos dois sentidos pelas 14 estações da Linha 2, com sentido, situação (na plataforma, em marcha, retida, parada no trecho, imobilizada) e as integrações sinalizadas no número e na cor de cada linha.
+* 🚦 **Motor de operação realista:** Percurso calculado pela distância real entre estações (perfil trapezoidal a 70 km/h), paradas de 25–35 s, manobra de 2 min nos terminais, separação por bloco (quem vem atrás fica retido) e regulação de intervalo como num ATS — sem ela a frota vira comboio. Frenagem de emergência para o trem onde ele está, inclusive no meio do trecho, e segura a fila atrás dele.
+* ⏱ **Chegadas & intervalos:** Quadro de passageiros por estação e sentido, com contagem regressiva, intervalo entre as próximas composições, volta completa e intervalo médio da frota.
+* 🔌 **Manobra de energia:** Supervisores desenergizam e reenergizam seções do terceiro trilho (uma por SR) com motivo obrigatório e trilha de auditoria; a seção lê 0 V, nenhum trem parte rumo a ela e quem está em marcha para no trecho até a tensão voltar.
+* 📟 **Alarmes SCADA automáticos:** Subtensão, falta de tensão e normalização geram alarmes por transição, com debounce e histerese — uma estação parada em subtensão gera um alarme, não um por ciclo.
+* ⚡ **Energia de tração em tempo real:** Tensão do terceiro trilho (Vcc) por subestação retificadora via WebSocket — cai quando os trens aceleram na seção —, com curvas comparáveis em cores estáveis e validadas para daltonismo (`Recharts`).
 * 🎮 **Painel de Comandos Operacionais:** Frenagem de emergência, restrição de velocidade (20 km/h) e liberação de sinal, aplicados sob lock pessimista e registrados na trilha de auditoria.
 * 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
 * 🔐 **Autenticação em Duas Etapas (2FA/TOTP):** Segundo fator compatível com Google Authenticator, Authy e afins — implementação própria de HOTP/TOTP (RFC 4226/6238), sem dependências externas, validada contra os vetores de teste oficiais do RFC.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
 * 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador de Controle, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
-* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG com as 14 estações projetadas das coordenadas reais (oeste → leste), o eixo da Av. Paulista e o Rio Tamanduateí como referências, composições deslizando entre estações e realce pulsante das estações em alerta.
+* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG com as 14 estações projetadas das coordenadas reais (oeste → leste), o eixo da Av. Paulista e o Rio Tamanduateí como referências, composições percorrendo o trecho no tempo real de marcha (com seta de sentido) e realce pulsante das estações em alerta.
 * ⇄ **Passagem de Turno:** Relatório consolidado do turno — comandos emitidos, ocorrências abertas/resolvidas, pendências herdadas e comportamento da tensão — com folha de impressão que gera o documento assinável.
 * ⌘ **Paleta de Comandos (Ctrl+K):** Busca difusa por seções, estações, composições e ações rápidas, navegável inteiramente pelo teclado.
 * 🔔 **Alertas de Eventos Críticos:** Sinal sonoro sintetizado (Web Audio) e notificação do sistema para ocorrências críticas, com preferência persistida.
@@ -202,7 +207,7 @@ cco-rail-pulse/
 │   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 127 testes unitários (node:test)
+│   └── tests/                              # 189 testes unitários (node:test)
 │
 └── frontend/
     ├── Dockerfile                          # Build do Vite publicado por nginx
@@ -230,18 +235,19 @@ cco-rail-pulse/
 | **Mosaico Operacional** | Telão da sala de controle: via, KPIs, alarmes e CFTV num só quadro |
 | **Favoritos** | Estações e composições fixadas pelo operador |
 | **Painel executivo** | KPIs da malha, estações em alerta e últimas ocorrências |
-| **Via CBTC** | Esquemático da via com trens reais, grade de estações e terminal de comandos |
+| **Via CBTC** | Esquemático da via com trens reais, grade de estações, próximos trens e terminal de comandos |
+| **Chegadas & intervalos** | Previsão de chegada por estação e sentido, intervalo real e volta completa da frota |
 | **Ocorrências** | Registro, tratativa e resolução com MTTR e trilha de auditoria |
 | **Central de Alarmes** | Histórico persistido de alarmes, com reconhecimento e exportação |
 | **Ocupação** | Estimativa de fluxo de passageiros por estação, com alerta de superlotação |
 | **CFTV** | Cobertura de câmeras por estação, com abertura de ocorrência ao reportar falha |
 | **Clima & riscos** | Alagamento na várzea do Tamanduateí, calor nas plataformas e vento nos acessos (simulados) |
-| **Energia de tração** | Tensão do terceiro trilho por subestação retificadora e comparação de curvas |
+| **Energia de tração** | Tensão por subestação retificadora, manobra de energia (supervisor) e comparação de curvas |
 | **Série histórica** | Janelas agregadas (mín./méd./máx.) persistidas, por período |
 | **Saúde de ativos** | Carga estimada dos grupos retificadores a partir do afundamento de tensão |
 | **Ordens de serviço** | Manutenção de SRs, terceiro trilho, via, sinalização e estações, com prazos |
 | **Relatórios & KPIs** | Indicadores derivados do estado corrente e exportação CSV |
-| **Escala & partidas** | Aderência à tabela horária calculada pela marcha real |
+| **Escala & partidas** | Situação de cada composição, tempo parada e intervalo real comparado ao alvo |
 | **Passagem de turno** | Relatório consolidado do turno, pronto para impressão e assinatura |
 | **Comunicações** | Diário de bordo — contatos por rádio, telefone e presenciais com equipes de campo |
 | **Procedimentos** | Biblioteca de contingências operacionais, com busca e filtro por categoria |
@@ -459,7 +465,7 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `LOGIN_MAX_ATTEMPTS` | `8` | Tentativas de login por janela |
 | `LOGIN_WINDOW_MS` | `60000` | Janela do limitador de tentativas |
 | `TELEMETRY_INTERVAL_MS` | `3000` | Período de emissão da telemetria SCADA |
-| `TRAIN_MOTION_INTERVAL_MS` | `4000` | Intervalo base entre avanços de uma estação por composição (±35% de variação aleatória, para não sincronizar todos os trens) |
+| `SIMULATION_TIME_SCALE` | `1` | Aceleração do relógio da operação simulada (1–60). `1` é tempo real; `10` deixa percursos, paradas e manobras dez vezes mais rápidos, útil para demonstrações |
 | `TELEMETRY_BUCKET_SECONDS` | `60` | Janela de agregação da série histórica |
 | `TELEMETRY_RETENTION_DAYS` | `7` | Retenção da série histórica |
 | `TRAIN_COMMAND_LOCK_TIMEOUT_MS` | `4000` | Prazo do lock pessimista (`FOR UPDATE`) de um comando de trem antes de recusar com `409` |
@@ -500,7 +506,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 127 testes unitários do domínio e da infraestrutura
+npm test          # 189 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
@@ -551,6 +557,9 @@ protegida **através do nginx**.
 | `GET` | `/api/network/stations` | Bearer | Catálogo da malha + telemetria corrente |
 | `GET` | `/api/network/trains` | Bearer | Estado persistido das composições |
 | `GET` | `/api/network/telemetry/history?hours&stations` | Bearer | Série histórica agregada de tensão |
+| `GET` | `/api/network/arrivals` | Bearer | Previsão de chegadas por estação e sentido, com intervalo e volta da frota |
+| `GET` | `/api/energy/sections` | Bearer | Estado de cada seção do terceiro trilho |
+| `POST` | `/api/energy/sections/:substation` | Supervisor+ | Energiza ou desenergiza uma seção (`{ energized, reason }`) |
 | `GET` | `/api/incidents?limit&offset&status&severity&search` | Bearer | Ocorrências paginadas e filtráveis |
 | `POST` | `/api/incidents` | Bearer | Registra uma ocorrência |
 | `GET` | `/api/incidents/meta` | Bearer | Categorias, severidades e status válidos |
@@ -585,7 +594,8 @@ comandos vem do token — nunca do payload enviado pelo cliente.
 * **Saída (`Outbound`)**
   * `telemetry:batch` — leituras de tensão de todas as estações (a cada 3 s).
   * `train:sync` — estado completo das composições, enviado ao conectar.
-  * `train:updated` — composição alterada por um comando.
+  * `train:updated` — composição alterada pelo motor de operação ou por um comando, com sentido, situação e andamento no trecho.
+  * `power:changed` — seção do terceiro trilho energizada ou desenergizada.
   * `incident:changed` — ocorrência registrada ou alterada por qualquer operador.
   * `alert:critical` — alarmes e notificações operacionais.
   * `train:command:acknowledged` — confirmação (`EXECUTED` | `FAILED`) do comando.

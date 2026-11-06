@@ -135,7 +135,7 @@ export class ProcessTrainCommandUseCase {
 
         // 4. Executar.
         if (applied) {
-          train.applyCommand(command);
+          train.applyCommand(command, new Date(), env.simulationTimeScale);
           await TrainRepository.save(train, client);
         }
 

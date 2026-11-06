@@ -4,7 +4,8 @@ import bcrypt from 'bcrypt';
 import { db } from './postgres';
 import { env } from '../../config/env';
 import {
-  LINE_STATIONS,
+  findStation,
+  LINE_SUBSTATIONS,
   TRACTION_NOMINAL_V,
   VOLTAGE_CRITICAL_V,
   VOLTAGE_WARNING_V,
@@ -13,14 +14,24 @@ import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('DB-SEED');
 
-/** Composições semeadas na malha, distribuídas pelo traçado. */
-const SEED_TRAINS: ReadonlyArray<[trainId: string, stationCode: string, speed: number, voltage: number, status: string]> = [
-  ['T-01', 'VMD', 42, 752, 'NORMAL'],
-  ['T-04', 'CNS', 55, 746, 'NORMAL'],
-  ['T-07', 'PSO', 48, 747, 'NORMAL'],
-  ['T-10', 'CKB', 52, 748, 'NORMAL'],
-  ['T-13', 'SAC', 30, 680, 'ATENÇÃO'],
-  ['T-16', 'VPT', 45, 751, 'NORMAL'],
+/**
+ * Frota semeada: doze composições espalhadas pelos dois sentidos, no máximo uma
+ * por plataforma e sentido — a mesma regra de bloco que o motor de operação usa.
+ * Todas circulam normalmente; restrições de velocidade são comando do operador.
+ */
+const SEED_TRAINS: ReadonlyArray<[trainId: string, stationCode: string, direction: 1 | -1, status: string]> = [
+  ['T-01', 'VMD', 1, 'NORMAL'],
+  ['T-04', 'CNS', 1, 'NORMAL'],
+  ['T-07', 'PSO', 1, 'NORMAL'],
+  ['T-10', 'CKB', 1, 'NORMAL'],
+  ['T-13', 'SAC', -1, 'NORMAL'],
+  ['T-16', 'VPT', -1, 'NORMAL'],
+  ['T-19', 'AIP', 1, 'NORMAL'],
+  ['T-22', 'SIM', -1, 'NORMAL'],
+  ['T-25', 'TTI', 1, 'NORMAL'],
+  ['T-28', 'ANR', -1, 'NORMAL'],
+  ['T-31', 'BGD', -1, 'NORMAL'],
+  ['T-34', 'SUM', -1, 'NORMAL'],
 ];
 
 /** Equipe de plantão semeada para demonstrar o cadastro e os perfis de acesso. */
@@ -56,7 +67,7 @@ const SEED_PROCEDURES: ReadonlyArray<{
     steps: [
       'Confirme com a manutenção qual subestação retificadora (SR) e qual seção elétrica precisam ser isoladas.',
       'Retire ou retenha nas plataformas as composições da seção antes do corte — nenhuma pode ficar entre estações.',
-      'Solicite ao controle de energia a abertura dos disjuntores de alimentação do terceiro trilho na seção.',
+      'Abra os disjuntores da seção em Energia de tração (perfil supervisor), registrando o motivo da manobra.',
       'Aguarde a confirmação de ausência de tensão e o aterramento da seção antes de autorizar qualquer equipe na via.',
       'Registre horário de corte e de religamento na trilha de auditoria e na passagem de turno.',
     ],
@@ -162,15 +173,22 @@ export const runSeed = async (): Promise<void> => {
     );
   }
 
-  const knownCodes = new Set(LINE_STATIONS.map((station) => station.code));
-  for (const [trainId, stationCode, speed, voltage, status] of SEED_TRAINS) {
-    if (!knownCodes.has(stationCode)) continue;
+  for (const [trainId, stationCode, direction, status] of SEED_TRAINS) {
+    const station = findStation(stationCode);
+    if (!station) continue;
     await db.query(
-      `INSERT INTO trains (train_id, current_station_code, speed_kmh, voltage_v, status)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO trains (train_id, current_station_code, speed_kmh, voltage_v, status, direction)
+       VALUES ($1, $2, 0, $3, $4, $5)
        ON CONFLICT (train_id) DO NOTHING`,
-      [trainId, stationCode, speed, voltage, status],
+      [trainId, stationCode, station.nominalVoltageV, status, direction],
     );
+  }
+
+  // Uma seção de alimentação por subestação retificadora do traçado, energizada.
+  for (const substation of LINE_SUBSTATIONS) {
+    await db.query(`INSERT INTO power_sections (substation) VALUES ($1) ON CONFLICT (substation) DO NOTHING`, [
+      substation,
+    ]);
   }
 
   for (const procedure of SEED_PROCEDURES) {

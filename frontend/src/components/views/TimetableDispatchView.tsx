@@ -1,36 +1,56 @@
 // frontend/src/components/views/TimetableDispatchView.tsx
-import React, { useMemo, useState } from 'react';
-import type { Station, Train } from '../../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { ArrivalsPayload, Station, Train } from '../../types';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
 import { downloadTextFile, formatDateTime, toCsv } from '../../lib/format';
+import { formatClockDuration } from '../../lib/arrivals';
+import { directionArrow, PHASE_LABELS, PHASE_STATUS, trainProgress } from '../../data/trains';
+import { LINE_TERMINALS } from '../../data/stations';
 
 interface TimetableDispatchViewProps {
   trains: Train[];
   stations: Station[];
+  /** Intervalo e ciclo da operação, vindos da previsão de chegadas (`null` até a primeira consulta). */
+  service: ArrivalsPayload['service'] | null;
 }
 
-type DispatchStatus = 'EM_HORA' | 'ATRASADO' | 'ANTECIPADO';
+type DispatchStatus = 'EM_HORA' | 'ATRASADO';
 
-/** Headway alvo da Linha 2 no pico, em segundos. */
+/** Intervalo-alvo da Linha 2 no pico, em segundos. */
 const TARGET_HEADWAY_SEC = 135;
-/** Velocidade de referência para a marcha em tabela, em km/h. */
-const REFERENCE_SPEED_KMH = 45;
 
-const classifyDispatch = (train: Train): DispatchStatus => {
-  if (train.status === 'EMERGÊNCIA' || train.speedKmH < REFERENCE_SPEED_KMH * 0.6) return 'ATRASADO';
-  if (train.speedKmH > REFERENCE_SPEED_KMH * 1.15) return 'ANTECIPADO';
-  return 'EM_HORA';
-};
+const DISPATCH_LABELS: Record<DispatchStatus, string> = { EM_HORA: 'Em hora', ATRASADO: 'Atrasado' };
 
-/** Desvio de headway estimado pela diferença entre a marcha real e a de tabela. */
-const estimateHeadway = (train: Train): number => {
-  const ratio = REFERENCE_SPEED_KMH / Math.max(train.speedKmH, 1);
-  return Math.round(Math.min(600, TARGET_HEADWAY_SEC * ratio));
-};
+/**
+ * Uma composição perde a tabela quando está retida, parada no trecho, imobilizada
+ * ou circulando sob restrição de velocidade (V.R.).
+ */
+const classifyDispatch = (train: Train): DispatchStatus =>
+  train.phase === 'RETIDO' ||
+  train.phase === 'PARADO_ENTRE_ESTACOES' ||
+  train.phase === 'IMOBILIZADO' ||
+  train.status === 'ATENÇÃO'
+    ? 'ATRASADO'
+    : 'EM_HORA';
 
-export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ trains, stations }) => {
+/** Há quanto tempo a composição está parada fora da rotina (desde o último registro de estado). */
+const stoppedForSeconds = (train: Train, now: number): number | null =>
+  train.phase === 'RETIDO' || train.phase === 'PARADO_ENTRE_ESTACOES' || train.phase === 'IMOBILIZADO'
+    ? Math.max(0, Math.round((now - Date.parse(train.updatedAt)) / 1000))
+    : null;
+
+export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ trains, stations, service }) => {
   const [onlyDeviations, setOnlyDeviations] = useState(false);
+  // Dois relógios: o de parede (para "parado há", comparado ao carimbo do servidor) e o
+  // monotônico (para o andamento no trecho, comparado à chegada do snapshot).
+  const [clock, setClock] = useState(() => ({ wall: Date.now(), mono: performance.now() }));
+
+  // "Parado há" e o andamento no trecho avançam a cada segundo.
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock({ wall: Date.now(), mono: performance.now() }), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const stationNames = useMemo(
     () => new Map(stations.map((station) => [station.code, station.name])),
@@ -40,27 +60,35 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
   const dispatches = useMemo(
     () =>
       trains
-        .map((train) => ({
-          train,
-          status: classifyDispatch(train),
-          headwaySec: estimateHeadway(train),
-          stationName: stationNames.get(train.currentStationCode) ?? train.currentStationCode,
-        }))
+        .map((train) => {
+          const from = stationNames.get(train.currentStationCode) ?? train.currentStationCode;
+          const to = train.nextStationCode ? (stationNames.get(train.nextStationCode) ?? train.nextStationCode) : null;
+          const progress = Math.round(trainProgress(train, clock.mono) * 100);
+          return {
+            train,
+            status: classifyDispatch(train),
+            position: to ? `${from} → ${to} (${progress}%)` : from,
+            stoppedFor: stoppedForSeconds(train, clock.wall),
+          };
+        })
         .sort((a, b) => a.train.trainId.localeCompare(b.train.trainId)),
-    [trains, stationNames],
+    [trains, stationNames, clock],
   );
 
   const visible = onlyDeviations ? dispatches.filter((item) => item.status !== 'EM_HORA') : dispatches;
   const deviationCount = dispatches.filter((item) => item.status !== 'EM_HORA').length;
+  const headway = service?.headwaySeconds ?? null;
 
   const handleExport = () => {
     const csv = toCsv(
-      ['Trem', 'Estação', 'Velocidade (km/h)', 'Headway estimado (s)', 'Status', 'Atualizado em'],
+      ['Trem', 'Sentido', 'Posição', 'Situação', 'Velocidade (km/h)', 'Parado há (s)', 'Status', 'Atualizado em'],
       dispatches.map((item) => [
         item.train.trainId,
-        item.stationName,
+        item.train.direction === 1 ? LINE_TERMINALS.east : LINE_TERMINALS.west,
+        item.position,
+        PHASE_LABELS[item.train.phase],
         item.train.speedKmH,
-        item.headwaySec,
+        item.stoppedFor ?? '',
         item.status,
         formatDateTime(item.train.updatedAt),
       ]),
@@ -75,7 +103,7 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
           <span className="rp-eyebrow">Operação</span>
           <h2 className="rp-page-header__title">Escala e partidas (headway)</h2>
           <p className="rp-page-header__subtitle">
-            Cumprimento da tabela horária estimado a partir da marcha real de cada composição
+            Situação de cada composição e intervalo real da linha, a partir da marcha simulada
           </p>
         </div>
         <div className="rp-row">
@@ -93,6 +121,31 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
         </div>
       </div>
 
+      <div className="rp-grid rp-grid--kpi">
+        <article className="rp-metric" data-status="INFO">
+          <span className="rp-metric__label">Intervalo-alvo (pico)</span>
+          <span className="rp-metric__value mono">{formatClockDuration(TARGET_HEADWAY_SEC)}</span>
+          <span className="rp-metric__hint">Referência de projeto da Linha 2</span>
+        </article>
+        <article
+          className="rp-metric"
+          data-status={headway === null ? 'INFO' : headway <= TARGET_HEADWAY_SEC * 1.5 ? 'NORMAL' : 'ATENÇÃO'}
+        >
+          <span className="rp-metric__label">Intervalo real por plataforma</span>
+          <span className="rp-metric__value mono">{headway === null ? '—' : formatClockDuration(headway)}</span>
+          <span className="rp-metric__hint">
+            {service ? `${service.trainsInService} composições em serviço` : 'Aguardando a previsão de chegadas'}
+          </span>
+        </article>
+        <article className="rp-metric" data-status={deviationCount > 0 ? 'ATENÇÃO' : 'NORMAL'}>
+          <span className="rp-metric__label">Fora da tabela</span>
+          <span className="rp-metric__value">
+            {deviationCount} / {dispatches.length}
+          </span>
+          <span className="rp-metric__hint">Retidas, paradas, imobilizadas ou sob V.R.</span>
+        </article>
+      </div>
+
       {visible.length === 0 ? (
         <EmptyState
           icon="🕒"
@@ -106,27 +159,33 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
               <thead>
                 <tr>
                   <th scope="col">Composição</th>
-                  <th scope="col">Posição atual</th>
+                  <th scope="col">Sentido</th>
+                  <th scope="col">Posição</th>
+                  <th scope="col">Situação</th>
                   <th scope="col">Marcha</th>
-                  <th scope="col">Headway alvo</th>
-                  <th scope="col">Headway estimado</th>
-                  <th scope="col">Atualizado</th>
+                  <th scope="col">Parado há</th>
                   <th scope="col">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map(({ train, status, headwaySec, stationName }) => (
+                {visible.map(({ train, status, position, stoppedFor }) => (
                   <tr key={train.trainId}>
                     <td>
                       <strong className="mono">{train.trainId}</strong>
                     </td>
-                    <td className="truncate">{stationName}</td>
-                    <td className="rp-table__accent">{train.speedKmH} km/h</td>
-                    <td className="mono">{TARGET_HEADWAY_SEC}s</td>
-                    <td className="rp-table__accent">{headwaySec}s</td>
-                    <td className="mono text-muted">{formatDateTime(train.updatedAt)}</td>
+                    <td className="truncate">
+                      {directionArrow(train.direction)} {train.direction === 1 ? LINE_TERMINALS.east : LINE_TERMINALS.west}
+                    </td>
+                    <td className="truncate" title={train.holdReason ?? undefined}>
+                      {position}
+                    </td>
                     <td>
-                      <StatusPill status={status} label={status.replace('_', ' ')} />
+                      <StatusPill status={PHASE_STATUS[train.phase]} label={PHASE_LABELS[train.phase]} />
+                    </td>
+                    <td className="rp-table__accent">{train.phase === 'EM_MARCHA' ? `${train.speedKmH} km/h` : '—'}</td>
+                    <td className="mono text-muted">{stoppedFor === null ? '—' : formatClockDuration(stoppedFor)}</td>
+                    <td>
+                      <StatusPill status={status} label={DISPATCH_LABELS[status]} />
                     </td>
                   </tr>
                 ))}

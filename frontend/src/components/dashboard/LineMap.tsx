@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
 import { LINE_NAME, stationAccessibleName } from '../../data/stations';
+import { PHASE_LABELS } from '../../data/trains';
 import { AVENUE, RIVER, ROUTE, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
 import { buildCurveSegments, curveToPath } from '../../lib/curve';
 import type { Point } from '../../lib/curve';
@@ -15,7 +16,7 @@ interface LineMapProps {
 }
 
 /** Etiqueta do trem: largura e passo vertical entre etiquetas empilhadas. */
-const TAG_WIDTH = 40;
+const TAG_WIDTH = 50;
 const TAG_STEP = 18;
 /** Caixa aproximada do rótulo da estação (3 caracteres mono, 12px), com folga. */
 const LABEL_HALF_WIDTH = 16;
@@ -147,6 +148,9 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
             className="rp-map__train"
             style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
           >
+            <title>
+              {[`${train.trainId} — ${PHASE_LABELS[train.phase]}`, train.holdReason].filter(Boolean).join(': ')}
+            </title>
             <circle r="13" className="rp-map__train-halo" data-status={train.status} />
             {/* Etiqueta empilhada: um fio pela lateral esquerda da pilha liga a etiqueta
                 ao trem — por fora, para não riscar as etiquetas de baixo. */}
@@ -166,9 +170,10 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
               rx="4"
               className="rp-map__train-tag"
               data-status={train.status}
+              data-phase={train.phase}
             />
             <text y={-19 - stack * TAG_STEP} className="rp-map__train-label">
-              {train.trainId}
+              {train.direction === 1 ? `${train.trainId} ▸` : `◂ ${train.trainId}`}
             </text>
           </g>
         ))}

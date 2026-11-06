@@ -1,16 +1,26 @@
 // frontend/src/components/views/EnergyView.tsx
 import React, { useMemo, useState } from 'react';
-import type { Station } from '../../types';
+import type { OperatorSession, PowerSection, Station, Train } from '../../types';
 import type { ChartSeries, VoltageSample } from '../VoltageChartWidget';
 import { VoltageChartWidget } from '../VoltageChartWidget';
 import { SERIES_COLORS } from '../../lib/chart';
 import { StatusPill } from '../common/StatusPill';
 import { formatNumber, formatVoltage } from '../../lib/format';
 import { LINE_NAME, TRACTION_NOMINAL_V } from '../../data/stations';
+import { api, ApiError } from '../../services/api';
+import { can } from '../../lib/permissions';
+import { formatDateTime } from '../../lib/format';
+import { PowerSectionDialog } from '../modals/PowerSectionDialog';
 
 interface EnergyViewProps {
   stations: Station[];
   history: VoltageSample[];
+  trains: Train[];
+  powerSections: PowerSection[];
+  session: OperatorSession;
+  onPowerChanged: (section: PowerSection) => void;
+  onNotify: (message: string, type: 'success' | 'error' | 'info') => void;
+  onAuthError: (message: string) => void;
 }
 
 interface Substation {
@@ -28,7 +38,56 @@ const MAX_SERIES = SERIES_COLORS.length;
  * Telemetria do terceiro trilho agregada por subestação retificadora (SR).
  * Os valores vêm do barramento de telemetria em tempo real.
  */
-export const EnergyView: React.FC<EnergyViewProps> = ({ stations, history }) => {
+export const EnergyView: React.FC<EnergyViewProps> = ({
+  stations,
+  history,
+  trains,
+  powerSections,
+  session,
+  onPowerChanged,
+  onNotify,
+  onAuthError,
+}) => {
+  const canControlPower = can(session.role, 'CONTROL_POWER');
+  const [dialogSection, setDialogSection] = useState<PowerSection | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const powerBySubstation = useMemo(
+    () => new Map(powerSections.map((section) => [section.substation, section])),
+    [powerSections],
+  );
+  const stationSubstation = useMemo(
+    () => new Map(stations.map((station) => [station.code, station.substation])),
+    [stations],
+  );
+  /** Composições dentro da seção: paradas numa estação dela ou em marcha a partir dela. */
+  const trainsInSection = (substation: string) =>
+    trains.filter((train) => stationSubstation.get(train.currentStationCode) === substation);
+
+  const handleConfirmPower = async (reason: string) => {
+    if (!dialogSection) return;
+    const target = dialogSection;
+    setIsSubmitting(true);
+    try {
+      const result = await api.setPowerSection(session.token, target.substation, !target.energized, reason);
+      onPowerChanged(result.section);
+      onNotify(
+        result.section.energized
+          ? `Seção ${target.substation} reenergizada.`
+          : `Seção ${target.substation} desenergizada — composições retidas fora dela.`,
+        result.section.energized ? 'success' : 'info',
+      );
+      setDialogSection(null);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        onAuthError('Sua sessão expirou. Autentique-se novamente para reassumir o turno.');
+        return;
+      }
+      onNotify(error instanceof Error ? error.message : 'Falha na manobra de energia.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Cada série guarda o slot de cor que recebeu ao entrar: desmarcar ou trocar
   // uma estação nunca repinta as que continuam no gráfico.
   const [series, setSeries] = useState<ChartSeries[]>(() =>
@@ -105,21 +164,57 @@ export const EnergyView: React.FC<EnergyViewProps> = ({ stations, history }) => 
         </header>
 
         <div className="rp-grid rp-grid--cards">
-          {substations.map((substation) => (
-            <article key={substation.code} className="rp-sr-card" data-status={substation.status}>
-              <div className="rp-row rp-row--between">
-                <span className="rp-badge rp-badge--code">{substation.code}</span>
-                <StatusPill status={substation.status} />
-              </div>
-              <span className="rp-card__subtitle truncate">
-                {substation.stations.map((station) => station.code).join(' • ')}
-              </span>
-              <div className="rp-sr-card__voltage">
-                <span className="rp-sr-card__value">{formatNumber(substation.voltageV, 0)}</span>
-                <span className="rp-sr-card__unit">Vcc</span>
-              </div>
-            </article>
-          ))}
+          {substations.map((substation) => {
+            const power = powerBySubstation.get(substation.code);
+            const energized = power?.energized ?? true;
+            const inSection = trainsInSection(substation.code);
+            const running = inSection.filter((train) => train.phase === 'EM_MARCHA').length;
+            const stopped = inSection.filter((train) => train.phase === 'PARADO_ENTRE_ESTACOES').length;
+
+            return (
+              <article
+                key={substation.code}
+                className="rp-sr-card"
+                data-status={energized ? substation.status : 'CRÍTICO'}
+                data-energized={energized}
+              >
+                <div className="rp-row rp-row--between">
+                  <span className="rp-badge rp-badge--code">{substation.code}</span>
+                  {energized ? (
+                    <StatusPill status={substation.status} />
+                  ) : (
+                    <StatusPill status="CRÍTICO" label="DESENERGIZADA" solid />
+                  )}
+                </div>
+                <span className="rp-card__subtitle truncate">
+                  {substation.stations.map((station) => station.code).join(' • ')}
+                </span>
+                <div className="rp-sr-card__voltage">
+                  <span className="rp-sr-card__value">{formatNumber(substation.voltageV, 0)}</span>
+                  <span className="rp-sr-card__unit">Vcc</span>
+                </div>
+                <span className="rp-hint">
+                  {running} em marcha
+                  {stopped > 0 && ` • ${stopped} parada(s) no trecho`}
+                </span>
+                {!energized && power && (
+                  <span className="rp-hint" title={power.reason ?? undefined}>
+                    {power.changedBy ?? '—'} às {formatDateTime(power.changedAt)}
+                    {power.reason ? ` — ${power.reason}` : ''}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className={`rp-btn rp-btn--sm ${energized ? 'rp-btn--danger' : 'rp-btn--primary'}`}
+                  disabled={!canControlPower || !power}
+                  title={canControlPower ? undefined : 'Manobra de energia exige perfil de supervisor'}
+                  onClick={() => power && setDialogSection(power)}
+                >
+                  {energized ? 'Desenergizar' : 'Reenergizar'}
+                </button>
+              </article>
+            );
+          })}
         </div>
       </section>
 
@@ -158,6 +253,16 @@ export const EnergyView: React.FC<EnergyViewProps> = ({ stations, history }) => 
 
         <VoltageChartWidget history={history} series={series} stations={stations} />
       </section>
+
+      {dialogSection && (
+        <PowerSectionDialog
+          section={dialogSection}
+          trainsInSection={trainsInSection(dialogSection.substation)}
+          isSubmitting={isSubmitting}
+          onConfirm={(reason) => void handleConfirmPower(reason)}
+          onClose={() => !isSubmitting && setDialogSection(null)}
+        />
+      )}
     </div>
   );
 };
