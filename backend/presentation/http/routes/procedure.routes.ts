@@ -6,11 +6,13 @@ import {
   isProcedureCategory,
 } from '../../../domain/procedures';
 import { ProcedureRepository } from '../../../infrastructure/database/repositories/ProcedureRepository';
-import { verifyJwt } from '../middlewares/auth.middleware';
+import { verifyJwt, withLineCatalog } from '../middlewares/auth.middleware';
+import type { ScopedRequest } from '../middlewares/auth.middleware';
 
 export const procedureRouter: Router = Router();
 
-procedureRouter.use(verifyJwt);
+// O manual é da linha: o texto cita estações e subestações da própria malha.
+procedureRouter.use(verifyJwt, withLineCatalog);
 
 procedureRouter.get('/meta', (_req, res) => {
   res.status(200).json({
@@ -18,10 +20,10 @@ procedureRouter.get('/meta', (_req, res) => {
   });
 });
 
-procedureRouter.get('/', async (req, res) => {
+procedureRouter.get('/', async (req: ScopedRequest, res) => {
   const category = isProcedureCategory(req.query.category) ? req.query.category : undefined;
   const search = typeof req.query.search === 'string' ? req.query.search : undefined;
 
-  const procedures = await ProcedureRepository.list({ category, search });
+  const procedures = await ProcedureRepository.list({ lineId: req.catalog!.id, category, search });
   res.status(200).json({ items: procedures });
 });

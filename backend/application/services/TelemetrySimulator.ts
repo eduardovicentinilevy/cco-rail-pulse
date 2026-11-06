@@ -1,5 +1,6 @@
 // backend/application/services/TelemetrySimulator.ts
-import { classifyVoltage as classify, LINE_STATIONS } from '../../domain/line';
+import { classifyVoltage as classify } from '../../domain/line';
+import type { LineCatalog } from '../../domain/line';
 import { domainEventBus } from '../events/event-bus';
 import type { StationTelemetryDTO } from '../dtos/TrainDTO';
 
@@ -25,11 +26,14 @@ export interface TelemetrySimulatorOptions {
 }
 
 /**
- * Simulador de hardware SCADA.
+ * Simulador de hardware SCADA de uma linha.
  *
  * Substitui o `Math.random()` puro por um *random walk* ancorado na tensão nominal
  * de cada subestação: a leitura oscila de forma contínua e plausível, o que produz
  * gráficos legíveis em vez de ruído branco.
+ *
+ * Existe uma instância por linha ativa, criada pelo `SimulationRegistry` — antes
+ * era um singleton, o que só funcionava enquanto houvesse uma malha no processo.
  */
 export class TelemetrySimulator {
   private timer: NodeJS.Timeout | null = null;
@@ -39,14 +43,19 @@ export class TelemetrySimulator {
   private readonly isEnergized: (substation: string) => boolean;
 
   constructor(
+    private readonly catalog: LineCatalog,
     private readonly intervalMs: number,
     options: TelemetrySimulatorOptions = {},
   ) {
     this.loadAt = options.loadAt ?? (() => 0);
     this.isEnergized = options.isEnergized ?? (() => true);
-    for (const station of LINE_STATIONS) {
+    for (const station of catalog.stations) {
       this.readings.set(station.code, station.nominalVoltageV);
     }
+  }
+
+  public get lineId(): string {
+    return this.catalog.id;
   }
 
   public get isRunning(): boolean {
@@ -60,19 +69,27 @@ export class TelemetrySimulator {
 
   /** Estado corrente da malha, enviado a cada painel que se conecta. */
   public snapshot(): StationTelemetryDTO[] {
-    return LINE_STATIONS.map((station) => {
+    return this.catalog.stations.map((station) => {
       // Antes do primeiro ciclo a leitura guardada ainda é a nominal — a seção
       // desenergizada precisa aparecer sem tensão já no primeiro painel conectado.
       const voltageV = this.isEnergized(station.substation)
         ? (this.readings.get(station.code) ?? station.nominalVoltageV)
         : 0;
-      return { currentStationCode: station.code, voltageV, status: classify(voltageV) };
+      return {
+        stationId: station.id,
+        currentStationCode: station.code,
+        voltageV,
+        status: classify(voltageV),
+      };
     });
   }
 
   public start(): void {
     if (this.timer) return;
-    this.timer = setInterval(() => domainEventBus.emit('telemetry:updated', this.tick()), this.intervalMs);
+    this.timer = setInterval(
+      () => domainEventBus.emit('telemetry:updated', { lineId: this.catalog.id, payload: this.tick() }),
+      this.intervalMs,
+    );
     // Não impede o processo de encerrar durante um shutdown gracioso.
     this.timer.unref?.();
   }
@@ -85,11 +102,16 @@ export class TelemetrySimulator {
 
   /** Um ciclo de leitura. Público para os testes; o timer chama sozinho. */
   public tick(): StationTelemetryDTO[] {
-    return LINE_STATIONS.map((station) => {
+    return this.catalog.stations.map((station) => {
       // Seção desenergizada: disjuntores abertos, terceiro trilho sem tensão.
       if (!this.isEnergized(station.substation)) {
         this.readings.set(station.code, 0);
-        return { currentStationCode: station.code, voltageV: 0, status: classify(0) };
+        return {
+          stationId: station.id,
+          currentStationCode: station.code,
+          voltageV: 0,
+          status: classify(0),
+        };
       }
 
       // Alvo do trecho: a referência menos a queda provocada pelos trens em marcha.
@@ -103,7 +125,7 @@ export class TelemetrySimulator {
       const next = clamp(Number((previous + drift + pull).toFixed(1)), target - MAX_DRIFT_V, target + MAX_DRIFT_V);
 
       this.readings.set(station.code, next);
-      return { currentStationCode: station.code, voltageV: next, status: classify(next) };
+      return { stationId: station.id, currentStationCode: station.code, voltageV: next, status: classify(next) };
     });
   }
 }

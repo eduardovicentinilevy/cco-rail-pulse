@@ -51,9 +51,18 @@ const toEntity = (row: TrainRow): TrainSession => {
 
 type Queryable = Pick<PoolClient, 'query'>;
 
+/**
+ * Composições de uma linha.
+ *
+ * A numeração (`T-01`) só é única dentro da linha, então `lineId` é obrigatório
+ * em todo método: dois clientes podem ter uma composição T-01.
+ */
 export class TrainRepository {
-  public static async findAll(): Promise<TrainSession[]> {
-    const result = await db.query<TrainRow>(`SELECT ${COLUMNS} FROM trains ORDER BY train_id ASC`);
+  public static async findAll(lineId: string): Promise<TrainSession[]> {
+    const result = await db.query<TrainRow>(
+      `SELECT ${COLUMNS} FROM trains WHERE line_id = $1 ORDER BY train_id ASC`,
+      [lineId],
+    );
     return result.rows.map(toEntity);
   }
 
@@ -61,19 +70,24 @@ export class TrainRepository {
    * Busca com locking pessimista (FOR UPDATE).
    * Precisa rodar dentro de uma transação — passe o client de `withTransaction`.
    */
-  public static async findByIdWithLock(trainId: string, client: Queryable): Promise<TrainSession | null> {
-    const result = await client.query<TrainRow>(`SELECT ${COLUMNS} FROM trains WHERE train_id = $1 FOR UPDATE`, [
-      trainId,
-    ]);
+  public static async findByIdWithLock(
+    lineId: string,
+    trainId: string,
+    client: Queryable,
+  ): Promise<TrainSession | null> {
+    const result = await client.query<TrainRow>(
+      `SELECT ${COLUMNS} FROM trains WHERE line_id = $1 AND train_id = $2 FOR UPDATE`,
+      [lineId, trainId],
+    );
     return result.rows.length === 0 ? null : toEntity(result.rows[0]);
   }
 
-  public static async save(train: TrainSession, client: Queryable = db): Promise<void> {
+  public static async save(lineId: string, train: TrainSession, client: Queryable = db): Promise<void> {
     const motion = train.motion;
     await client.query(
-      `INSERT INTO trains (${COLUMNS})
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       ON CONFLICT (train_id) DO UPDATE
+      `INSERT INTO trains (line_id, ${COLUMNS})
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       ON CONFLICT (line_id, train_id) DO UPDATE
        SET current_station_code = EXCLUDED.current_station_code,
            speed_kmh = EXCLUDED.speed_kmh,
            voltage_v = EXCLUDED.voltage_v,
@@ -86,6 +100,7 @@ export class TrainRepository {
            remaining_ms = EXCLUDED.remaining_ms,
            hold_reason = EXCLUDED.hold_reason`,
       [
+        lineId,
         train.trainId,
         train.currentStationCode,
         train.speedKmH,

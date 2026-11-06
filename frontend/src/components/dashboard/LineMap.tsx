@@ -1,9 +1,9 @@
 // frontend/src/components/dashboard/LineMap.tsx
 import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
-import { LINE_NAME, stationAccessibleName } from '../../data/stations';
+import { stationAccessibleName } from '../../data/stations';
 import { PHASE_LABELS } from '../../data/trains';
-import { AVENUE, RIVER, ROUTE, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
+import { projectStation, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
 import { buildCurveSegments, curveToPath } from '../../lib/curve';
 import type { Point } from '../../lib/curve';
 import { useTrainMotion } from '../../hooks/useTrainMotion';
@@ -12,6 +12,8 @@ interface LineMapProps {
   stations: Station[];
   trains: Train[];
   selectedStation: Station;
+  /** Nome da linha desenhada, usado na descrição acessível do mapa. */
+  lineName: string;
   onSelectStation: (station: Station) => void;
 }
 
@@ -35,9 +37,15 @@ const STATUS_COLOR: Record<Station['status'], string> = {
   'CRÍTICO': 'var(--cco-danger)',
 };
 
-export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStation, onSelectStation }) => {
+export const LineMap: React.FC<LineMapProps> = ({
+  stations,
+  trains,
+  selectedStation,
+  lineName,
+  onSelectStation,
+}) => {
   const points = useMemo(
-    () => stations.map((station) => ({ station, ...(ROUTE[station.code] ?? { x: 0, y: 0 }) })),
+    () => stations.map((station, index) => ({ station, ...projectStation(station, index, stations.length) })),
     [stations],
   );
 
@@ -99,7 +107,7 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
         viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
         className="rp-map__canvas"
         role="img"
-        aria-label={`Mapa da ${LINE_NAME} com a posição das composições`}
+        aria-label={`Mapa da ${lineName} com a posição das composições`}
       >
         <defs>
           <linearGradient id="rp-rail-gradient" x1="0" y1="0" x2="1" y2="1">
@@ -114,29 +122,6 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
             </feMerge>
           </filter>
         </defs>
-
-        {/* Referências urbanas, projetadas das mesmas coordenadas das estações:
-            o eixo da Av. Paulista (CNS–PSO) e o Rio Tamanduateí, cruzado entre SAC e TTI. */}
-        <path d={AVENUE.path} className="rp-map__avenue" fill="none" />
-        <text
-          x={AVENUE.label.x}
-          y={AVENUE.label.y}
-          className="rp-map__avenue-label"
-          textAnchor="middle"
-          transform={`rotate(${AVENUE.label.angle} ${AVENUE.label.x} ${AVENUE.label.y})`}
-        >
-          Av. Paulista
-        </text>
-        <path d={RIVER.path} className="rp-map__river" fill="none" />
-        <text
-          x={RIVER.label.x}
-          y={RIVER.label.y}
-          className="rp-map__river-label"
-          textAnchor="middle"
-          transform={`rotate(${RIVER.label.angle} ${RIVER.label.x} ${RIVER.label.y})`}
-        >
-          Rio Tamanduateí
-        </text>
 
         {/* Halo do trilho, depois o trilho sólido por cima. */}
         <path d={path} className="rp-map__rail-glow" fill="none" filter="url(#rp-rail-glow)" />

@@ -16,9 +16,7 @@ import { alarmRouter } from './routes/alarm.routes';
 import { communicationRouter } from './routes/communication.routes';
 import { procedureRouter } from './routes/procedure.routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
-import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
-import type { TrainMotionSimulator } from '../../application/services/TrainMotionSimulator';
-import type { PowerGrid } from '../../application/services/PowerGrid';
+import type { SimulationRegistry } from '../../application/services/SimulationRegistry';
 import { createEnergyRouter } from './routes/energy.routes';
 
 /**
@@ -45,13 +43,7 @@ const securityHeaders: express.RequestHandler = (_req, res, next) => {
   next();
 };
 
-export interface AppServices {
-  simulator: TelemetrySimulator;
-  operation: TrainMotionSimulator;
-  powerGrid: PowerGrid;
-}
-
-export const createApp = ({ simulator, operation, powerGrid }: AppServices): Express => {
+export const createApp = (registry: SimulationRegistry): Express => {
   const app = express();
 
   app.disable('x-powered-by');
@@ -68,8 +60,8 @@ export const createApp = ({ simulator, operation, powerGrid }: AppServices): Exp
   app.use('/api/auth', authRouter);
   app.use('/api/operator', operatorRouter);
   app.use('/api/audit-logs', auditRouter);
-  app.use('/api/network', createNetworkRouter(simulator, operation));
-  app.use('/api/energy', createEnergyRouter(powerGrid, operation));
+  app.use('/api/network', createNetworkRouter(registry));
+  app.use('/api/energy', createEnergyRouter(registry));
   app.use('/api/incidents', incidentRouter);
   app.use('/api/work-orders', workOrderRouter);
   app.use('/api/team', teamRouter);

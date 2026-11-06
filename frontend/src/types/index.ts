@@ -4,9 +4,22 @@ export type StationStatus = 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO';
 export type TrainStatus = 'NORMAL' | 'ATENÇÃO' | 'EMERGÊNCIA';
 export type AlarmLevel = 'INFO' | 'WARNING' | 'CRITICAL';
 
+/** Cliente dono da instalação, devolvido junto com a sessão e com a malha. */
+export interface TenantIdentity {
+  id: string;
+  name: string;
+}
+
+/** Linha em operação na sessão. Substitui as menções fixas a uma linha só. */
+export interface LineIdentity {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface Station {
-  /** Ordem física no traçado (1 = Vila Madalena). */
-  order: number;
+  /** Ordem física no traçado (1 = primeiro terminal da linha). */
+  position: number;
   code: string;
   name: string;
   /** Subestação retificadora (SR) que alimenta o terceiro trilho no trecho. */
@@ -16,12 +29,16 @@ export interface Station {
   /** Última leitura SCADA do terceiro trilho, em Vcc. */
   voltageV: number;
   status: StationStatus;
-  headway: string;
-  /** Integrações com outras linhas e modais. */
+  /** Intervalo entre composições, em segundos; `null` quando não cadastrado. */
+  headwaySeconds: number | null;
+  /** Integrações com outras linhas e modais, como cadastradas na estação. */
   connections: string[];
+  /** Posição normalizada (0–1) no traçado esquemático desenhado pelo mapa. */
+  mapX: number | null;
+  mapY: number | null;
 }
 
-/** 1 = sentido Vila Prudente (leste); -1 = sentido Vila Madalena (oeste). */
+/** 1 = sentido do último terminal do traçado; -1 = sentido do primeiro. */
 export type Direction = 1 | -1;
 
 /** Situação operacional, derivada no backend (`TrainSession.phase`). */
@@ -68,16 +85,21 @@ export interface ArrivalEntry {
 export interface StationArrivalBoard {
   code: string;
   name: string;
-  /** Sentido Vila Prudente. */
-  east: ArrivalEntry[];
-  /** Sentido Vila Madalena. */
-  west: ArrivalEntry[];
+  /**
+   * Sentido do último terminal do traçado. Os sentidos não são nomeados por ponto
+   * cardeal: o traçado é da linha, e nem toda linha corre de oeste para leste —
+   * quem dá o nome de cada sentido é `ArrivalsPayload.directions`.
+   */
+  forward: ArrivalEntry[];
+  /** Sentido do primeiro terminal do traçado. */
+  backward: ArrivalEntry[];
 }
 
 export interface ArrivalsPayload {
   generatedAt: string;
   timeScale: number;
-  directions: { east: string; west: string };
+  /** Como nomear cada sentido, vindo dos terminais da linha da sessão. */
+  directions: { forward: string; backward: string };
   service: { trainsInService: number; cycleSeconds: number; headwaySeconds: number | null };
   stations: StationArrivalBoard[];
 }
@@ -97,6 +119,9 @@ export interface OperatorSession {
   role: 'OPERADOR' | 'SUPERVISOR' | 'ADMIN';
   token: string;
   avatarUrl?: string;
+  /** Cliente e linha da sessão: é daqui que a interface tira os nomes que exibe. */
+  tenant: TenantIdentity;
+  line: LineIdentity;
 }
 
 export interface AuditLogEntry {

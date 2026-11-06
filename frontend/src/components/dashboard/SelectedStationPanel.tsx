@@ -1,6 +1,7 @@
 // frontend/src/components/dashboard/SelectedStationPanel.tsx
 import React, { useState } from 'react';
 import type { OperationalCommand, PowerSection, Station, StationArrivalBoard, Train } from '../../types';
+import { formatHeadway } from '../../data/stations';
 import { StatusPill } from '../common/StatusPill';
 import { ConnectionBadges } from '../common/ConnectionBadges';
 import { formatVoltage } from '../../lib/format';
@@ -14,7 +15,8 @@ interface SelectedStationPanelProps {
   /** Previsão de chegadas desta estação; ausente enquanto a primeira consulta não volta. */
   arrivals?: StationArrivalBoard;
   /** Rótulos dos dois sentidos, vindos da própria previsão. */
-  directionLabels?: { east: string; west: string };
+  /** Nome de cada sentido, vindo dos terminais da linha da sessão. */
+  directionLabels?: { forward: string; backward: string };
   /** Tempo desde a última previsão, para a contagem regressiva. */
   arrivalsElapsedMs?: number;
   /** Seção de energia que alimenta a estação. */
@@ -128,6 +130,10 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
           <span>Tensão de referência</span>
           <strong className="mono">{formatVoltage(station.nominalVoltageV)}</strong>
         </div>
+        <div className="rp-metric-row">
+          <span>Headway operacional</span>
+          <strong className="mono">{formatHeadway(station.headwaySeconds)}</strong>
+        </div>
       </div>
 
       <div className="rp-stack rp-stack--tight" aria-label="Próximas composições nesta estação">
@@ -135,8 +141,8 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
         {arrivals && directionLabels ? (
           (
             [
-              ['west', directionLabels.west, '◀'],
-              ['east', directionLabels.east, '▶'],
+              ['backward', directionLabels.backward, '◀'],
+              ['forward', directionLabels.forward, '▶'],
             ] as const
           ).map(([key, label, arrow]) => {
             const next = arrivals[key][0];

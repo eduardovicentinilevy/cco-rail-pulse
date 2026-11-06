@@ -1,35 +1,63 @@
 // backend/domain/line.ts
-// Fonte única de verdade da malha da Linha 2-Verde (Metrô de São Paulo).
-// O frontend consome esta lista via GET /api/network/stations.
+// Tipos e catálogo da malha de uma linha.
+//
+// As estações deixaram de ser constante de código: cada linha tem a sua, e o
+// catálogo é montado a partir do banco por LineCatalogRepository. Um catálogo é
+// imutável e sempre pertence a uma linha — não existe "a malha" no singular.
+
+import { ValidationError } from '../shared/errors';
 
 export interface LineStation {
-  /** Ordem física da estação no traçado (1 = Vila Madalena). */
-  readonly order: number;
+  readonly id: string;
+  /** Ordem física da estação no traçado (1 = primeiro terminal). */
+  readonly position: number;
   readonly code: string;
   readonly name: string;
   /** Subestação retificadora (SR) que alimenta o terceiro trilho no trecho. */
   readonly substation: string;
-  /**
-   * Tensão de referência no terceiro trilho, em volts de corrente contínua.
-   * O sistema é de 750 Vcc; trechos em fim de alimentação ficam abaixo disso.
-   */
+  /** Tensão de referência do trecho que alimenta a estação, em volts. */
   readonly nominalVoltageV: number;
   /** Integrações com outras linhas e modais, como sinalizadas na estação. */
   readonly connections: readonly string[];
-  /** Coordenadas aproximadas da estação (WGS 84) — base das distâncias entre estações. */
-  readonly lat: number;
-  readonly lon: number;
+  /** Intervalo entre composições, em segundos. */
+  readonly headwaySeconds: number | null;
+  /** Posição normalizada (0–1) no traçado esquemático, para o mapa do painel. */
+  readonly mapX: number | null;
+  readonly mapY: number | null;
+  /**
+   * Coordenadas da estação (WGS 84) — base das distâncias entre estações, e
+   * portanto da marcha simulada. São cadastro como o resto da malha, e podem
+   * faltar: uma linha recém-cadastrada opera com trecho de comprimento nominal
+   * até alguém informar as coordenadas.
+   */
+  readonly lat: number | null;
+  readonly lon: number | null;
 }
 
-export const LINE_NAME = 'Linha 2-Verde';
-export const LINE_OPERATOR = 'Metrô de São Paulo';
-/** Tensão nominal do terceiro trilho. */
-export const TRACTION_NOMINAL_V = 750;
+export interface LineIdentity {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly code: string;
+  readonly name: string;
+}
+
+export const normalizeStationCode = (value: unknown): string => String(value ?? '').trim().toUpperCase();
+
 /**
- * Limiares de alarme operacional do CCO (subtensão). Ficam bem acima do mínimo
- * permanente que a EN 50163 admite para 750 Vcc (500 V): o objetivo é avisar
- * o operador antes que o desempenho de tração caia, não no limite normativo.
+ * Modelo elétrico da tração, em volts de corrente contínua.
+ *
+ * Fica em código, e não no cadastro da linha, porque descreve o sistema de
+ * alimentação da instalação, não a malha: as estações e as subestações são
+ * dado, os limiares de subtensão são a regra que o CCO aplica sobre elas. Uma
+ * linha alimentada por catenária em kV precisaria destes valores por linha —
+ * está anotado na seção 9 de `docs/multi-tenant.md` como passo seguinte.
+ *
+ * Os limiares ficam bem acima do mínimo permanente que a EN 50163 admite para
+ * 750 Vcc (500 V): o objetivo é avisar o operador antes que o desempenho de
+ * tração caia, não no limite normativo.
  */
+export const TRACTION_NOMINAL_V = 750;
 export const VOLTAGE_WARNING_V = 700;
 export const VOLTAGE_CRITICAL_V = 640;
 
@@ -41,38 +69,96 @@ export const classifyVoltage = (voltageV: number): VoltageStatus => {
   return 'NORMAL';
 };
 
-export const LINE_STATIONS: readonly LineStation[] = [
-  { order: 1, code: 'VMD', name: 'Vila Madalena', substation: 'SR-01', nominalVoltageV: 752, connections: [], lat: -23.5467, lon: -46.691 },
-  { order: 2, code: 'SUM', name: 'Sumaré', substation: 'SR-01', nominalVoltageV: 748, connections: [], lat: -23.5509, lon: -46.6773 },
-  { order: 3, code: 'CLI', name: 'Clínicas', substation: 'SR-02', nominalVoltageV: 750, connections: [], lat: -23.5544, lon: -46.6703 },
-  { order: 4, code: 'CNS', name: 'Consolação', substation: 'SR-02', nominalVoltageV: 746, connections: ['L4-Amarela'], lat: -23.5578, lon: -46.6604 },
-  { order: 5, code: 'TRI', name: 'Trianon-Masp', substation: 'SR-03', nominalVoltageV: 751, connections: [], lat: -23.5614, lon: -46.6566 },
-  { order: 6, code: 'BGD', name: 'Brigadeiro', substation: 'SR-03', nominalVoltageV: 749, connections: [], lat: -23.5687, lon: -46.6493 },
-  { order: 7, code: 'PSO', name: 'Paraíso', substation: 'SR-04', nominalVoltageV: 747, connections: ['L1-Azul'], lat: -23.5758, lon: -46.6409 },
-  { order: 8, code: 'ANR', name: 'Ana Rosa', substation: 'SR-04', nominalVoltageV: 750, connections: ['L1-Azul'], lat: -23.5814, lon: -46.6382 },
-  { order: 9, code: 'CKB', name: 'Chácara Klabin', substation: 'SR-05', nominalVoltageV: 748, connections: ['L5-Lilás'], lat: -23.5926, lon: -46.6292 },
-  { order: 10, code: 'SIM', name: 'Santos-Imigrantes', substation: 'SR-05', nominalVoltageV: 745, connections: [], lat: -23.5965, lon: -46.6216 },
-  // SR-06 opera com um grupo retificador fora de serviço no cenário simulado:
-  // o trecho fica em fim de alimentação e a tensão cai abaixo da faixa normal.
-  { order: 11, code: 'AIP', name: 'Alto do Ipiranga', substation: 'SR-06', nominalVoltageV: 620, connections: [], lat: -23.6027, lon: -46.6125 },
-  { order: 12, code: 'SAC', name: 'Sacomã', substation: 'SR-06', nominalVoltageV: 680, connections: ['Expresso Tiradentes'], lat: -23.6017, lon: -46.6025 },
-  { order: 13, code: 'TTI', name: 'Tamanduateí', substation: 'SR-07', nominalVoltageV: 749, connections: ['CPTM L10-Turquesa'], lat: -23.5931, lon: -46.589 },
-  { order: 14, code: 'VPT', name: 'Vila Prudente', substation: 'SR-07', nominalVoltageV: 751, connections: ['L15-Prata'], lat: -23.5839, lon: -46.5808 },
-];
+/**
+ * Malha de uma linha: identidade da linha mais as suas estações em ordem física.
+ *
+ * Substitui as constantes `LINE_NAME`/`LINE_STATIONS`, que só sabiam descrever
+ * uma linha por processo. Quem precisa validar ou percorrer a malha recebe o
+ * catálogo da linha em que está operando.
+ */
+export class LineCatalog {
+  public readonly stations: readonly LineStation[];
+  public readonly codes: readonly string[];
+  private readonly byCode: ReadonlyMap<string, LineStation>;
+  private readonly indexByCode: ReadonlyMap<string, number>;
 
-export const LINE_STATION_CODES: readonly string[] = LINE_STATIONS.map((station) => station.code);
+  constructor(
+    public readonly line: LineIdentity,
+    stations: readonly LineStation[],
+  ) {
+    this.stations = [...stations].sort((a, b) => a.position - b.position);
+    this.codes = this.stations.map((station) => station.code);
+    this.byCode = new Map(this.stations.map((station) => [station.code, station]));
+    this.indexByCode = new Map(this.stations.map((station, index) => [station.code, index]));
+  }
 
-/** Subestações retificadoras na ordem do traçado, sem repetição. */
-export const LINE_SUBSTATIONS: readonly string[] = [...new Set(LINE_STATIONS.map((station) => station.substation))];
+  /**
+   * Terminais do traçado, na ordem física.
+   *
+   * Substitui `LINE_TERMINALS`, que nomeava os extremos por ponto cardeal: o
+   * sentido do traçado é da linha, e nem toda linha corre de oeste para leste.
+   */
+  public get terminals(): { first: string; last: string } | null {
+    const first = this.stations[0];
+    const last = this.stations[this.stations.length - 1];
+    if (!first || !last) return null;
+    return { first: first.name, last: last.name };
+  }
 
-export const LINE_TERMINALS = {
-  west: LINE_STATIONS[0].name,
-  east: LINE_STATIONS[LINE_STATIONS.length - 1].name,
-} as const;
+  /**
+   * Subestações retificadoras na ordem do traçado, sem repetição.
+   *
+   * Substitui `LINE_SUBSTATIONS`: as SRs são as da malha cadastrada, e duas
+   * linhas podem ter uma `SR-01` cada uma, sem relação entre elas.
+   */
+  public get substations(): readonly string[] {
+    return [...new Set(this.stations.map((station) => station.substation))];
+  }
 
-const STATION_BY_CODE = new Map(LINE_STATIONS.map((station) => [station.code, station]));
+  /** Estações alimentadas por uma subestação, na ordem do traçado. */
+  public stationsOf(substation: string): readonly LineStation[] {
+    return this.stations.filter((station) => station.substation === substation);
+  }
 
-export const findStation = (code: string): LineStation | undefined =>
-  STATION_BY_CODE.get(code.trim().toUpperCase());
+  public get id(): string {
+    return this.line.id;
+  }
 
-export const isKnownStation = (code: string): boolean => STATION_BY_CODE.has(code.trim().toUpperCase());
+  public get tenantId(): string {
+    return this.line.tenantId;
+  }
+
+  public get name(): string {
+    return this.line.name;
+  }
+
+  public get size(): number {
+    return this.stations.length;
+  }
+
+  public find(code: string): LineStation | undefined {
+    return this.byCode.get(normalizeStationCode(code));
+  }
+
+  public has(code: string): boolean {
+    return this.byCode.has(normalizeStationCode(code));
+  }
+
+  /** Índice na ordem física, ou -1 — o simulador de deslocamento anda por índice. */
+  public indexOf(code: string): number {
+    return this.indexByCode.get(normalizeStationCode(code)) ?? -1;
+  }
+
+  public at(index: number): LineStation | undefined {
+    return this.stations[index];
+  }
+
+  /** Estação da malha, ou erro de validação nomeando a linha — nunca outra linha. */
+  public requireStation(code: string): LineStation {
+    const station = this.find(code);
+    if (!station) {
+      throw new ValidationError(`A estação "${normalizeStationCode(code)}" não pertence à malha da ${this.name}.`);
+    }
+    return station;
+  }
+}

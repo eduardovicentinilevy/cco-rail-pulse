@@ -6,12 +6,8 @@ import { env } from '../../config/env';
 import { createLogger } from '../../shared/logger';
 import { createApp } from './app';
 import { registerCcoGateway } from '../websocket/cco.gateway';
-import { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
+import { SimulationRegistry } from '../../application/services/SimulationRegistry';
 import { TelemetryArchiver } from '../../application/services/TelemetryArchiver';
-import { TrainMotionSimulator } from '../../application/services/TrainMotionSimulator';
-import { PowerGrid } from '../../application/services/PowerGrid';
-import { VoltageAlarmMonitor } from '../../application/services/VoltageAlarmMonitor';
-import { PowerSectionRepository } from '../../infrastructure/database/repositories/PowerSectionRepository';
 import { runMigrations } from '../../infrastructure/database/migrations';
 import { closeDatabase, db } from '../../infrastructure/database/postgres';
 import { domainEventBus } from '../../application/events/event-bus';
@@ -19,22 +15,12 @@ import { AlarmRepository } from '../../infrastructure/database/repositories/Alar
 
 const logger = createLogger('BOOT');
 
-const powerGrid = new PowerGrid(PowerSectionRepository);
-// Telemetria e operação se alimentam mutuamente: os trens em marcha derrubam a
-// tensão da seção, e o trem que chega a uma estação passa a ler a tensão dali.
-// As funções só rodam depois do `start()` — a referência cruzada é segura.
-const simulator = new TelemetrySimulator(env.telemetryIntervalMs, {
-  loadAt: (substation) => trainMotion.runningLoad(substation),
-  isEnergized: powerGrid.isEnergized,
-});
-const trainMotion = new TrainMotionSimulator({
-  timeScale: env.simulationTimeScale,
-  voltageAt: (code) => simulator.readingFor(code),
-  isEnergized: powerGrid.isEnergized,
-});
+const registry = new SimulationRegistry(env.telemetryIntervalMs, env.simulationTimeScale);
 const archiver = new TelemetryArchiver(env.telemetryBucketSeconds, env.telemetryRetentionDays);
-const alarmMonitor = new VoltageAlarmMonitor();
-const app = createApp({ simulator, operation: trainMotion, powerGrid });
+// Quem liga a telemetria de uma linha ao deslocamento das suas composições, à
+// grade de energia e aos alarmes é o `SimulationRegistry`, que monta o conjunto
+// por linha.
+const app = createApp(registry);
 const server = http.createServer(app);
 
 const io = new SocketIOServer(server, {
@@ -44,12 +30,14 @@ const io = new SocketIOServer(server, {
   pingInterval: 25_000,
 });
 
-registerCcoGateway(io, simulator);
+registerCcoGateway(io, registry);
 
 // Persiste todo alerta de domínio na Central de Alarmes — o feed ao vivo do painel
 // some ao recarregar a página; esta tabela é o histórico que sobrevive entre turnos.
-domainEventBus.on('system:alert', (alert) => {
-  AlarmRepository.create(alert).catch((error) => logger.error('Falha ao persistir alarme.', error));
+domainEventBus.on('system:alert', ({ lineId, payload }) => {
+  AlarmRepository.create({ lineId, severity: payload.severity, message: payload.message }).catch((error) =>
+    logger.error('Falha ao persistir alarme.', error),
+  );
 });
 
 // Sem este handler, uma porta ocupada derruba o processo com stack trace bruto.
@@ -70,9 +58,7 @@ const shutdown = async (signal: string): Promise<void> => {
   shuttingDown = true;
   logger.info(`Sinal ${signal} recebido — iniciando encerramento gracioso.`);
 
-  simulator.stop();
-  trainMotion.stop();
-  alarmMonitor.stop();
+  registry.stopAll();
   // Descarrega a janela pendente antes de derrubar o barramento.
   await archiver.stop().catch((error) => logger.error('Falha ao encerrar o arquivamento.', error));
   domainEventBus.removeAllListeners();
@@ -92,15 +78,13 @@ const bootstrap = async (): Promise<void> => {
     logger.info('Conexão com PostgreSQL estabelecida.');
 
     await runMigrations();
-    await powerGrid.load();
     archiver.start();
-    alarmMonitor.start();
-    simulator.start();
-    trainMotion.start();
+    // Uma simulação por linha ativa, montada a partir do que está cadastrado.
+    await registry.startAll();
 
     server.listen(env.port, () => {
       logger.info(`RailPulse CCO (${env.nodeEnv}) ativo em http://localhost:${env.port}`);
-      logger.info(`Telemetria SCADA emitindo a cada ${env.telemetryIntervalMs}ms.`);
+      logger.info(`Telemetria SCADA emitindo a cada ${env.telemetryIntervalMs}ms em ${registry.activeLines} linha(s).`);
       logger.info(
         env.simulationTimeScale === 1
           ? 'Operação simulada em tempo real.'

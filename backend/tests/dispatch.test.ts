@@ -6,6 +6,10 @@ import type { TrainStatus } from '../domain/entities/TrainSession';
 import { blockedReason, noPowerReason, planTrain } from '../domain/dispatch';
 import type { DispatchContext } from '../domain/dispatch';
 import type { Direction } from '../domain/operation';
+import { operationFor } from '../domain/operation';
+import { demoCatalog } from './helpers/catalog';
+
+const operation = operationFor(demoCatalog());
 
 const NOW = new Date('2026-11-05T12:00:00Z');
 
@@ -29,6 +33,7 @@ const train = (
   });
 
 const context = (overrides: Partial<DispatchContext> = {}): DispatchContext => ({
+  operation,
   now: NOW,
   dwellUntil: () => undefined,
   isEnergized: () => true,

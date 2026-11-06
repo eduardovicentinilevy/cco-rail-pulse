@@ -1,13 +1,7 @@
 // backend/application/services/TrainMotionSimulator.ts
-import { findStation } from '../../domain/line';
-import {
-  cycleTimeMs,
-  directionAfterArrival,
-  dwellTimeMs,
-  isTerminal,
-  segmentRunTimeMs,
-  TERMINAL_TURNAROUND_MS,
-} from '../../domain/operation';
+import { LineCatalog } from '../../domain/line';
+import { operationFor, TERMINAL_TURNAROUND_MS } from '../../domain/operation';
+import type { LineOperation } from '../../domain/operation';
 import { planTrain } from '../../domain/dispatch';
 import type { DispatchAction, DispatchContext } from '../../domain/dispatch';
 import { predictArrivals } from '../../domain/arrivals';
@@ -36,7 +30,11 @@ export type VoltageLookup = (stationCode: string) => number | undefined;
 export interface OperationEngineOptions {
   /** Aceleração do relógio da simulação (1 = tempo real). */
   timeScale: number;
-  /** Tensão do terceiro trilho na estação em que a composição chega. */
+  /**
+   * Tensão do terceiro trilho na estação em que a composição chega — normalmente a
+   * leitura do `TelemetrySimulator` da mesma linha. Sem ela, vale a tensão de
+   * referência do trecho no cadastro da estação.
+   */
   voltageAt?: VoltageLookup;
   /** A seção da subestação está energizada? */
   isEnergized?: (substation: string) => boolean;
@@ -44,11 +42,8 @@ export interface OperationEngineOptions {
   random?: () => number;
 }
 
-/** Sem telemetria ao vivo, o trem assume a tensão de referência do trecho. */
-const referenceVoltage: VoltageLookup = (stationCode) => findStation(stationCode)?.nominalVoltageV;
-
 /**
- * Motor de operação da linha.
+ * Motor de operação de uma linha.
  *
  * A cada ciclo pergunta ao despacho (`domain/dispatch.ts`) o que cada composição
  * deve fazer e aplica a decisão sob lock pessimista — um comando do operador para
@@ -58,6 +53,9 @@ const referenceVoltage: VoltageLookup = (stationCode) => findStation(stationCode
  * - separação por bloco: no mesmo sentido, só um trem por plataforma ou trecho de
  *   aproximação — quem vem atrás fica RETIDO, e um trem imobilizado segura a fila;
  * - energia: sem tensão na seção o trem não parte, e quem está em marcha para no trecho.
+ *
+ * Há um motor por linha, montado sobre o catálogo dela: a malha, as distâncias e os
+ * terminais são os da linha, e a frota lida e gravada é só a dela.
  *
  * O fim da parada de cada trem vive só em memória: depois de um reinício, quem está
  * na plataforma recebe uma parada nova, com folga aleatória para não partirem juntos.
@@ -70,14 +68,19 @@ export class TrainMotionSimulator {
   private readonly lastDeparture = new Map<string, number>();
   private minHeadwayMs = 0;
   private fleet: TrainSession[] = [];
+  private readonly operation: LineOperation;
   private readonly timeScale: number;
   private readonly voltageAt: VoltageLookup;
   private readonly isEnergized: (substation: string) => boolean;
   private readonly random: () => number;
 
-  constructor(options: OperationEngineOptions) {
+  constructor(
+    private readonly catalog: LineCatalog,
+    options: OperationEngineOptions,
+  ) {
+    this.operation = operationFor(catalog);
     this.timeScale = options.timeScale > 0 ? options.timeScale : 1;
-    this.voltageAt = options.voltageAt ?? referenceVoltage;
+    this.voltageAt = options.voltageAt ?? (() => undefined);
     this.isEnergized = options.isEnergized ?? (() => true);
     this.random = options.random ?? Math.random;
   }
@@ -99,17 +102,24 @@ export class TrainMotionSimulator {
     this.timer = null;
   }
 
+  /** Sem telemetria ao vivo, o trem assume a tensão de referência do trecho desta linha. */
+  private referenceVoltage(stationCode: string): number | undefined {
+    return this.catalog.find(stationCode)?.nominalVoltageV;
+  }
+
   /**
    * Composições em marcha na seção da subestação — a carga que o simulador SCADA
    * converte em queda de tensão no terceiro trilho.
    */
   public runningLoad = (substation: string): number =>
-    this.fleet.filter((train) => train.isMoving && findStation(train.currentStationCode)?.substation === substation)
-      .length;
+    this.fleet.filter(
+      (train) => train.isMoving && this.catalog.find(train.currentStationCode)?.substation === substation,
+    ).length;
 
   /** Previsão de chegadas a partir do último estado conhecido da frota. */
   public arrivals(now: Date = new Date()): StationArrivals[] {
     return predictArrivals(this.fleet, now, {
+      operation: this.operation,
       timeScale: this.timeScale,
       dwellRemainingMs: (trainId) => Math.max(0, (this.dwellUntil.get(trainId) ?? 0) - now.getTime()),
     });
@@ -117,6 +127,7 @@ export class TrainMotionSimulator {
 
   private context(now: Date): DispatchContext {
     return {
+      operation: this.operation,
       now,
       dwellUntil: (trainId) => this.dwellUntil.get(trainId),
       isEnergized: this.isEnergized,
@@ -128,7 +139,8 @@ export class TrainMotionSimulator {
   /** Intervalo mínimo entre partidas, proporcional à frota que está de fato circulando. */
   private updateRegulation(fleet: readonly TrainSession[]): void {
     const inService = fleet.filter((train) => train.status !== 'EMERGÊNCIA').length;
-    this.minHeadwayMs = inService > 0 ? (cycleTimeMs() / inService) * REGULATION_FACTOR / this.timeScale : 0;
+    this.minHeadwayMs =
+      inService > 0 ? ((this.operation.cycleTimeMs() / inService) * REGULATION_FACTOR) / this.timeScale : 0;
   }
 
   /** Executa um ciclo de despacho. Público para os testes de integração; o timer chama sozinho. */
@@ -139,7 +151,7 @@ export class TrainMotionSimulator {
     this.isTicking = true;
 
     try {
-      const fleet = await TrainRepository.findAll();
+      const fleet = await TrainRepository.findAll(this.catalog.id);
       this.registerArrivals(fleet, now);
       this.updateRegulation(fleet);
 
@@ -150,7 +162,7 @@ export class TrainMotionSimulator {
           // As decisões seguintes do mesmo ciclo enxergam este trem já atualizado.
           if (updated) fleet[index] = updated;
         } catch (error) {
-          logger.error(`Falha ao despachar a composição ${fleet[index].trainId}.`, error);
+          logger.error(`Falha ao despachar a composição ${fleet[index].trainId} da ${this.catalog.name}.`, error);
         }
       }
 
@@ -168,7 +180,7 @@ export class TrainMotionSimulator {
     }
     for (const train of fleet) {
       if (train.motion || this.dwellUntil.has(train.trainId)) continue;
-      const dwell = dwellTimeMs(train.currentStationCode) / this.timeScale;
+      const dwell = this.operation.dwellTimeMs(train.currentStationCode) / this.timeScale;
       this.dwellUntil.set(train.trainId, now.getTime() + Math.round(this.random() * dwell));
     }
   }
@@ -176,17 +188,19 @@ export class TrainMotionSimulator {
   /** Lock pessimista: decide de novo sobre o estado travado e só então grava. */
   private async apply(trainId: string, fleet: readonly TrainSession[], now: Date): Promise<TrainSession | null> {
     const updated = await withTransaction(async (client) => {
-      const train = await TrainRepository.findByIdWithLock(trainId, client);
+      const train = await TrainRepository.findByIdWithLock(this.catalog.id, trainId, client);
       if (!train) return null;
 
       const action = planTrain(train, fleet, this.context(now));
       if (!this.execute(train, action, now)) return null;
 
-      await TrainRepository.save(train, client);
+      await TrainRepository.save(this.catalog.id, train, client);
       return train;
     });
 
-    if (updated) domainEventBus.emit('train:updated', updated.toSnapshot(now));
+    if (updated) {
+      domainEventBus.emit('train:updated', { lineId: this.catalog.id, payload: updated.toSnapshot(now) });
+    }
     return updated;
   }
 
@@ -198,16 +212,19 @@ export class TrainMotionSimulator {
 
       case 'ARRIVE': {
         const station = train.motion!.toStationCode;
-        const voltage = this.voltageAt(station) ?? referenceVoltage(station) ?? train.voltageV;
-        train.arrive(voltage, directionAfterArrival(station, train.direction), now);
-        const dwell = isTerminal(station) ? TERMINAL_TURNAROUND_MS : dwellTimeMs(station);
+        const voltage = this.voltageAt(station) ?? this.referenceVoltage(station) ?? train.voltageV;
+        train.arrive(voltage, this.operation.directionAfterArrival(station, train.direction), now);
+        const dwell = this.operation.isTerminal(station)
+          ? TERMINAL_TURNAROUND_MS
+          : this.operation.dwellTimeMs(station);
         this.dwellUntil.set(train.trainId, now.getTime() + dwell / this.timeScale);
         return true;
       }
 
       case 'DEPART': {
         const speed = train.targetSpeedKmH;
-        const runTime = segmentRunTimeMs(train.currentStationCode, action.toStationCode, speed) / this.timeScale;
+        const runTime =
+          this.operation.segmentRunTimeMs(train.currentStationCode, action.toStationCode, speed) / this.timeScale;
         if (!(runTime > 0)) return false;
         const origin = train.currentStationCode;
         train.depart(action.toStationCode, runTime, speed, now);
@@ -230,7 +247,9 @@ export class TrainMotionSimulator {
 
       case 'RESUME': {
         const speed = train.targetSpeedKmH;
-        train.resume(train.remainingRunTimeMs(speed, this.timeScale), speed, now);
+        const length =
+          this.operation.segmentLengthM(train.currentStationCode, train.motion!.toStationCode) ?? 0;
+        train.resume(train.remainingRunTimeMs(speed, this.timeScale, length), speed, now);
         return true;
       }
 

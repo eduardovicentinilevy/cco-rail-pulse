@@ -4,16 +4,8 @@
 // (tempos de percurso, paradas e manobras), sem considerar retenções futuras —
 // por isso é uma previsão, recalculada a cada consulta.
 import type { TrainSession } from './entities/TrainSession';
-import { LINE_STATIONS } from './line';
-import {
-  directionAfterArrival,
-  dwellTimeMs,
-  isTerminal,
-  nextStationCode,
-  segmentRunTimeMs,
-  TERMINAL_TURNAROUND_MS,
-} from './operation';
-import type { Direction } from './operation';
+import { TERMINAL_TURNAROUND_MS } from './operation';
+import type { Direction, LineOperation } from './operation';
 
 export interface ArrivalPrediction {
   trainId: string;
@@ -33,6 +25,8 @@ export interface StationArrivals {
 }
 
 export interface ArrivalOptions {
+  /** Marcha da linha consultada — a projeção percorre a malha dela, e só a dela. */
+  operation: LineOperation;
   /** Aceleração do relógio da simulação (1 = tempo real). */
   timeScale: number;
   /** Quanto falta da parada na plataforma, em ms de relógio. */
@@ -59,9 +53,11 @@ export const predictArrivals = (
   const scale = options.timeScale > 0 ? options.timeScale : 1;
   const horizon = (options.horizonMs ?? DEFAULT_HORIZON_MS) / scale;
   const perDirection = options.perDirection ?? 2;
+  const operation = options.operation;
+  const stations = operation.catalog.stations;
 
   const board = new Map<string, Record<Direction, ArrivalPrediction[]>>(
-    LINE_STATIONS.map((station) => [station.code, { 1: [], [-1]: [] }]),
+    stations.map((station) => [station.code, { 1: [], [-1]: [] }]),
   );
   const record = (stationCode: string, direction: Direction, prediction: ArrivalPrediction) => {
     board.get(stationCode)?.[direction].push(prediction);
@@ -81,12 +77,12 @@ export const predictArrivals = (
     if (train.motion) {
       station = train.motion.toStationCode;
       t = train.remainingAt(now) ?? 0;
-      direction = directionAfterArrival(station, direction);
+      direction = operation.directionAfterArrival(station, direction);
       record(station, direction, { trainId: train.trainId, etaMs: Math.round(t), atPlatform: false, held: false });
-      t += (isTerminal(station) ? TERMINAL_TURNAROUND_MS : dwellTimeMs(station)) / scale;
+      t += (operation.isTerminal(station) ? TERMINAL_TURNAROUND_MS : operation.dwellTimeMs(station)) / scale;
     } else {
       station = train.currentStationCode;
-      if (nextStationCode(station, direction) === undefined) {
+      if (operation.nextStationCode(station, direction) === undefined) {
         // Parada no terminal ainda no sentido de chegada: inverte antes de partir.
         direction = -direction as Direction;
       }
@@ -95,20 +91,23 @@ export const predictArrivals = (
     }
 
     while (t <= horizon) {
-      const next = nextStationCode(station, direction);
+      const next = operation.nextStationCode(station, direction);
       if (next === undefined) break;
-      t += segmentRunTimeMs(station, next, speed) / scale;
+      t += operation.segmentRunTimeMs(station, next, speed) / scale;
       station = next;
-      direction = directionAfterArrival(station, direction);
+      direction = operation.directionAfterArrival(station, direction);
       if (t > horizon) break;
       record(station, direction, { trainId: train.trainId, etaMs: Math.round(t), atPlatform: false, held });
-      t += (isTerminal(station) ? TERMINAL_TURNAROUND_MS : dwellTimeMs(station)) / scale;
+      t += (operation.isTerminal(station) ? TERMINAL_TURNAROUND_MS : operation.dwellTimeMs(station)) / scale;
     }
   }
 
-  return LINE_STATIONS.map((station) => {
+  return stations.map((station) => {
     const entry = board.get(station.code)!;
-    const minimumGap = ((isTerminal(station.code) ? TERMINAL_TURNAROUND_MS : dwellTimeMs(station.code)) + PLATFORM_CLEARANCE_MS) / scale;
+    const minimumGap =
+      ((operation.isTerminal(station.code) ? TERMINAL_TURNAROUND_MS : operation.dwellTimeMs(station.code)) +
+        PLATFORM_CLEARANCE_MS) /
+      scale;
     const top = (list: ArrivalPrediction[]) => {
       const sorted = [...list].sort((a, b) => a.etaMs - b.etaMs);
       // Quem vem atrás só ocupa a plataforma depois que a da frente a libera.

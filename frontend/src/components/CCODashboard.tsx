@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { wsService } from '../services/websocket.service';
 import { api, ApiError } from '../services/api';
-import { isFiniteNumber, isStationStatus, LINE_STATIONS, normalizeStation } from '../data/stations';
+import { isFiniteNumber, isStationStatus, normalizeStation } from '../data/stations';
 import { normalizeTrain, normalizeTrains, PHASE_LABELS } from '../data/trains';
 import type {
   AlarmEvent,
@@ -46,6 +46,7 @@ import { HistoryView } from './views/HistoryView';
 import { ShiftHandoverView } from './views/ShiftHandoverView';
 import { SystemStatusView } from './views/SystemStatusView';
 import { SettingsView } from './views/SettingsView';
+import { EmptyState } from './common/EmptyState';
 import { ToastStack } from './common/ToastStack';
 import type { Toast, ToastType } from './common/ToastStack';
 import { ConfirmDialog } from './common/ConfirmDialog';
@@ -192,14 +193,15 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
-  const [stations, setStations] = useState<Station[]>(LINE_STATIONS);
+  // A malha chega inteira da API; até lá não há catálogo local que a substitua.
+  const [stations, setStations] = useState<Station[]>([]);
   const [trains, setTrains] = useState<Train[]>([]);
   const [powerSections, setPowerSections] = useState<PowerSection[]>([]);
   const [arrivals, setArrivals] = useState<ArrivalsPayload | null>(null);
   /** `performance.now()` da última previsão recebida — base das contagens regressivas. */
   const [arrivalsFetchedAt, setArrivalsFetchedAt] = useState(0);
   const [history, setHistory] = useState<VoltageSample[]>([]);
-  const [selectedCode, setSelectedCode] = useState<string>(LINE_STATIONS[0].code);
+  const [selectedCode, setSelectedCode] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StationStatus | 'ALL'>('ALL');
   const [alarms, setAlarms] = useState<AlarmEvent[]>([]);
@@ -228,10 +230,23 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   const toastTimers = useRef(new Map<string, number>());
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Indefinido enquanto o catálogo não chega: nenhuma estação é "a primeira"
+  // antes de saber qual é a malha desta linha.
   const selectedStation = useMemo(
     () => stations.find((station) => station.code === selectedCode) ?? stations[0],
     [stations, selectedCode],
-  );
+  ) as Station | undefined;
+
+  /**
+   * Título da supervisão: os terminais da malha recebida, quaisquer que sejam.
+   * Antes eram os nomes das duas pontas da linha de demonstração, escritos aqui.
+   */
+  const trackTitle = useMemo(() => {
+    const first = stations[0]?.name;
+    const last = stations.at(-1)?.name;
+    if (!first) return session.line.name;
+    return last && last !== first ? `${first} ↔ ${last}` : first;
+  }, [stations, session.line.name]);
 
   const addAlarm = useCallback((stationCode: string, message: string, level: AlarmLevel) => {
     setAlarms((previous) =>
@@ -282,11 +297,17 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         ]);
         if (cancelled) return;
 
+        // Campo ausente ou de outra versão do backend cai num neutro em vez de
+        // chegar `undefined` à interface; item sem código é descartado.
         const catalog = stationsPayload.stations
-          .map(normalizeStation)
+          .map((station) => normalizeStation(station as unknown as Record<string, unknown>))
           .filter((station): station is Station => station !== null);
-        // Uma resposta vazia não apaga a malha: o catálogo local continua na tela.
-        if (catalog.length > 0) setStations(catalog);
+        // Uma resposta vazia é resposta: pode ser uma linha recém-cadastrada,
+        // ainda sem malha. Manter a malha anterior na tela mostraria a estação
+        // de outra linha como se fosse desta.
+        setStations(catalog);
+        // A estação em foco é a primeira da malha recebida, seja ela qual for.
+        setSelectedCode((current) => (catalog.some((s) => s.code === current) ? current : (catalog[0]?.code ?? '')));
         setTrains(normalizeTrains(trainsPayload));
         setPowerSections(powerPayload.sections);
       } catch (error) {
@@ -295,8 +316,9 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           onExpireSession('Sua sessão expirou. Autentique-se novamente para reassumir o turno.');
           return;
         }
-        // Sem backend o painel segue operando com o catálogo local da linha.
-        addAlarm('CORE', 'Carga inicial via API indisponível — exibindo catálogo local da linha', 'WARNING');
+        // Não há mais catálogo local para servir de reserva: sem a API o painel
+        // não tem malha para desenhar, e precisa dizer isso em vez de fingir uma.
+        addAlarm('CORE', 'Carga inicial via API indisponível — malha da linha não pôde ser carregada', 'CRITICAL');
       }
     };
 
@@ -530,8 +552,9 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
   // O título da aba funciona como alerta periférico quando o painel está em segundo plano.
   useEffect(() => {
-    document.title = criticalAlarms > 0 ? `(${criticalAlarms}) RailPulse CCO` : 'RailPulse CCO — Linha 2-Verde';
-  }, [criticalAlarms]);
+    document.title =
+      criticalAlarms > 0 ? `(${criticalAlarms}) RailPulse CCO` : `RailPulse CCO — ${session.line.name}`;
+  }, [criticalAlarms, session.line.name]);
 
   // Atalhos de teclado: 1–6 alternam abas, "/" foca a busca da malha.
   useEffect(() => {
@@ -601,6 +624,8 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
   const handleSendCommand = useCallback(
     (trainId: string, command: OperationalCommand) => {
+      if (!selectedStation) return;
+
       const delivered = wsService.sendCommand(trainId, command, selectedStation.code);
       if (!delivered) {
         addToast('Sem conexão com o Gateway — comando não enviado.', 'error');
@@ -608,10 +633,12 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       }
       setPendingCommand(command);
     },
-    [addToast, selectedStation.code],
+    [addToast, selectedStation],
   );
 
   const handleInjectAlert = useCallback(() => {
+    if (!selectedStation) return;
+
     addAlarm(
       selectedStation.code,
       `Ocorrência registrada manualmente em ${selectedStation.name} pelo operador ${session.operatorId}`,
@@ -647,9 +674,17 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
   }, [stations, searchQuery, statusFilter]);
 
   const selectedStationTrains = useMemo(
-    () => trains.filter((train) => train.currentStationCode === selectedStation.code),
-    [trains, selectedStation.code],
+    () => trains.filter((train) => train.currentStationCode === selectedStation?.code),
+    [trains, selectedStation],
   );
+
+  // Os terminais são a primeira e a última estação da malha recebida, quaisquer
+  // que sejam — antes estavam escritos no cabeçalho e no perfil do operador.
+  const terminals = useMemo(() => {
+    const first = stations[0]?.name;
+    const last = stations.at(-1)?.name;
+    return first && last && first !== last ? `${first} ➔ ${last}` : (first ?? '');
+  }, [stations]);
 
   // Seções, estações e composições viram alvos navegáveis pela paleta.
   const paletteActions = useMemo<PaletteAction[]>(() => {
@@ -750,6 +785,8 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         groups={navGroups}
         activeKey={activeTab}
         collapsed={isNavCollapsed}
+        lineName={session.line.name}
+        lineCode={session.line.code}
         onSelect={setActiveTab}
         onToggleCollapse={() => setIsNavCollapsed((value) => !value)}
         footer={
@@ -764,6 +801,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       <div className="rp-content">
       <Header
         session={session}
+        terminals={terminals}
         connectionStatus={connectionStatus}
         shiftStartedAt={shiftStartedAt}
         criticalAlarms={criticalAlarms}
@@ -778,13 +816,14 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       />
 
       <main className="rp-main">
-        {activeTab === 'wall' && (
+        {activeTab === 'wall' && selectedStation && (
           <VideoWallView
             stations={stations}
             trains={trains}
             alarms={alarms}
             connectionStatus={connectionStatus}
             selectedStation={selectedStation}
+            lineName={session.line.name}
             onSelectStation={handleSelectStation}
           />
         )}
@@ -805,6 +844,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
             trains={trains}
             alarms={alarms}
             connectionStatus={connectionStatus}
+            lineName={session.line.name}
             onNavigate={setActiveTab}
             onSelectStation={handleSelectStation}
           />
@@ -813,7 +853,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         {activeTab === 'ats' && (
           <div className="rp-stack rp-animate-in">
             <div className="rp-row rp-row--between">
-              <h2 className="rp-section-title">Supervisão da via — Vila Madalena ↔ Vila Prudente</h2>
+              <h2 className="rp-section-title">Supervisão da via — {trackTitle}</h2>
               <div className="rp-segmented" role="group" aria-label="Forma de visualização da malha">
                 <button
                   type="button"
@@ -834,11 +874,19 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
               </div>
             </div>
 
-            {atsView === 'schematic' ? (
+            {!selectedStation ? (
+              <section className="rp-card">
+                <EmptyState
+                  title="Malha indisponível"
+                  hint="A malha desta linha ainda não foi carregada. Verifique a conexão com o CCO."
+                />
+              </section>
+            ) : atsView === 'schematic' ? (
               <TrackSchematic
                 stations={stations}
                 trains={trains}
                 selectedStation={selectedStation}
+                lineName={session.line.name}
                 onSelectStation={handleSelectStation}
               />
             ) : (
@@ -847,6 +895,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
                   stations={stations}
                   trains={trains}
                   selectedStation={selectedStation}
+                  lineName={session.line.name}
                   onSelectStation={handleSelectStation}
                 />
               </section>
@@ -893,32 +942,34 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
               </div>
             </div>
 
-            <div className="rp-ats">
-              <StationsGrid
-                stations={filteredStations}
-                trains={trains}
-                totalStations={stations.length}
-                selectedStationCode={selectedStation.code}
-                onSelectStation={handleSelectStation}
-              />
+            {selectedStation && (
+              <div className="rp-ats">
+                <StationsGrid
+                  stations={filteredStations}
+                  trains={trains}
+                  totalStations={stations.length}
+                  selectedStationCode={selectedStation.code}
+                  onSelectStation={handleSelectStation}
+                />
 
-              <SelectedStationPanel
-                station={selectedStation}
-                trains={selectedStationTrains}
-                arrivals={arrivals?.stations.find((board) => board.code === selectedStation.code)}
-                directionLabels={arrivals?.directions}
-                arrivalsElapsedMs={arrivalsElapsedMs}
-                power={powerSections.find((section) => section.substation === selectedStation.substation)}
-                pendingCommand={pendingCommand}
-                isStationFavorite={favorites.isStationFavorite(selectedStation.code)}
-                onToggleStationFavorite={favorites.toggleStationFavorite}
-                isTrainFavorite={favorites.isTrainFavorite}
-                onToggleTrainFavorite={favorites.toggleTrainFavorite}
-                onSendCommand={handleSendCommand}
-                onRequestConfirm={setConfirmRequest}
-                onInjectAlert={handleInjectAlert}
-              />
-            </div>
+                <SelectedStationPanel
+                  station={selectedStation}
+                  trains={selectedStationTrains}
+                  arrivals={arrivals?.stations.find((board) => board.code === selectedStation.code)}
+                  directionLabels={arrivals?.directions}
+                  arrivalsElapsedMs={arrivalsElapsedMs}
+                  power={powerSections.find((section) => section.substation === selectedStation.substation)}
+                  pendingCommand={pendingCommand}
+                  isStationFavorite={favorites.isStationFavorite(selectedStation.code)}
+                  onToggleStationFavorite={favorites.toggleStationFavorite}
+                  isTrainFavorite={favorites.isTrainFavorite}
+                  onToggleTrainFavorite={favorites.toggleTrainFavorite}
+                  onSendCommand={handleSendCommand}
+                  onRequestConfirm={setConfirmRequest}
+                  onInjectAlert={handleInjectAlert}
+                />
+              </div>
+            )}
 
             <AlarmFeed alarms={alarms} onClear={() => setAlarms([])} onAcknowledge={handleAcknowledgeAlarm} />
           </div>
@@ -955,6 +1006,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
           <EnergyView
             stations={stations}
             history={history}
+            lineName={session.line.name}
             trains={trains}
             powerSections={powerSections}
             session={session}
@@ -1009,7 +1061,9 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
             onAuthError={onExpireSession}
           />
         )}
-        {activeTab === 'status' && <SystemStatusView connectionStatus={connectionStatus} />}
+        {activeTab === 'status' && (
+          <SystemStatusView connectionStatus={connectionStatus} lineName={session.line.name} />
+        )}
         {activeTab === 'settings' && (
           <SettingsView
             session={session}

@@ -112,12 +112,6 @@
   --body-tint-green: rgba(0, 126, 94, 0.06);
   --body-tint-graphite: rgba(35, 42, 40, 0.04);
 
-  /* --- Mapa da linha ------------------------------------------------------ */
-  --map-river-stroke: rgba(70, 120, 150, 0.32);
-  --map-river-label: rgba(60, 100, 125, 0.7);
-  --map-avenue-stroke: rgba(35, 42, 40, 0.10);
-  --map-avenue-label: rgba(35, 42, 40, 0.5);
-
   /* --- Séries de gráfico -------------------------------------------------- */
   /* Ordem fixa, validada para daltonismo (ΔE adjacente ≥ 8) e contraste ≥ 3:1
      nos dois temas. Nenhuma série usa verde, âmbar ou vermelho: essas cores
@@ -159,11 +153,6 @@
 
   --body-tint-green: rgba(0, 126, 94, 0.10);
   --body-tint-graphite: rgba(60, 75, 70, 0.14);
-
-  --map-river-stroke: rgba(110, 160, 190, 0.35);
-  --map-river-label: rgba(140, 180, 205, 0.75);
-  --map-avenue-stroke: rgba(201, 210, 206, 0.10);
-  --map-avenue-label: rgba(201, 210, 206, 0.5);
 
   --chart-1: #3987e5;
   --chart-2: #d55181;

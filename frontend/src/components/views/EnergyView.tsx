@@ -6,7 +6,7 @@ import { VoltageChartWidget } from '../VoltageChartWidget';
 import { SERIES_COLORS } from '../../lib/chart';
 import { StatusPill } from '../common/StatusPill';
 import { formatNumber, formatVoltage } from '../../lib/format';
-import { LINE_NAME, TRACTION_NOMINAL_V } from '../../data/stations';
+import { TRACTION_NOMINAL_V } from '../../data/stations';
 import { api, ApiError } from '../../services/api';
 import { can } from '../../lib/permissions';
 import { formatDateTime } from '../../lib/format';
@@ -15,6 +15,8 @@ import { PowerSectionDialog } from '../modals/PowerSectionDialog';
 interface EnergyViewProps {
   stations: Station[];
   history: VoltageSample[];
+  /** Linha em operação — o título da seção sai da sessão, não de texto fixo. */
+  lineName: string;
   trains: Train[];
   powerSections: PowerSection[];
   session: OperatorSession;
@@ -41,6 +43,7 @@ const MAX_SERIES = SERIES_COLORS.length;
 export const EnergyView: React.FC<EnergyViewProps> = ({
   stations,
   history,
+  lineName,
   trains,
   powerSections,
   session,
@@ -143,7 +146,7 @@ export const EnergyView: React.FC<EnergyViewProps> = ({
         <div>
           <span className="rp-eyebrow">Energia de tração</span>
           <h2 className="rp-page-header__title">
-            Subestações retificadoras — <span className="rp-nowrap">{LINE_NAME}</span>
+            Subestações retificadoras — <span className="rp-nowrap">{lineName}</span>
           </h2>
           <p className="rp-page-header__subtitle">
             Tensão do terceiro trilho ({TRACTION_NOMINAL_V} Vcc nominal) por subestação, via barramento SCADA

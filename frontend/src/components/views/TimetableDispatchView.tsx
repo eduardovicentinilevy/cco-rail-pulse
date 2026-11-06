@@ -6,7 +6,6 @@ import { StatusPill } from '../common/StatusPill';
 import { downloadTextFile, formatDateTime, toCsv } from '../../lib/format';
 import { formatClockDuration } from '../../lib/arrivals';
 import { directionArrow, PHASE_LABELS, PHASE_STATUS, trainProgress } from '../../data/trains';
-import { LINE_TERMINALS } from '../../data/stations';
 
 interface TimetableDispatchViewProps {
   trains: Train[];
@@ -16,9 +15,6 @@ interface TimetableDispatchViewProps {
 }
 
 type DispatchStatus = 'EM_HORA' | 'ATRASADO';
-
-/** Intervalo-alvo da Linha 2 no pico, em segundos. */
-const TARGET_HEADWAY_SEC = 135;
 
 const DISPATCH_LABELS: Record<DispatchStatus, string> = { EM_HORA: 'Em hora', ATRASADO: 'Atrasado' };
 
@@ -57,6 +53,25 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
     [stations],
   );
 
+  /**
+   * Sentidos e intervalo-alvo saem da malha da sessão, não de constante: o
+   * traçado é da linha (nem toda linha corre de oeste para leste) e o intervalo
+   * de projeto é cadastro de cada estação.
+   */
+  const terminals = useMemo(
+    () => ({
+      forward: stations[stations.length - 1]?.name ?? 'sentido crescente',
+      backward: stations[0]?.name ?? 'sentido decrescente',
+    }),
+    [stations],
+  );
+  const targetHeadwaySec = useMemo(() => {
+    const declared = stations
+      .map((station) => station.headwaySeconds)
+      .filter((value): value is number => value !== null && value > 0);
+    return declared.length > 0 ? Math.min(...declared) : null;
+  }, [stations]);
+
   const dispatches = useMemo(
     () =>
       trains
@@ -84,7 +99,7 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
       ['Trem', 'Sentido', 'Posição', 'Situação', 'Velocidade (km/h)', 'Parado há (s)', 'Status', 'Atualizado em'],
       dispatches.map((item) => [
         item.train.trainId,
-        item.train.direction === 1 ? LINE_TERMINALS.east : LINE_TERMINALS.west,
+        item.train.direction === 1 ? terminals.forward : terminals.backward,
         item.position,
         PHASE_LABELS[item.train.phase],
         item.train.speedKmH,
@@ -124,12 +139,20 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
       <div className="rp-grid rp-grid--kpi">
         <article className="rp-metric" data-status="INFO">
           <span className="rp-metric__label">Intervalo-alvo (pico)</span>
-          <span className="rp-metric__value mono">{formatClockDuration(TARGET_HEADWAY_SEC)}</span>
-          <span className="rp-metric__hint">Referência de projeto da Linha 2</span>
+          <span className="rp-metric__value mono">
+            {targetHeadwaySec === null ? '—' : formatClockDuration(targetHeadwaySec)}
+          </span>
+          <span className="rp-metric__hint">Menor intervalo cadastrado na malha</span>
         </article>
         <article
           className="rp-metric"
-          data-status={headway === null ? 'INFO' : headway <= TARGET_HEADWAY_SEC * 1.5 ? 'NORMAL' : 'ATENÇÃO'}
+          data-status={
+            headway === null || targetHeadwaySec === null
+              ? 'INFO'
+              : headway <= targetHeadwaySec * 1.5
+                ? 'NORMAL'
+                : 'ATENÇÃO'
+          }
         >
           <span className="rp-metric__label">Intervalo real por plataforma</span>
           <span className="rp-metric__value mono">{headway === null ? '—' : formatClockDuration(headway)}</span>
@@ -174,7 +197,7 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
                       <strong className="mono">{train.trainId}</strong>
                     </td>
                     <td className="truncate">
-                      {directionArrow(train.direction)} {train.direction === 1 ? LINE_TERMINALS.east : LINE_TERMINALS.west}
+                      {directionArrow(train.direction)} {train.direction === 1 ? terminals.forward : terminals.backward}
                     </td>
                     <td className="truncate" title={train.holdReason ?? undefined}>
                       {position}

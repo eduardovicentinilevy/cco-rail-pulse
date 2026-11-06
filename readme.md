@@ -1,6 +1,8 @@
-# 🚇 RailPulse CCO — Centro de Controle Operacional (Linha 2-Verde)
+# 🚇 RailPulse CCO — Centro de Controle Operacional ferroviário
 
-> **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacional em tempo real para a **Linha 2-Verde do Metrô de São Paulo**. A plataforma integra a telemetria do terceiro trilho (750 Vcc) por subestação retificadora (SR), a supervisão CBTC das 14 estações entre Vila Madalena e Vila Prudente e o envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
+> **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacional em tempo real para malhas ferroviárias. A plataforma integra a telemetria do terceiro trilho (750 Vcc) por subestação retificadora (SR), a supervisão CBTC das estações do traçado e o envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
+>
+> A malha é **dado, não código**: cada cliente cadastra as suas linhas e estações, e uma instalação atende vários clientes sem fork. A carga inicial traz a Linha 2-Verde do Metrô de São Paulo, de Vila Madalena a Vila Prudente, como cliente de demonstração.
 
 ---
 
@@ -78,18 +80,18 @@ modelo do projeto segue isso de ponta a ponta:
 
 ## 🚀 Principais Funcionalidades
 
-* 🚉 **Supervisão CBTC da via:** Doze composições circulando nos dois sentidos pelas 14 estações da Linha 2, com sentido, situação (na plataforma, em marcha, retida, parada no trecho, imobilizada) e as integrações sinalizadas no número e na cor de cada linha.
-* 🚦 **Motor de operação realista:** Percurso calculado pela distância real entre estações (perfil trapezoidal a 70 km/h), paradas de 25–35 s, manobra de 2 min nos terminais, separação por bloco (quem vem atrás fica retido) e regulação de intervalo como num ATS — sem ela a frota vira comboio. Frenagem de emergência para o trem onde ele está, inclusive no meio do trecho, e segura a fila atrás dele.
-* ⏱ **Chegadas & intervalos:** Quadro de passageiros por estação e sentido, com contagem regressiva, intervalo entre as próximas composições, volta completa e intervalo médio da frota.
-* 🔌 **Manobra de energia:** Supervisores desenergizam e reenergizam seções do terceiro trilho (uma por SR) com motivo obrigatório e trilha de auditoria; a seção lê 0 V, nenhum trem parte rumo a ela e quem está em marcha para no trecho até a tensão voltar.
-* 📟 **Alarmes SCADA automáticos:** Subtensão, falta de tensão e normalização geram alarmes por transição, com debounce e histerese — uma estação parada em subtensão gera um alarme, não um por ciclo.
+* 🚉 **Supervisão CBTC da via:** Acompanhamento interativo das composições ao longo das estações da linha, cadastradas por cliente, com sentido, situação (na plataforma, em marcha, retida, parada no trecho, imobilizada) e as integrações sinalizadas no número e na cor de cada linha (a demonstração traz as 14 estações da Linha 2-Verde com doze composições circulando nos dois sentidos).
+* 🚦 **Motor de operação realista:** Percurso calculado pela distância real entre as estações cadastradas (perfil trapezoidal a 70 km/h), paradas de 25–35 s, manobra de 2 min nos terminais, separação por bloco (quem vem atrás fica retido) e regulação de intervalo como num ATS — sem ela a frota vira comboio. Frenagem de emergência para o trem onde ele está, inclusive no meio do trecho, e segura a fila atrás dele. Uma linha ainda sem coordenadas cadastradas opera com trecho de comprimento nominal.
+* ⏱ **Chegadas & intervalos:** Quadro de passageiros por estação e sentido, com contagem regressiva, intervalo entre as próximas composições, volta completa e intervalo médio da frota. Os sentidos são nomeados pelos terminais da linha, não por ponto cardeal.
+* 🔌 **Manobra de energia:** Supervisores desenergizam e reenergizam seções do terceiro trilho (uma por SR da malha cadastrada) com motivo obrigatório e trilha de auditoria; a seção lê 0 V, nenhum trem parte rumo a ela e quem está em marcha para no trecho até a tensão voltar. A seção pertence à linha: a `SR-01` de um cliente não é a de outro.
+* 📟 **Alarmes SCADA automáticos:** Subtensão, falta de tensão e normalização geram alarmes por transição, com debounce e histerese — uma estação parada em subtensão gera um alarme, não um por ciclo. Há um monitor por linha.
 * ⚡ **Energia de tração em tempo real:** Tensão do terceiro trilho (Vcc) por subestação retificadora via WebSocket — cai quando os trens aceleram na seção —, com curvas comparáveis em cores estáveis e validadas para daltonismo (`Recharts`).
 * 🎮 **Painel de Comandos Operacionais:** Frenagem de emergência, restrição de velocidade (20 km/h) e liberação de sinal, aplicados sob lock pessimista e registrados na trilha de auditoria.
 * 🛡️ **Autenticação Segura & Proteção de Credenciais:** Autenticação via **JWT (JSON Web Tokens)** com mitigações contra ataques de *Timing Attack* no backend.
 * 🔐 **Autenticação em Duas Etapas (2FA/TOTP):** Segundo fator compatível com Google Authenticator, Authy e afins — implementação própria de HOTP/TOTP (RFC 4226/6238), sem dependências externas, validada contra os vetores de teste oficiais do RFC.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
 * 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador de Controle, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
-* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG com as 14 estações projetadas das coordenadas reais (oeste → leste), o eixo da Av. Paulista e o Rio Tamanduateí como referências, composições percorrendo o trecho no tempo real de marcha (com seta de sentido) e realce pulsante das estações em alerta.
+* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG desenhado a partir das coordenadas cadastradas de cada estação — na demonstração, as 14 da Linha 2 projetadas das coordenadas reais —, com as composições percorrendo o trecho no tempo real de marcha (com seta de sentido) e realce pulsante das estações em alerta. Uma linha sem coordenadas cai num eixo reto uniforme.
 * ⇄ **Passagem de Turno:** Relatório consolidado do turno — comandos emitidos, ocorrências abertas/resolvidas, pendências herdadas e comportamento da tensão — com folha de impressão que gera o documento assinável.
 * ⌘ **Paleta de Comandos (Ctrl+K):** Busca difusa por seções, estações, composições e ações rápidas, navegável inteiramente pelo teclado.
 * 🔔 **Alertas de Eventos Críticos:** Sinal sonoro sintetizado (Web Audio) e notificação do sistema para ocorrências críticas, com preferência persistida.
@@ -130,10 +132,11 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 ```
 
-1. **Desacoplamento de Eventos (Event Bus):** O gateway de WebSocket assina eventos globais em um barramento de domínio (`domainEventBus`), permitindo escalar os emissores de telemetria de forma isolada.
-2. **Fail-Fast & Resiliência:** A aplicação valida a integridade do banco de dados na inicialização (`bootstrap`), executando as *DDLs* (`CREATE TABLE IF NOT EXISTS`) e o *seed* do operador padrão antes de abrir a porta HTTP.
+1. **Desacoplamento de Eventos (Event Bus):** O gateway de WebSocket assina eventos de um barramento de domínio (`domainEventBus`), permitindo escalar os emissores de telemetria de forma isolada. Cada evento é carimbado com a linha de origem e entregue por sala do Socket.IO, nunca em broadcast.
+2. **Fail-Fast & Resiliência:** A aplicação valida a integridade do banco de dados na inicialização (`bootstrap`), executando as *DDLs* (`CREATE TABLE IF NOT EXISTS`) e o *seed* do cliente e do operador padrão antes de abrir a porta HTTP.
 3. **Clean Architecture:** Separação rígida entre as camadas de **Apresentação** (`presentation`), **Aplicação** (`application`), **Domínio** (`domain`) e **Infraestrutura** (`infrastructure`).
-4. **Locking Pessimista em Comandos de Trem:** `ProcessTrainCommand` (caso de uso por trás do `train:command` do WebSocket) adquire `SELECT ... FOR UPDATE` sobre o registro do trem dentro de uma transação, com `lock_timeout` configurável (`TRAIN_COMMAND_LOCK_TIMEOUT_MS`). Dois operadores comandando a mesma composição são serializados pelo próprio Postgres — nunca há leitura-e-escrita concorrente sobre o mesmo trem — e a persistência na trilha de auditoria acontece na mesma transação do estado, nunca desacoplada dela. Deadlock é estruturalmente impossível aqui (nunca mais de um lock de linha por transação); o risco real seria inanição por uma transação lenta, mitigado pelo `lock_timeout`, que devolve `409 Conflict` em vez de deixar o operador esperando indefinidamente.
+4. **Multi-cliente por dado:** `tenants` → `lines` → `stations` descrevem a malha no banco. O JWT carrega o cliente e a linha da sessão, todo repositório recebe esse escopo como parâmetro explícito, e há uma simulação SCADA por linha ativa. Ver [`docs/multi-tenant.md`](docs/multi-tenant.md).
+5. **Locking Pessimista em Comandos de Trem:** `ProcessTrainCommand` (caso de uso por trás do `train:command` do WebSocket) adquire `SELECT ... FOR UPDATE` sobre o registro do trem dentro de uma transação, com `lock_timeout` configurável (`TRAIN_COMMAND_LOCK_TIMEOUT_MS`). Dois operadores comandando a mesma composição são serializados pelo próprio Postgres — nunca há leitura-e-escrita concorrente sobre o mesmo trem — e a persistência na trilha de auditoria acontece na mesma transação do estado, nunca desacoplada dela. Deadlock é estruturalmente impossível aqui (nunca mais de um lock de linha por transação); o risco real seria inanição por uma transação lenta, mitigado pelo `lock_timeout`, que devolve `409 Conflict` em vez de deixar o operador esperando indefinidamente.
 
 ---
 
@@ -164,38 +167,44 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 cco-rail-pulse/
 ├── .github/workflows/ci.yml                # Tipos, testes, lint, build e integração
 ├── docker-compose.yml                      # PostgreSQL para desenvolvimento
+├── docs/multi-tenant.md                    # Desenho do multi-cliente
+├── scripts/check-tenant-isolation.sh       # Verificação de isolamento entre clientes
 ├── backend/
 │   ├── config/env.ts                       # Configuração validada e centralizada (fail-fast)
 │   ├── shared/                             # Erros, JWT, TOTP (2FA), logger e helpers de HTTP
 │   ├── domain/
-│   │   ├── line.ts                         # 14 estações, SRs, integrações e limiares de 750 Vcc (fonte única)
+│   │   ├── line.ts                         # LineCatalog (malha do banco) e limiares de 750 Vcc
 │   │   ├── roles.ts                        # Perfis hierárquicos e permissões
 │   │   ├── entities/TrainSession.ts        # Regras de comando ferroviário
 │   │   ├── entities/Incident.ts            # Máquina de estados das ocorrências
-│   │   └── value-objects/StationCode.ts    # Código de estação validado contra a malha
+│   │   └── value-objects/StationCode.ts    # Código ATS (formato); a malha valida a pertinência
 │   ├── application/
 │   │   ├── events/event-bus.ts             # Barramento de eventos de domínio (tipado)
+│   │   ├── services/SimulationRegistry.ts  # Uma simulação por linha ativa
 │   │   ├── services/TelemetrySimulator.ts  # Simulador SCADA (random walk ancorado)
 │   │   ├── services/TelemetryArchiver.ts   # Agregação por janela da série histórica
 │   │   ├── services/TrainMotionSimulator.ts # Vaivém das composições entre os terminais
 │   │   └── use-cases/                      # Comando de trem e relatório de turno
 │   ├── infrastructure/
-│   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding
-│   │   ├── database/repositories/          # Trens, ocorrências, telemetria, alarmes, comunicações e procedimentos
-│   │   ├── repositories/                   # Operadores e trilha de auditoria
+│   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding + backfill multi-cliente
+│   │   ├── database/seeds/metro-sp.ts      # Cliente, malha e procedimentos de demonstração
+│   │   ├── database/repositories/          # Trens, ocorrências, telemetria, alarmes, comunicações e procedimentos (por linha)
+│   │   ├── repositories/                   # Operadores, auditoria e catálogo de malha (por cliente)
 │   │   └── audit/AuditLogger.ts            # Trilha append-only em disco
 │   ├── presentation/
 │   │   ├── http/app.ts                     # Composição do Express
-│   │   ├── http/middlewares/               # JWT, permissões, rate limit, erro e 404
+│   │   ├── http/tenant-resolution.ts       # Cliente por corpo, header, subdomínio ou padrão
+│   │   ├── http/middlewares/               # JWT + escopo de linha, permissões, rate limit, erro e 404
 │   │   ├── http/routes/                    # auth, operator, team, incidents, alarms, communications, procedures, network, shift, audit, health
 │   │   ├── http/server.ts                  # Bootstrap e encerramento gracioso
 │   │   └── websocket/cco.gateway.ts        # Gateway WS autenticado no handshake
-│   └── tests/                              # 184 testes unitários (node:test)
+│   └── tests/                              # 209 testes unitários (node:test)
 │
 └── frontend/
     └── src/
         ├── styles/                         # Design system (tokens, base, componentes, layout, impressão)
         ├── config/env.ts                   # URL da API e chaves de storage
+        ├── data/stations.ts                # Helpers de exibição da malha (a malha vem da API)
         ├── lib/                            # Formatação, CSV e espelho das permissões
         ├── hooks/                          # useResource, alertas críticos, relógio, foco de modal
         ├── services/                       # Cliente HTTP e Socket.IO autenticado
@@ -312,6 +321,8 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `TRAIN_COMMAND_LOCK_TIMEOUT_MS` | `4000` | Prazo do lock pessimista (`FOR UPDATE`) de um comando de trem antes de recusar com `409` |
 | `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização — `SEED_OPERATOR_PASSWORD` é obrigatório e não pode ficar no valor padrão quando `NODE_ENV=production` (o boot falha sem isso) |
 | `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador de demonstração |
+| `DEFAULT_TENANT_SLUG` | `metro-sp` | Cliente assumido quando a requisição não traz slug |
+| `TENANT_BASE_DOMAIN` | — | Domínio base: define o cliente pelo subdomínio (`cliente.exemplo.app`) |
 
 > ⚠️ O arquivo `.env` **não é versionado**. Use `.env.example` como modelo.
 
@@ -347,7 +358,7 @@ o que seria recusado, para não prometer ao operador uma ação que ele não tem
 ## 🧪 Qualidade: Testes e CI
 
 ```bash
-npm test          # 184 testes unitários do domínio e da infraestrutura
+npm test          # 209 testes unitários do domínio e da infraestrutura
 npm run typecheck # tipos do backend, incluindo a suíte de testes
 npm run check     # typecheck + testes + lint e build do frontend
 ```
@@ -356,11 +367,24 @@ A suíte cobre as regras que não podem regredir: ciclo de vida das ocorrências
 comandos ferroviários, validação de código de estação, hierarquia de permissões,
 limitador de tentativas de login, deriva do simulador SCADA, verificação de JWT,
 janela do relatório de turno e o contrato do catálogo da malha (que o mapa consome).
+Entre elas, as que sustentam o multi-cliente: o escopo que sobrevive ao token, dois
+catálogos que coexistem sem compartilhar estações, e um código de estação válido em
+uma linha sendo recusado na outra.
+
+O isolamento fim a fim é verificado contra um banco real por
+[`scripts/check-tenant-isolation.sh`](scripts/check-tenant-isolation.sh), que cria um
+segundo cliente com a credencial de operador e a numeração de composição repetidas de
+propósito e confere, pela API, que cada sessão só alcança a própria linha. Rode-o
+localmente com o Postgres do `docker-compose` no ar:
+
+```bash
+npm run check:isolation
+```
 
 O workflow do GitHub Actions (`.github/workflows/ci.yml`) roda três jobs em paralelo:
 tipos e testes do backend, lint e build do frontend, e um teste de integração que
-sobe a API contra um PostgreSQL real para validar bootstrap, autenticação e a
-recusa de rotas protegidas sem token.
+sobe a API contra um PostgreSQL real para validar bootstrap, autenticação, a recusa
+de rotas protegidas sem token e o isolamento entre dois clientes.
 
 ---
 
@@ -382,7 +406,7 @@ recusa de rotas protegidas sem token.
 
 | Método | Rota | Autenticação | Descrição |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/login` | — | Autentica o operador; retorna o JWT ou um desafio de 2FA |
+| `POST` | `/api/auth/login` | — | Autentica o operador no cliente resolvido (`tenantSlug`, header `X-Tenant-Slug`, subdomínio ou padrão); retorna o JWT ou um desafio de 2FA |
 | `POST` | `/api/auth/login/mfa` | — (desafio) | Troca o código do autenticador pela sessão |
 | `GET` | `/api/auth/session` | Bearer | Valida a sessão restaurada pelo painel |
 | `POST` | `/api/auth/logout` | Bearer | Registra o encerramento do turno |
@@ -392,7 +416,7 @@ recusa de rotas protegidas sem token.
 | `POST` | `/api/operator/mfa/enroll` | Bearer | Gera um novo segredo TOTP pendente |
 | `POST` | `/api/operator/mfa/confirm` | Bearer | Confirma o segredo e ativa o 2FA |
 | `POST` | `/api/operator/mfa/disable` | Bearer + senha | Desativa o 2FA |
-| `GET` | `/api/network/stations` | Bearer | Catálogo da malha + telemetria corrente |
+| `GET` | `/api/network/stations` | Bearer | Cliente, linha e malha da sessão + telemetria corrente |
 | `GET` | `/api/network/trains` | Bearer | Estado persistido das composições |
 | `GET` | `/api/network/telemetry/history?hours&stations` | Bearer | Série histórica agregada de tensão |
 | `GET` | `/api/network/arrivals` | Bearer | Previsão de chegadas por estação e sentido, com intervalo e volta da frota |

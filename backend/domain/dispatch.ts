@@ -4,11 +4,16 @@
 // próxima ação. O simulador só aplica o que esta função decide — e os testes
 // cobrem cada regra sem banco, sem timers e sem aleatoriedade.
 import type { TrainSession } from './entities/TrainSession';
-import { findStation } from './line';
-import { nextStationCode } from './operation';
-import type { Direction } from './operation';
+import type { LineCatalog } from './line';
+import type { Direction, LineOperation } from './operation';
 
 export interface DispatchContext {
+  /**
+   * Marcha da linha em que a composição circula — é dela que saem a vizinhança
+   * das estações e os terminais. Sem isso o despacho só saberia decidir numa
+   * linha por processo, e a `PSO` de um cliente seguiria para a `ANR` de outro.
+   */
+  operation: LineOperation;
   now: Date;
   /** Instante (epoch ms) em que termina a parada da composição na plataforma; ausente = pode partir. */
   dwellUntil: (trainId: string) => number | undefined;
@@ -36,11 +41,12 @@ const NONE: DispatchAction = { type: 'NONE' };
 
 /** Primeira subestação desenergizada entre as que alimentam as estações dadas. */
 export const deenergizedSubstation = (
+  catalog: LineCatalog,
   stationCodes: readonly string[],
   isEnergized: (substation: string) => boolean,
 ): string | undefined => {
   for (const code of stationCodes) {
-    const substation = findStation(code)?.substation;
+    const substation = catalog.find(code)?.substation;
     if (substation && !isEnergized(substation)) return substation;
   }
   return undefined;
@@ -74,13 +80,18 @@ export const planTrain = (
 ): DispatchAction => {
   // Frenagem de emergência: nada se move até o CCO liberar a composição.
   if (train.status === 'EMERGÊNCIA') return NONE;
+  const { catalog } = context.operation;
   // Estação fora da malha (dado corrompido ou de outra linha): sem traçado, não há
   // o que decidir — sem esta guarda o trem inverteria o sentido para sempre.
-  if (!findStation(train.currentStationCode)) return NONE;
+  if (!catalog.has(train.currentStationCode)) return NONE;
 
   const motion = train.motion;
   if (motion) {
-    const unpowered = deenergizedSubstation([train.currentStationCode, motion.toStationCode], context.isEnergized);
+    const unpowered = deenergizedSubstation(
+      catalog,
+      [train.currentStationCode, motion.toStationCode],
+      context.isEnergized,
+    );
 
     if (motion.remainingMs !== null) {
       // Sem tensão no trecho o trem perde tração e para onde estiver.
@@ -102,11 +113,11 @@ export const planTrain = (
     return train.speedKmH > 0 ? { type: 'SETTLE' } : NONE;
   }
 
-  const next = nextStationCode(train.currentStationCode, train.direction);
+  const next = context.operation.nextStationCode(train.currentStationCode, train.direction);
   // Fim da linha no sentido atual: manobra de inversão.
   if (next === undefined) return { type: 'REVERSE' };
 
-  const unpowered = deenergizedSubstation([train.currentStationCode, next], context.isEnergized);
+  const unpowered = deenergizedSubstation(catalog, [train.currentStationCode, next], context.isEnergized);
   if (unpowered) {
     const reason = noPowerReason(unpowered);
     return train.holdReason === reason ? NONE : { type: 'HOLD', reason };

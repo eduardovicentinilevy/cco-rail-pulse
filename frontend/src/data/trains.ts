@@ -22,7 +22,10 @@ export const PHASE_STATUS: Record<TrainPhase, 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO
   IMOBILIZADO: 'CRÍTICO',
 };
 
-/** Seta no sentido do mapa: o traçado corre de Vila Madalena (esquerda) a Vila Prudente (direita). */
+/**
+ * Seta no sentido do mapa: 1 aponta para o último terminal do traçado (à direita),
+ * -1 para o primeiro. Quem nomeia cada sentido é a malha da sessão, não este módulo.
+ */
 export const directionArrow = (direction: Direction): string => (direction === 1 ? '▶' : '◀');
 
 const isDirection = (value: unknown): value is Direction => value === 1 || value === -1;

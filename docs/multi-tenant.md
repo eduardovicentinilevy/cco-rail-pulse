@@ -1,0 +1,350 @@
+# Desenho: primeiro passo de multi-tenant
+
+Status: **implementado.** As duas decisões da seção 7 foram confirmadas (banco
+compartilhado com `tenant_id`; id interno do operador com credencial única por
+cliente) e o PR 1 da seção 8 está entregue. O que saiu diferente do que este
+documento propunha está anotado na seção 9.
+
+## 1. O problema hoje
+
+A malha inteira é uma constante de código. `backend/domain/line.ts` declara
+`LINE_NAME` e as estações da linha — eram as 15 da Linha 6-Laranja quando este
+desenho foi escrito e viraram as 14 da Linha 2-Verde enquanto o PR aguardava
+revisão, o que é a demonstração do problema —, e a partir dela pendem:
+
+| Ponto de acoplamento | Arquivo |
+| --- | --- |
+| Validação de código de estação | `backend/domain/value-objects/StationCode.ts:18` |
+| Catálogo servido ao painel | `backend/presentation/http/routes/network.routes.ts:22` |
+| Ordem das estações no deslocamento | `backend/application/services/TrainMotionSimulator.ts:104` |
+| Leituras do simulador SCADA | `backend/application/services/TelemetrySimulator.ts:35` |
+| Relatório de passagem de turno | `backend/application/use-cases/BuildShiftReportUseCase.ts:167` |
+| Carga inicial (seed) | `backend/infrastructure/database/migrations.ts:150` |
+| Catálogo duplicado no frontend | `frontend/src/data/stations.ts` |
+| Traçado geográfico do mapa | `frontend/src/components/dashboard/LineMap.tsx:19` |
+| Nome da linha na interface | Sidebar, LoginScreen, OverviewView, TrackSchematic, `index.html` |
+
+Nenhuma das cinco tabelas (`operators`, `audit_logs`, `trains`, `incidents`,
+`telemetry_samples`) tem coluna de cliente. Além disso há dois problemas que só
+aparecem com o segundo cliente e que valem citar desde já:
+
+- **Vazamento no WebSocket.** `cco.gateway.ts` emite todo evento do
+  `domainEventBus` para todo socket conectado. Com dois clientes no mesmo
+  processo, o painel do cliente A recebe a telemetria e as ocorrências do B.
+- **Chaves primárias globais.** `operators.id` (`EDP-042`) e `trains.train_id`
+  (`T-01`) são PK globais. Dois clientes não podem usar a mesma numeração de
+  crachá ou de composição.
+
+## 2. As entidades novas
+
+Três tabelas, nesta hierarquia: **cliente → linha → estação**.
+
+```sql
+CREATE TABLE tenants (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug        VARCHAR(40) UNIQUE NOT NULL,   -- 'metro-sp'
+  name        VARCHAR(120) NOT NULL,         -- 'Metrô de São Paulo'
+  is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE lines (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  code        VARCHAR(20) NOT NULL,          -- 'L2'
+  name        VARCHAR(120) NOT NULL,         -- 'Linha 2-Verde'
+  is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE (tenant_id, code)
+);
+
+CREATE TABLE stations (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  line_id             UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+  code                VARCHAR(10) NOT NULL,
+  name                VARCHAR(120) NOT NULL,
+  position            INTEGER NOT NULL,      -- ordem física ('order' é palavra reservada)
+  substation          VARCHAR(20) NOT NULL,
+  nominal_voltage_v   NUMERIC(6,1) NOT NULL, -- volts no terceiro trilho; ver seção 9
+  connections         TEXT[] NOT NULL DEFAULT '{}', -- integrações sinalizadas na estação
+  headway_seconds     INTEGER,
+  map_x               NUMERIC(6,5),          -- ver seção 9
+  map_y               NUMERIC(6,5),
+  UNIQUE (line_id, code),
+  UNIQUE (line_id, position)
+);
+```
+
+Um cliente pode ter mais de uma linha desde o início — é o caso natural de uma
+concessionária, e não custa nada agora.
+
+## 3. Como as tabelas existentes se amarram
+
+- **Operacionais** (`trains`, `incidents`, `telemetry_samples`) passam a ter
+  `line_id`: o dado é da linha, e o cliente vem por ela.
+- **De pessoas** (`operators`, `audit_logs`) passam a ter `tenant_id`: um
+  supervisor pode responder por mais de uma linha do mesmo cliente.
+- `trains` e `operators` ganham id interno (UUID) e a chave de negócio vira
+  `UNIQUE (line_id, train_id)` / `UNIQUE (tenant_id, login_id)`.
+- `telemetry_samples` troca `UNIQUE (station_code, bucket_at)` por
+  `UNIQUE (station_id, bucket_at)`.
+
+A migração é idempotente, no mesmo estilo self-healing do
+`migrations.ts` atual: cria as tabelas, semeia o cliente de demonstração
+(`metro-sp`) com a sua linha e as suas estações a partir da constante de hoje
+(que vira `backend/infrastructure/database/seeds/metro-sp.ts`), preenche
+`tenant_id`/`line_id` das linhas existentes apontando para ela e só então
+aplica `NOT NULL`. Banco em produção sobe sem intervenção manual.
+
+## 4. Como o tenant atravessa a aplicação
+
+1. **Login.** O payload ganha `tenantSlug`. Em produção ele vem do subdomínio
+   (`cliente.railpulse.app`); em desenvolvimento, de um campo na tela.
+2. **JWT.** O token passa a carregar `{ operatorId, role, tenantId, lineId }`.
+   O `lineId` é a linha ativa do operador; trocar de linha reemite o token.
+3. **Repositórios.** Todo método recebe `tenantId`/`lineId` como parâmetro
+   explícito, não por variável de contexto. Um filtro esquecido é vazamento de
+   dados entre clientes, e parâmetro obrigatório o compilador cobra.
+4. **Catálogo.** `domain/line.ts` deixa de ser constante e vira o tipo
+   `LineCatalog`, montado a partir do banco por `LineCatalogRepository`, com
+   cache em memória por `lineId` (estação muda uma vez por década) invalidado na
+   escrita.
+5. **`StationCode`.** O construtor passa a validar só o formato (3 caracteres).
+   "Pertence a esta linha?" é pergunta do catálogo —
+   `catalog.requireStation(code)` — porque um value object não tem como saber de
+   qual cliente é o código.
+6. **Simuladores.** `TelemetrySimulator` e `TrainMotionSimulator` deixam de ser
+   singletons e passam a viver num registro, uma instância por linha ativa,
+   iniciada no boot e na criação de uma linha nova. Os eventos passam a carregar
+   `lineId`.
+7. **WebSocket.** No handshake o socket entra na sala `line:<lineId>` derivada
+   do JWT, nunca do payload do cliente, e o gateway emite para a sala em vez de
+   fazer broadcast. É o que fecha o vazamento da seção 1.
+
+## 5. Frontend
+
+- `frontend/src/data/stations.ts` é apagado. O catálogo vem de
+  `GET /api/network/stations`, que já existe; o que sobra do arquivo é o
+  esqueleto de carregamento.
+- Nome da linha e do cliente vêm de um `LineContext` alimentado pela API. Some
+  toda string literal com o nome da linha e com os seus terminais da interface,
+  inclusive `document.title` e o `<title>` do `index.html`.
+- `LineMap.tsx` passa a desenhar a partir de `map_x`/`map_y` das estações, e
+  distribui as estações num eixo reto quando a linha não tem coordenadas
+  cadastradas.
+
+## 6. O que este passo não faz
+
+Fora de escopo, na ordem em que eu faria depois: identidade visual por cliente
+(logo, cores), cadastro de clientes e linhas pela interface com importação de
+estações por CSV, Row Level Security no Postgres como segunda barreira, limites
+de uso e cobrança por cliente.
+
+## 7. Decisões que tomei por padrão
+
+Se nenhuma for contestada, sigo com elas:
+
+- Cliente e linha são entidades separadas desde já (um cliente, N linhas).
+- Chaves UUID nas tabelas novas; as antigas mantêm a PK atual até o item da
+  seção 3.
+- Roteamento de login por slug/subdomínio, não por credencial global.
+- Isolamento lógico (coluna `tenant_id`), não schema nem banco por cliente.
+
+## 8. Plano de entrega
+
+| PR | Conteúdo |
+| --- | --- |
+| 1 | Tabelas, migração com backfill, catálogo vindo do banco, tenant no JWT, salas no WebSocket, simuladores por linha, frontend consumindo a API |
+| 2 | Cadastro de clientes e linhas pela interface, identidade visual por cliente |
+| 3 | RLS, testes com dois clientes simultâneos, limites por cliente |
+
+Depois do PR 1 o sistema continua rodando com um cliente só, mas o segundo
+passa a ser cadastro, não fork.
+
+## 9. O que saiu diferente do proposto
+
+O que mudou entre o desenho e o que foi entregue:
+
+- **`map_x`/`map_y` no lugar de `latitude`/`longitude`.** O que estava preso no
+  `LineMap.tsx` não era cartografia: eram coordenadas do `viewBox` do SVG. Gravá-las
+  numa coluna chamada `latitude` seria mentir sobre o dado. As colunas guardam a
+  posição normalizada (0–1) no traçado esquemático, que é exatamente o que o mapa
+  precisa e o que um cliente novo consegue preencher sem levantamento topográfico.
+  Latitude e longitude de verdade continuam cabendo depois, como colunas à parte.
+
+- **`audit_logs.operator_id` e `incidents.opened_by` seguem guardando o crachá,
+  não a chave interna.** O operador ganhou id interno (UUID) e `UNIQUE (tenant_id,
+  login_id)`, como decidido. As tabelas que o referenciam continuam gravando a
+  credencial, agora desambiguada pelo `tenant_id`/`line_id` da própria linha. Numa
+  trilha de auditoria, registrar o crachá vigente no momento do evento é o
+  comportamento correto, e evita uma conversão de FK arriscada no mesmo PR. A
+  consequência a observar: se um dia a credencial puder ser renomeada, a trilha
+  antiga apontará para o nome antigo. Hoje não há como renomear.
+
+- **A decoração do Rio Tietê saiu do `LineMap.tsx`.** Era cartografia da Linha 6
+  dentro de um componente compartilhado: mantida, desenharia o Tietê sobre a linha
+  de qualquer cliente. Decoração de mapa por linha entra no PR 2, junto com a
+  identidade visual.
+
+- **As três seções que chegaram durante o trabalho também pendem da linha.**
+  Enquanto este passo era implementado, a master ganhou Central de Alarmes,
+  Comunicações e Procedimentos, com tabelas sem noção de cliente. Elas entraram
+  no desenho pela mesma regra das demais: `alarms` e `communications` pendem de
+  `line_id` porque descrevem a operação de uma linha, e `procedures` também,
+  porque o texto do manual cita estações e subestações da própria malha. O
+  título do procedimento, que era único no banco inteiro, passou a ser único
+  dentro da linha — senão dois clientes não poderiam ter o mesmo procedimento no
+  seu manual. Quem já rodou aquela versão é convertido no boot, como as demais.
+
+- **Ordens de Serviço entrou depois, pela mesma regra.** A master ganhou a seção
+  de OS com a tabela `work_orders` sem noção de cliente. A ordem de serviço é
+  manutenção num ativo da linha (cita estação e equipamento da própria malha),
+  então pende de `line_id`, e a linha entra no `WHERE` junto do id: a numeração é
+  `SERIAL`, compartilhada entre clientes, e sem ela um id chutado abriria — ou
+  cancelaria — a OS do vizinho. Quem já rodou aquela versão é convertido no boot.
+
+- **O risco de alagamento no painel de Clima deixou de nomear duas estações
+  fixas.** O painel classificava como suscetíveis os códigos `FGO` e `SMA`, o
+  trecho que cruza a faixa do Rio Tietê: na malha de qualquer outro cliente
+  aqueles códigos não existem e o painel nunca acusaria risco. A suscetibilidade
+  passou a sair do hash do código da estação, estável entre recargas e válida em
+  qualquer malha. Onde o trecho sensível é real, quem o nomeia é o procedimento
+  de METEOROLOGIA daquela linha, que é dado semeado por linha.
+
+- **A malha fixa que a master trocou no meio do caminho virou semeadura.**
+  Enquanto este PR esperava revisão, a master substituiu a Linha 6-Laranja pela
+  Linha 2-Verde: outras 14 estações, subestações retificadoras, integrações e um
+  traçado novo, tudo de novo em constante de código. É exatamente o que este
+  passo converte em dado, então a malha nova entrou como semeadura
+  (`seeds/metro-sp.ts`) e o cliente de demonstração passou a se chamar
+  `metro-sp` / "Metrô de São Paulo", com a linha `L2`. As coordenadas do mapa
+  vieram do `ROUTE` da master normalizadas (x/1000, y/440) para o 0–1 das
+  colunas `map_x`/`map_y`. Nada da malha ficou em código.
+
+- **As integrações da estação são cadastro; a cor delas é apresentação.** A
+  master trouxe as baldeações com número e cor fixos por linha. Quais
+  integrações a estação tem é dado (`stations.connections`), porque muda de
+  cliente para cliente; a tabela de cores conhecidas da rede de São Paulo ficou
+  no frontend, com um fallback neutro, para que a integração de um cliente que
+  não esteja na tabela ainda apareça desenhada.
+
+- **O modelo elétrico continua em código.** A master trocou a catenária em kV
+  pelo terceiro trilho de 750 Vcc, com limiares de 700 V e 640 V. A tensão
+  nominal de cada subestação é dado por estação (`nominal_voltage_v`), mas os
+  limiares de atenção e crítico seguem constantes em `domain/line.ts`: são a
+  regra da instalação, não do cliente. Um cliente de catenária em kV exigiria
+  esses limiares por linha — é o próximo item desta lista a virar dado, se
+  aparecer.
+
+- **A semeadura é aditiva, nunca refaz a malha.** A master, sem noção de
+  cliente, podia simplesmente reescrever a linha a cada boot. Aqui a semeadura
+  usa `ON CONFLICT DO NOTHING`: a malha de um cliente que já foi editada em
+  produção não é revertida por um deploy. O que a master fazia como limpeza
+  global do estado antigo (trens em estações que não existem mais, procedimentos
+  substituídos, categorias de OS renomeadas) passou a ser por linha
+  (`purgeSupersededLineData(lineId)`) — uma limpeza do cliente de demonstração
+  não pode alcançar o dado de outro cliente.
+
+- **A decoração geográfica da Linha 2 também ficou fora do mapa compartilhado.**
+  Pela mesma razão do Rio Tietê: a Av. Paulista e o Rio Tamanduateí são
+  cartografia de uma linha só. Decoração de mapa por linha segue no PR 2.
+
+- **A leitura ao vivo do terceiro trilho entrou por linha.** A master passou a
+  fazer a composição que entra numa estação ler a tensão daquele trecho, ligando
+  o simulador de telemetria ao de deslocamento no `server.ts` — o que funciona
+  com um simulador por processo. Aqui existe um par por linha, então quem liga os
+  dois é o `SimulationRegistry`: a composição lê a telemetria da sua própria
+  linha, e sem leitura ao vivo vale a tensão nominal cadastrada na estação.
+
+- **A leitura defensiva do payload não tem catálogo local para onde recorrer.** A
+  master endureceu o painel contra resposta de outra versão do backend
+  completando o campo que falta com a malha fixa do frontend. Aqui o
+  preenchimento é neutro — tensão nominal da instalação, trecho "—", sem
+  integrações — porque a estação `VMD` de um cliente não é a de outro: completar
+  com uma malha escrita no código mostraria o dado errado com cara de certo. Uma
+  resposta vazia, pela mesma razão, passou a ser resposta: pode ser uma linha
+  recém-cadastrada, e manter a malha anterior na tela mostraria a estação de
+  outra linha.
+
+- **A geometria do mapa é projeção, não catálogo.** A master juntou todo o
+  desenho numa projeção só, feita das coordenadas geográficas das estações
+  escritas no próprio módulo. A ideia da projeção única ficou; o que entra nela é
+  a coordenada normalizada cadastrada por estação. Isso também mostra para que
+  servem as colunas de latitude e longitude previstas acima: um cliente que
+  queira mapa cartográfico cadastra lat/lon, e `map_x`/`map_y` passam a ser
+  derivadas.
+
+- **A limpeza da malha anterior é gatilhada pelo dado, não pelas colunas em kV.**
+  A master renomeia as colunas e limpa os dados antigos na mesma transação, e
+  decide se roda pela existência das colunas em kV. Aqui a renomeação precisa
+  acontecer antes de a linha existir — ela é pré-requisito da semeadura —, então
+  uma transação não pode abraçar as duas etapas. A detecção passou a perguntar
+  pelo dado em si (composição em estação inexistente, procedimento substituído,
+  OS na categoria antiga): é uma consulta por linha, como no master, e um
+  processo que caia entre a renomeação e a limpeza é refeito no boot seguinte.
+  Com o gatilho pela coluna, um banco já renomeado nunca mais limparia.
+
+- **A marcha deixou de ser constante de módulo e virou geometria do catálogo.** A
+  master calculou as distâncias entre estações, a extensão da linha e o nome de
+  cada sentido no carregamento do módulo `domain/operation.ts`, a partir da malha
+  fixa — o que descreve uma linha por processo. Aqui o perfil de tração
+  (velocidade de linha, aceleração, paradas, manobra de terminal) continua em
+  código, porque é regra da instalação, e a geometria passou a ser um
+  `LineOperation` por catálogo, memorizado junto dele: duas linhas no mesmo
+  processo têm trechos de comprimentos distintos. Por consequência, `dispatch`,
+  `arrivals` e os dois simuladores recebem a marcha da linha em que operam, e os
+  sentidos são nomeados pelos terminais dela — `DIRECTION_LABELS` nomeava os
+  extremos por ponto cardeal, e nem toda linha corre de oeste para leste. No
+  payload de chegadas isso trocou `east`/`west` por `forward`/`backward`, com os
+  nomes dos terminais em `directions`.
+
+- **As coordenadas geográficas viraram cadastro, e podem faltar.** A master
+  precisa delas para medir os trechos, então as declarou obrigatórias na estação.
+  Aqui `stations.lat`/`stations.lon` são opcionais: uma linha recém-cadastrada
+  opera com trecho de comprimento nominal (`NOMINAL_SEGMENT_LENGTH_M`) até alguém
+  informá-las, e a marcha continua plausível em vez de atravessar o trecho
+  instantaneamente. Onde a coluna é nova e está nula, a semeadura preenche — não
+  é cadastro editado pelo cliente, é coluna que ainda não existia quando a linha
+  foi semeada.
+
+- **A composição não conhece a malha.** A master faz o comando do operador
+  replanejar o trecho em curso lendo o comprimento dele de uma tabela de módulo.
+  Aqui `TrainSession.applyCommand` e `remainingRunTimeMs` recebem o comprimento
+  do trecho como parâmetro obrigatório: a entidade é de uma linha qualquer, e o
+  `PSO`→`ANR` de um cliente não mede o mesmo que o de outro. O compilador recusa
+  um comando aplicado sem o trecho que ele está replanejando.
+
+- **A seção de energia pertence à linha.** A master criou `power_sections` com a
+  subestação como chave primária, e uma grade em memória para o processo. A SR é
+  dado da malha: dois clientes podem ter uma `SR-01` cada um, sem relação entre
+  elas, então a tabela ganhou `line_id`, a chave é `(line_id, substation)` e há
+  uma `PowerGrid` por linha, com as seções vindas das subestações cadastradas —
+  uma linha nova ganha as seções dela sem que nada mude em código. Sem isso,
+  desenergizar a `SR-01` de um cliente apagaria a tensão da `SR-01` do outro;
+  `scripts/check-tenant-isolation.sh` agora verifica exatamente essa manobra.
+  Bancos criados pela master são convertidos no boot (`upgradeLegacySchema`),
+  preservando o estado e o motivo da última manobra.
+
+- **O monitor de alarmes SCADA é por linha, e descarta o lote das outras.** A
+  master registra um monitor no barramento do processo, o que basta com uma malha
+  só. Aqui o barramento é um só mas os eventos são `LineEvent`, então cada linha
+  tem o seu monitor: ele ignora a telemetria que não é da sua linha e nomeia a
+  subestação pelo catálogo dela — sem isso o estado de alarme da `AIP` de um
+  cliente seria mexido pela leitura da `AIP` de outro, e o alarme nomearia a SR
+  errada. `power:changed` entrou no barramento como `LineEvent` e é entregue pela
+  sala da linha, como os demais.
+
+- **O texto do painel que nomeava os terminais saiu para a malha.** A master
+  escreveu "Vila Madalena ↔ Vila Prudente" no título da supervisão, o intervalo-alvo
+  de projeto da Linha 2 como constante e a seta de sentido descrita por ponto
+  cardeal. Os três passaram a sair da malha da sessão: os terminais são a primeira
+  e a última estação recebidas, e o intervalo-alvo é o menor `headway_seconds`
+  cadastrado.
+
+- **Uma linha cadastrada depois do boot entra em simulação sob demanda.** A
+  master sobe a simulação uma vez, no boot, porque a malha era única e nascia
+  com o processo. Aqui um cliente novo é cadastro: a linha dele pode nascer com
+  o servidor já de pé, e sem isto a manobra de energia e o quadro de chegadas
+  dela viriam vazios até alguém reiniciar o serviço — "cadastro, não deploy"
+  valendo só até o próximo boot. As rotas de malha e de energia chamam
+  `SimulationRegistry.ensureLine(lineId)` antes de ler o estado simulado; a
+  chamada é idempotente e custa uma consulta a um `Map` no caso normal.

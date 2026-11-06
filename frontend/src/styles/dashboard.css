@@ -392,34 +392,10 @@
   border-radius: var(--radius-md);
 }
 
-.rp-map__river {
-  stroke: var(--map-river-stroke);
-  stroke-width: 14;
-  stroke-linecap: round;
-}
-
-.rp-map__river-label {
-  fill: var(--map-river-label);
-  font-size: 13px;
-  font-style: italic;
-  font-family: var(--cco-font);
-}
-
-/* Eixo da Av. Paulista: faixa larga e apagada sob o trilho, só como referência. */
-.rp-map__avenue {
-  stroke: var(--map-avenue-stroke);
-  stroke-width: 26;
-  stroke-linecap: round;
-}
-
-.rp-map__avenue-label {
-  fill: var(--map-avenue-label);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-family: var(--cco-font);
-}
+/* A decoração geográfica da linha (rio, avenida e os seus rótulos) saiu do mapa
+   compartilhado: é cartografia de uma linha só, e desenhada aqui apareceria
+   sobre a linha de qualquer cliente. Volta com a identidade visual por cliente,
+   junto do estilo que ela precisar. */
 
 .rp-map__rail {
   stroke-width: 5;

@@ -129,10 +129,10 @@ export const ArrivalsView: React.FC<ArrivalsViewProps> = ({ arrivals, fetchedAt,
                   Estação
                 </th>
                 <th scope="colgroup" colSpan={3}>
-                  ◀ {directions.west}
+                  ◀ {directions.backward}
                 </th>
                 <th scope="colgroup" colSpan={3}>
-                  {directions.east} ▶
+                  {directions.forward} ▶
                 </th>
               </tr>
               <tr>
@@ -146,8 +146,8 @@ export const ArrivalsView: React.FC<ArrivalsViewProps> = ({ arrivals, fetchedAt,
             </thead>
             <tbody>
               {arrivals.stations.map((station) => {
-                const westHeadway = headwayOf(station.west);
-                const eastHeadway = headwayOf(station.east);
+                const backwardHeadway = headwayOf(station.backward);
+                const forwardHeadway = headwayOf(station.forward);
                 return (
                   <tr key={station.code}>
                     <td>
@@ -155,34 +155,34 @@ export const ArrivalsView: React.FC<ArrivalsViewProps> = ({ arrivals, fetchedAt,
                         <span className="rp-badge rp-badge--code">{station.code}</span> {station.name}
                       </button>
                     </td>
-                    {station.west.length === 0 && station.code === arrivals.stations[0].code ? (
+                    {station.backward.length === 0 && station.code === arrivals.stations[0].code ? (
                       <td colSpan={3} className="text-dim">
                         Terminal — partidas no outro sentido
                       </td>
                     ) : (
                       <>
                         <td>
-                          <ArrivalCell entry={station.west[0]} elapsedMs={elapsedMs} />
+                          <ArrivalCell entry={station.backward[0]} elapsedMs={elapsedMs} />
                         </td>
                         <td>
-                          <ArrivalCell entry={station.west[1]} elapsedMs={elapsedMs} />
+                          <ArrivalCell entry={station.backward[1]} elapsedMs={elapsedMs} />
                         </td>
-                        <td className="mono text-muted">{westHeadway === null ? '—' : formatClockDuration(westHeadway)}</td>
+                        <td className="mono text-muted">{backwardHeadway === null ? '—' : formatClockDuration(backwardHeadway)}</td>
                       </>
                     )}
-                    {station.east.length === 0 && station.code === arrivals.stations[arrivals.stations.length - 1].code ? (
+                    {station.forward.length === 0 && station.code === arrivals.stations[arrivals.stations.length - 1].code ? (
                       <td colSpan={3} className="text-dim">
                         Terminal — partidas no outro sentido
                       </td>
                     ) : (
                       <>
                         <td>
-                          <ArrivalCell entry={station.east[0]} elapsedMs={elapsedMs} />
+                          <ArrivalCell entry={station.forward[0]} elapsedMs={elapsedMs} />
                         </td>
                         <td>
-                          <ArrivalCell entry={station.east[1]} elapsedMs={elapsedMs} />
+                          <ArrivalCell entry={station.forward[1]} elapsedMs={elapsedMs} />
                         </td>
-                        <td className="mono text-muted">{eastHeadway === null ? '—' : formatClockDuration(eastHeadway)}</td>
+                        <td className="mono text-muted">{forwardHeadway === null ? '—' : formatClockDuration(forwardHeadway)}</td>
                       </>
                     )}
                   </tr>
