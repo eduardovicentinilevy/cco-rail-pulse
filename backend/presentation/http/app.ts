@@ -17,6 +17,7 @@ import { communicationRouter } from './routes/communication.routes';
 import { procedureRouter } from './routes/procedure.routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import type { SimulationRegistry } from '../../application/services/SimulationRegistry';
+import { createEnergyRouter } from './routes/energy.routes';
 
 /**
  * Cabeçalhos de segurança básicos, sem adicionar dependências ao bundle.
@@ -60,6 +61,7 @@ export const createApp = (registry: SimulationRegistry): Express => {
   app.use('/api/operator', operatorRouter);
   app.use('/api/audit-logs', auditRouter);
   app.use('/api/network', createNetworkRouter(registry));
+  app.use('/api/energy', createEnergyRouter(registry));
   app.use('/api/incidents', incidentRouter);
   app.use('/api/work-orders', workOrderRouter);
   app.use('/api/team', teamRouter);

@@ -61,10 +61,12 @@ export const VideoWallView: React.FC<VideoWallViewProps> = ({
   const onlineCameras = cameras.filter((camera) => camera.online).length;
 
   const attentionStations = stations.filter((station) => station.status !== 'NORMAL').length;
-  const avgSpeed = trains.length === 0 ? 0 : trains.reduce((sum, train) => sum + train.speedKmH, 0) / trains.length;
+  // Velocidade média só de quem está andando: trem parado na plataforma não é "lento".
+  const moving = trains.filter((train) => train.phase === 'EM_MARCHA');
+  const avgSpeed = moving.length === 0 ? 0 : moving.reduce((sum, train) => sum + train.speedKmH, 0) / moving.length;
 
   const stats = [
-    { label: 'Composições em marcha', value: String(trains.length), status: 'INFO' },
+    { label: 'Composições em marcha', value: `${moving.length} / ${trains.length}`, status: 'INFO' },
     {
       label: 'Estações em atenção',
       value: String(attentionStations),

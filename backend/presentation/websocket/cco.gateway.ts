@@ -82,7 +82,15 @@ export const registerCcoGateway = (io: SocketIOServer, registry: SimulationRegis
   // Uma assinatura por processo, com roteamento por sala. Antes cada socket
   // registrava um listener próprio por evento no barramento e recebia tudo.
   const relay =
-    <T>(event: 'telemetry:batch' | 'alert:critical' | 'train:updated' | 'incident:changed' | 'workorder:changed') =>
+    <T>(
+      event:
+        | 'telemetry:batch'
+        | 'alert:critical'
+        | 'train:updated'
+        | 'incident:changed'
+        | 'workorder:changed'
+        | 'power:changed',
+    ) =>
     ({ lineId, payload }: LineEvent<T>) => {
       io.to(roomFor(lineId)).emit(event, payload);
     };
@@ -92,6 +100,7 @@ export const registerCcoGateway = (io: SocketIOServer, registry: SimulationRegis
   domainEventBus.on('train:updated', relay('train:updated'));
   domainEventBus.on('incident:changed', relay('incident:changed'));
   domainEventBus.on('workorder:changed', relay('workorder:changed'));
+  domainEventBus.on('power:changed', relay('power:changed'));
 
   // Também uma única vez para o gateway inteiro: desativar um operador em `Equipe`
   // derruba qualquer socket já aberto em nome dele, na hora — sem isso, uma sessão de
@@ -116,7 +125,10 @@ export const registerCcoGateway = (io: SocketIOServer, registry: SimulationRegis
     // Carga inicial: o painel já abre com o estado corrente da sua linha.
     socket.emit('telemetry:batch', registry.snapshotOf(lineId));
     TrainRepository.findAll(lineId)
-      .then((trains) => socket.emit('train:sync', trains.map((train) => train.toSnapshot())))
+      .then((trains) => {
+        const now = new Date();
+        socket.emit('train:sync', trains.map((train) => train.toSnapshot(now)));
+      })
       .catch((error) => logger.error('Falha ao sincronizar composições no handshake.', error));
 
     socket.on('train:command', async (payload: { trainId?: unknown; command?: unknown; targetBlock?: unknown }) => {

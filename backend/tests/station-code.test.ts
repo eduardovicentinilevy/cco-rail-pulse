@@ -103,6 +103,8 @@ describe('Catálogo da malha', () => {
       headwaySeconds: null,
       mapX: null,
       mapY: null,
+      lat: null,
+      lon: null,
     });
 
     const embaralhado = new LineCatalog({ id: 'l', tenantId: 't', tenantName: 'T', code: 'L', name: 'L' }, [

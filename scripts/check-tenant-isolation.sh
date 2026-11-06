@@ -187,4 +187,54 @@ grep -q '"open":0' <<<"$ESTATISTICAS_OUTRO" \
   || fail "as estatísticas de OS de metro-ci contaram ordem de outro cliente: $ESTATISTICAS_OUTRO"
 echo "  Ordem de serviço #$OS_ID ficou invisível e intocável para o outro cliente."
 
+# --- Energia de tração ------------------------------------------------------
+# A subestação retificadora é dado da malha: os dois clientes têm uma 'SR-01', e
+# ela é a mesma chave em tabela compartilhada. Desenergizar a de um não pode
+# apagar a tensão da do outro.
+SECOES_UNI="$(get "$TOKEN_UNI" /api/energy/sections)"
+SECOES_OUTRO="$(get "$TOKEN_OUTRO" /api/energy/sections)"
+grep -q '"substation":"SR-07"' <<<"$SECOES_UNI" || fail "a sessão de metro-sp não recebeu as seções da sua malha"
+if grep -q '"substation":"SR-07"' <<<"$SECOES_OUTRO"; then
+  fail "seção de energia de metro-sp vazou para a sessão de metro-ci"
+fi
+
+# Cada seção lista as estações que alimenta — as da própria linha.
+if grep -q '"JAB"' <<<"$SECOES_UNI"; then fail "a SR-01 de metro-sp listou estação de metro-ci"; fi
+grep -q '"JAB"' <<<"$SECOES_OUTRO" || fail "a SR-01 de metro-ci não listou as estações dela"
+
+curl -sf -o /dev/null -X POST "$BASE_URL/api/energy/sections/SR-01" \
+  -H "Authorization: Bearer $TOKEN_OUTRO" -H 'Content-Type: application/json' \
+  -d '{"energized":false,"reason":"Verificação do isolamento entre clientes."}' \
+  || fail "não foi possível desenergizar a SR-01 de metro-ci"
+
+secao_sr01() {
+  get "$1" /api/energy/sections \
+    | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const s=JSON.parse(d).sections.find(x=>x.substation==='SR-01');process.stdout.write(s?String(s.energized):'')})"
+}
+[ "$(secao_sr01 "$TOKEN_OUTRO")" = "false" ] || fail "a SR-01 de metro-ci não ficou desenergizada"
+[ "$(secao_sr01 "$TOKEN_UNI")" = "true" ] \
+  || fail "desenergizar a SR-01 de metro-ci apagou a tensão da SR-01 de metro-sp"
+
+# E manobrar uma SR que não existe na malha da sessão é erro de validação.
+STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/api/energy/sections/SR-07" \
+  -H "Authorization: Bearer $TOKEN_OUTRO" -H 'Content-Type: application/json' \
+  -d '{"energized":false,"reason":"Seção de outro cliente."}')"
+[ "$STATUS" = "400" ] || fail "manobra em SR de outra linha devolveu HTTP $STATUS, esperado 400"
+echo "  SR-01 homônima manobrada num cliente, intacta no outro."
+
+# Reenergiza para não deixar o banco de verificação com uma seção fora de serviço.
+curl -sf -o /dev/null -X POST "$BASE_URL/api/energy/sections/SR-01" \
+  -H "Authorization: Bearer $TOKEN_OUTRO" -H 'Content-Type: application/json' \
+  -d '{"energized":true,"reason":"Fim da verificação."}' || true
+
+# --- Chegadas ---------------------------------------------------------------
+# O quadro de chegadas é da malha da sessão, e nomeia os sentidos pelos terminais
+# dela — não por ponto cardeal nem pelos terminais da linha de demonstração.
+CHEGADAS_OUTRO="$(get "$TOKEN_OUTRO" /api/network/arrivals)"
+grep -q 'Jabaquara' <<<"$CHEGADAS_OUTRO" || fail "as chegadas de metro-ci não nomearam os terminais da linha dela"
+if grep -q 'Vila Prudente' <<<"$CHEGADAS_OUTRO"; then
+  fail "os terminais de metro-sp vazaram para o quadro de chegadas de metro-ci"
+fi
+echo "  Quadro de chegadas nomeou os terminais de cada linha."
+
 echo "OK: os dois clientes coexistem sem enxergar a operação um do outro."

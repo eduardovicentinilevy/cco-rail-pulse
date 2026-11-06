@@ -1,15 +1,26 @@
 // frontend/src/components/dashboard/SelectedStationPanel.tsx
 import React, { useState } from 'react';
-import type { OperationalCommand, Station, Train } from '../../types';
+import type { OperationalCommand, PowerSection, Station, StationArrivalBoard, Train } from '../../types';
 import { formatHeadway } from '../../data/stations';
 import { StatusPill } from '../common/StatusPill';
 import { ConnectionBadges } from '../common/ConnectionBadges';
 import { formatVoltage } from '../../lib/format';
+import { formatClockDuration, secondsUntil } from '../../lib/arrivals';
+import { directionArrow, PHASE_LABELS } from '../../data/trains';
 import type { ConfirmRequest } from '../common/ConfirmDialog';
 
 interface SelectedStationPanelProps {
   station: Station;
   trains: Train[];
+  /** Previsão de chegadas desta estação; ausente enquanto a primeira consulta não volta. */
+  arrivals?: StationArrivalBoard;
+  /** Rótulos dos dois sentidos, vindos da própria previsão. */
+  /** Nome de cada sentido, vindo dos terminais da linha da sessão. */
+  directionLabels?: { forward: string; backward: string };
+  /** Tempo desde a última previsão, para a contagem regressiva. */
+  arrivalsElapsedMs?: number;
+  /** Seção de energia que alimenta a estação. */
+  power?: PowerSection;
   pendingCommand: string | null;
   isStationFavorite: boolean;
   onToggleStationFavorite: (code: string) => void;
@@ -24,6 +35,10 @@ interface SelectedStationPanelProps {
 export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
   station,
   trains,
+  arrivals,
+  directionLabels,
+  arrivalsElapsedMs = 0,
+  power,
   pendingCommand,
   isStationFavorite,
   onToggleStationFavorite,
@@ -94,6 +109,12 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
         )}
       </div>
 
+      {power && !power.energized && (
+        <p className="rp-hint" role="status" data-status="CRÍTICO" style={{ color: 'var(--rp-status)' }}>
+          ⚡ Seção {power.substation} desenergizada — nenhuma composição parte rumo a esta estação.
+        </p>
+      )}
+
       <div className="rp-terminal__metrics">
         <div className="rp-metric-row">
           <span>Status do bloco</span>
@@ -115,6 +136,37 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
         </div>
       </div>
 
+      <div className="rp-stack rp-stack--tight" aria-label="Próximas composições nesta estação">
+        <h3 className="rp-section-title">Próximos trens</h3>
+        {arrivals && directionLabels ? (
+          (
+            [
+              ['backward', directionLabels.backward, '◀'],
+              ['forward', directionLabels.forward, '▶'],
+            ] as const
+          ).map(([key, label, arrow]) => {
+            const next = arrivals[key][0];
+            return (
+              <div key={key} className="rp-metric-row">
+                <span>
+                  {arrow} {label}
+                </span>
+                <strong className="mono">
+                  {!next
+                    ? '—'
+                    : next.atPlatform
+                      ? `${next.trainId} na plataforma`
+                      : `${next.trainId} em ${formatClockDuration(secondsUntil(next.etaSeconds, arrivalsElapsedMs))}`}
+                  {next?.held ? ' (retido)' : ''}
+                </strong>
+              </div>
+            );
+          })
+        ) : (
+          <p className="rp-hint">Calculando a previsão…</p>
+        )}
+      </div>
+
       <div className="rp-field">
         <label className="rp-label" htmlFor="target-train">
           Composição alvo no bloco
@@ -131,7 +183,8 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
             >
               {trains.map((train) => (
                 <option key={train.trainId} value={train.trainId}>
-                  {train.trainId} — {train.speedKmH} km/h ({train.status})
+                  {directionArrow(train.direction)} {train.trainId} — {PHASE_LABELS[train.phase]}
+                  {train.phase === 'EM_MARCHA' ? ` a ${train.speedKmH} km/h` : ''} ({train.status})
                 </option>
               ))}
             </select>
@@ -151,6 +204,11 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
           </span>
         ) : (
           <p className="rp-hint">Nenhuma composição neste bloco no momento.</p>
+        )}
+        {targetTrain?.holdReason && (
+          <p className="rp-hint" role="status">
+            {PHASE_LABELS[targetTrain.phase]}: {targetTrain.holdReason}
+          </p>
         )}
       </div>
 

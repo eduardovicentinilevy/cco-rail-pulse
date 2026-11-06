@@ -32,6 +32,8 @@ interface StationRow {
   headway_seconds: number | null;
   map_x: string | null;
   map_y: string | null;
+  lat: string | null;
+  lon: string | null;
 }
 
 /** `pg` devolve NUMERIC como string para preservar precisão — normalizamos na borda. */
@@ -48,6 +50,8 @@ const toStation = (row: StationRow): LineStation => ({
   headwaySeconds: row.headway_seconds,
   mapX: toNumberOrNull(row.map_x),
   mapY: toNumberOrNull(row.map_y),
+  lat: toNumberOrNull(row.lat),
+  lon: toNumberOrNull(row.lon),
 });
 
 const LINE_COLUMNS = `l.id, l.tenant_id, t.name AS tenant_name, l.code, l.name`;
@@ -138,7 +142,7 @@ export class PgLineCatalogRepository {
 
   private async loadStations(lineId: string): Promise<LineStation[]> {
     const result = await db.query<StationRow>(
-      `SELECT id, code, name, position, substation, nominal_voltage_v, connections, headway_seconds, map_x, map_y
+      `SELECT id, code, name, position, substation, nominal_voltage_v, connections, headway_seconds, map_x, map_y, lat, lon
        FROM stations
        WHERE line_id = $1
        ORDER BY position ASC`,

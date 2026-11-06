@@ -15,10 +15,11 @@ import { AlarmRepository } from '../../infrastructure/database/repositories/Alar
 
 const logger = createLogger('BOOT');
 
-const registry = new SimulationRegistry(env.telemetryIntervalMs, env.trainMotionIntervalMs);
+const registry = new SimulationRegistry(env.telemetryIntervalMs, env.simulationTimeScale);
 const archiver = new TelemetryArchiver(env.telemetryBucketSeconds, env.telemetryRetentionDays);
-// Quem liga a telemetria de uma linha ao deslocamento das suas composições é o
-// `SimulationRegistry`, que cria o par por linha.
+// Quem liga a telemetria de uma linha ao deslocamento das suas composições, à
+// grade de energia e aos alarmes é o `SimulationRegistry`, que monta o conjunto
+// por linha.
 const app = createApp(registry);
 const server = http.createServer(app);
 
@@ -84,7 +85,11 @@ const bootstrap = async (): Promise<void> => {
     server.listen(env.port, () => {
       logger.info(`RailPulse CCO (${env.nodeEnv}) ativo em http://localhost:${env.port}`);
       logger.info(`Telemetria SCADA emitindo a cada ${env.telemetryIntervalMs}ms em ${registry.activeLines} linha(s).`);
-      logger.info(`Composições avançando uma estação a cada ${env.trainMotionIntervalMs}ms.`);
+      logger.info(
+        env.simulationTimeScale === 1
+          ? 'Operação simulada em tempo real.'
+          : `Operação simulada com relógio acelerado ${env.simulationTimeScale}×.`,
+      );
     });
   } catch (error) {
     logger.error('Falha crítica de inicialização. Servidor abortado.', error);

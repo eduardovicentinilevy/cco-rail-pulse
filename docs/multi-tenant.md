@@ -282,3 +282,60 @@ O que mudou entre o desenho e o que foi entregue:
   OS na categoria antiga): é uma consulta por linha, como no master, e um
   processo que caia entre a renomeação e a limpeza é refeito no boot seguinte.
   Com o gatilho pela coluna, um banco já renomeado nunca mais limparia.
+
+- **A marcha deixou de ser constante de módulo e virou geometria do catálogo.** A
+  master calculou as distâncias entre estações, a extensão da linha e o nome de
+  cada sentido no carregamento do módulo `domain/operation.ts`, a partir da malha
+  fixa — o que descreve uma linha por processo. Aqui o perfil de tração
+  (velocidade de linha, aceleração, paradas, manobra de terminal) continua em
+  código, porque é regra da instalação, e a geometria passou a ser um
+  `LineOperation` por catálogo, memorizado junto dele: duas linhas no mesmo
+  processo têm trechos de comprimentos distintos. Por consequência, `dispatch`,
+  `arrivals` e os dois simuladores recebem a marcha da linha em que operam, e os
+  sentidos são nomeados pelos terminais dela — `DIRECTION_LABELS` nomeava os
+  extremos por ponto cardeal, e nem toda linha corre de oeste para leste. No
+  payload de chegadas isso trocou `east`/`west` por `forward`/`backward`, com os
+  nomes dos terminais em `directions`.
+
+- **As coordenadas geográficas viraram cadastro, e podem faltar.** A master
+  precisa delas para medir os trechos, então as declarou obrigatórias na estação.
+  Aqui `stations.lat`/`stations.lon` são opcionais: uma linha recém-cadastrada
+  opera com trecho de comprimento nominal (`NOMINAL_SEGMENT_LENGTH_M`) até alguém
+  informá-las, e a marcha continua plausível em vez de atravessar o trecho
+  instantaneamente. Onde a coluna é nova e está nula, a semeadura preenche — não
+  é cadastro editado pelo cliente, é coluna que ainda não existia quando a linha
+  foi semeada.
+
+- **A composição não conhece a malha.** A master faz o comando do operador
+  replanejar o trecho em curso lendo o comprimento dele de uma tabela de módulo.
+  Aqui `TrainSession.applyCommand` e `remainingRunTimeMs` recebem o comprimento
+  do trecho como parâmetro obrigatório: a entidade é de uma linha qualquer, e o
+  `PSO`→`ANR` de um cliente não mede o mesmo que o de outro. O compilador recusa
+  um comando aplicado sem o trecho que ele está replanejando.
+
+- **A seção de energia pertence à linha.** A master criou `power_sections` com a
+  subestação como chave primária, e uma grade em memória para o processo. A SR é
+  dado da malha: dois clientes podem ter uma `SR-01` cada um, sem relação entre
+  elas, então a tabela ganhou `line_id`, a chave é `(line_id, substation)` e há
+  uma `PowerGrid` por linha, com as seções vindas das subestações cadastradas —
+  uma linha nova ganha as seções dela sem que nada mude em código. Sem isso,
+  desenergizar a `SR-01` de um cliente apagaria a tensão da `SR-01` do outro;
+  `scripts/check-tenant-isolation.sh` agora verifica exatamente essa manobra.
+  Bancos criados pela master são convertidos no boot (`upgradeLegacySchema`),
+  preservando o estado e o motivo da última manobra.
+
+- **O monitor de alarmes SCADA é por linha, e descarta o lote das outras.** A
+  master registra um monitor no barramento do processo, o que basta com uma malha
+  só. Aqui o barramento é um só mas os eventos são `LineEvent`, então cada linha
+  tem o seu monitor: ele ignora a telemetria que não é da sua linha e nomeia a
+  subestação pelo catálogo dela — sem isso o estado de alarme da `AIP` de um
+  cliente seria mexido pela leitura da `AIP` de outro, e o alarme nomearia a SR
+  errada. `power:changed` entrou no barramento como `LineEvent` e é entregue pela
+  sala da linha, como os demais.
+
+- **O texto do painel que nomeava os terminais saiu para a malha.** A master
+  escreveu "Vila Madalena ↔ Vila Prudente" no título da supervisão, o intervalo-alvo
+  de projeto da Linha 2 como constante e a seta de sentido descrita por ponto
+  cardeal. Os três passaram a sair da malha da sessão: os terminais são a primeira
+  e a última estação recebidas, e o intervalo-alvo é o menor `headway_seconds`
+  cadastrado.

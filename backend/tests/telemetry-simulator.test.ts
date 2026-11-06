@@ -1,7 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { MAX_DRIFT_V, TelemetrySimulator } from '../application/services/TelemetrySimulator';
+import {
+  LOAD_SAG_V_PER_TRAIN,
+  MAX_DRIFT_V,
+  TelemetrySimulator,
+} from '../application/services/TelemetrySimulator';
 import { demoCatalog, otherTenantCatalog } from './helpers/catalog';
 
 describe('TelemetrySimulator', () => {
@@ -55,6 +59,37 @@ describe('TelemetrySimulator', () => {
       assert.equal(simulator.readingFor(reading.currentStationCode), reading.voltageV);
     }
     assert.equal(simulator.readingFor('XYZ'), undefined);
+  });
+
+  it('trens em marcha derrubam a tensão da seção que os alimenta', () => {
+    const loaded = new TelemetrySimulator(demoCatalog(), 1000, { loadAt: (sr: string) => (sr === 'SR-01' ? 3 : 0) });
+    let readings = loaded.tick();
+    for (let cycle = 0; cycle < 40; cycle += 1) readings = loaded.tick();
+
+    const vmd = readings.find((item) => item.currentStationCode === 'VMD')!;
+    const target = 752 - 3 * LOAD_SAG_V_PER_TRAIN;
+    assert.ok(Math.abs(vmd.voltageV - target) <= MAX_DRIFT_V, `VMD em ${vmd.voltageV} V, alvo ${target} V`);
+    // Seção sem carga continua perto da referência.
+    const tti = readings.find((item) => item.currentStationCode === 'TTI')!;
+    assert.ok(Math.abs(tti.voltageV - 749) <= MAX_DRIFT_V);
+  });
+
+  it('seção desenergizada lê 0 V, crítica — inclusive no snapshot inicial', () => {
+    let energized = false;
+    const simulator = new TelemetrySimulator(demoCatalog(), 1000, { isEnergized: (sr: string) => sr !== 'SR-03' || energized });
+
+    const initial = simulator.snapshot().find((item) => item.currentStationCode === 'TRI')!;
+    assert.equal(initial.voltageV, 0);
+    assert.equal(initial.status, 'CRÍTICO');
+
+    const tri = simulator.tick().find((item) => item.currentStationCode === 'TRI')!;
+    assert.equal(tri.voltageV, 0);
+
+    // Reenergizada: volta ao patamar do trecho na leitura seguinte, sem "subir" do zero.
+    energized = true;
+    const restored = simulator.tick().find((item) => item.currentStationCode === 'TRI')!;
+    assert.ok(Math.abs(restored.voltageV - 751) <= MAX_DRIFT_V, `TRI em ${restored.voltageV} V`);
+    assert.equal(restored.status, 'NORMAL');
   });
 
   it('start é idempotente e stop encerra o ciclo', () => {

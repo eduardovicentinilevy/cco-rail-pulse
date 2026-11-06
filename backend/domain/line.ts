@@ -24,6 +24,14 @@ export interface LineStation {
   /** Posição normalizada (0–1) no traçado esquemático, para o mapa do painel. */
   readonly mapX: number | null;
   readonly mapY: number | null;
+  /**
+   * Coordenadas da estação (WGS 84) — base das distâncias entre estações, e
+   * portanto da marcha simulada. São cadastro como o resto da malha, e podem
+   * faltar: uma linha recém-cadastrada opera com trecho de comprimento nominal
+   * até alguém informar as coordenadas.
+   */
+  readonly lat: number | null;
+  readonly lon: number | null;
 }
 
 export interface LineIdentity {
@@ -95,6 +103,21 @@ export class LineCatalog {
     const last = this.stations[this.stations.length - 1];
     if (!first || !last) return null;
     return { first: first.name, last: last.name };
+  }
+
+  /**
+   * Subestações retificadoras na ordem do traçado, sem repetição.
+   *
+   * Substitui `LINE_SUBSTATIONS`: as SRs são as da malha cadastrada, e duas
+   * linhas podem ter uma `SR-01` cada uma, sem relação entre elas.
+   */
+  public get substations(): readonly string[] {
+    return [...new Set(this.stations.map((station) => station.substation))];
+  }
+
+  /** Estações alimentadas por uma subestação, na ordem do traçado. */
+  public stationsOf(substation: string): readonly LineStation[] {
+    return this.stations.filter((station) => station.substation === substation);
   }
 
   public get id(): string {

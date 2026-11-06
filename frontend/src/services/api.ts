@@ -1,6 +1,6 @@
 // frontend/src/services/api.ts
 import { apiUrl } from '../config/env';
-import type { LineIdentity, TenantIdentity } from '../types';
+import type { ArrivalsPayload, LineIdentity, PowerSection, TenantIdentity } from '../types';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -146,6 +146,20 @@ export const api = {
     ),
 
   trains: (token: string) => request<Array<Record<string, unknown>>>('/api/network/trains', { token }),
+
+  /** Previsão de chegadas por estação e sentido, com o intervalo médio da operação. */
+  arrivals: (token: string) => request<ArrivalsPayload>('/api/network/arrivals', { token }),
+
+  // --- Energia (seções do terceiro trilho) ---------------------------------
+
+  powerSections: (token: string) => request<{ sections: PowerSection[] }>('/api/energy/sections', { token }),
+
+  setPowerSection: (token: string, substation: string, energized: boolean, reason: string) =>
+    request<{ applied: boolean; section: PowerSection }>(`/api/energy/sections/${encodeURIComponent(substation)}`, {
+      method: 'POST',
+      token,
+      body: { energized, reason },
+    }),
 
   // --- Ocorrências ---------------------------------------------------------
 

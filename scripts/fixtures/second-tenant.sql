@@ -1,6 +1,8 @@
 -- Segundo cliente para a verificação de isolamento (scripts/check-tenant-isolation.sh).
--- A credencial 'EDP-042' e a composição 'T-01' repetem as do cliente semeado de
--- propósito: são únicas por cliente e por linha, não globalmente.
+-- A credencial 'EDP-042', a composição 'T-01' e a subestação 'SR-01' repetem as do
+-- cliente semeado de propósito: são únicas por cliente e por linha, não globalmente.
+-- As estações entram sem coordenada, como uma linha recém-cadastrada: a marcha
+-- usa o comprimento nominal de trecho até alguém informá-las.
 -- Recebe o hash da senha em :hash, para autenticar com a mesma senha do seed.
 
 WITH novo_cliente AS (
@@ -14,12 +16,12 @@ WITH novo_cliente AS (
   RETURNING id
 )
 INSERT INTO stations (line_id, code, name, position, substation, nominal_voltage_v, connections, headway_seconds, map_x, map_y)
-SELECT nova_linha.id, v.code, v.nome, v.pos, 'SR-A1', 749, '{}'::text[], 180, v.mx, 0.5
+SELECT nova_linha.id, v.code, v.nome, v.pos, 'SR-01', 749, '{}'::text[], 180, v.mx, 0.5
 FROM nova_linha, (VALUES ('JAB', 'Jabaquara', 1, 0.15), ('TUC', 'Tucuruvi', 2, 0.85)) AS v(code, nome, pos, mx)
 ON CONFLICT (line_id, code) DO NOTHING;
 
 INSERT INTO operators (tenant_id, login_id, name, role, password_hash)
-SELECT id, 'EDP-042', 'Homônimo do Metrô', 'OPERADOR', :'hash'
+SELECT id, 'EDP-042', 'Homônimo do Metrô', 'SUPERVISOR', :'hash'
 FROM tenants WHERE slug = 'metro-ci'
 ON CONFLICT (tenant_id, login_id) DO NOTHING;
 
@@ -28,3 +30,11 @@ SELECT l.id, 'T-01', 'JAB', 60, 749, 'NORMAL'
 FROM lines l JOIN tenants t ON t.id = l.tenant_id
 WHERE t.slug = 'metro-ci'
 ON CONFLICT (line_id, train_id) DO NOTHING;
+
+-- A seção de energia da SR homônima. A chave é (linha, subestação): desenergizar
+-- a SR-01 deste cliente não pode apagar a tensão da SR-01 do outro.
+INSERT INTO power_sections (line_id, substation)
+SELECT l.id, 'SR-01'
+FROM lines l JOIN tenants t ON t.id = l.tenant_id
+WHERE t.slug = 'metro-ci'
+ON CONFLICT (line_id, substation) DO NOTHING;

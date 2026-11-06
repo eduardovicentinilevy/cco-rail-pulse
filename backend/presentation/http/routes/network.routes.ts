@@ -2,9 +2,12 @@
 import { Router } from 'express';
 import { TrainRepository } from '../../../infrastructure/database/repositories/TrainRepository';
 import { TelemetryRepository } from '../../../infrastructure/database/repositories/TelemetryRepository';
+import type { TrainMotionSimulator } from '../../../application/services/TrainMotionSimulator';
 import { verifyJwt, withLineCatalog } from '../middlewares/auth.middleware';
 import type { ScopedRequest } from '../middlewares/auth.middleware';
 import type { SimulationRegistry } from '../../../application/services/SimulationRegistry';
+import { operationFor } from '../../../domain/operation';
+import { env } from '../../../config/env';
 
 /**
  * Rotas de malha: catálogo de estações e estado persistido das composições.
@@ -46,7 +49,53 @@ export const createNetworkRouter = (registry: SimulationRegistry): Router => {
 
   router.get('/trains', async (req: ScopedRequest, res) => {
     const trains = await TrainRepository.findAll(req.catalog!.id);
-    res.status(200).json(trains.map((train) => train.toSnapshot()));
+    const now = new Date();
+    res.status(200).json(trains.map((train) => train.toSnapshot(now)));
+  });
+
+  /**
+   * Previsão de chegadas por estação e sentido de partida, como no painel de
+   * passageiros. `etaSeconds` já está no relógio do painel (com a aceleração da
+   * simulação). Os sentidos são nomeados pelos terminais da linha da sessão: o
+   * traçado é dela, e nem toda linha corre de oeste para leste.
+   */
+  router.get('/arrivals', async (req: ScopedRequest, res) => {
+    const catalog = req.catalog!;
+    const now = new Date();
+    const operation = operationFor(catalog);
+    const fleet = await TrainRepository.findAll(catalog.id);
+    // Em serviço: composições que não estão imobilizadas pelo CCO.
+    const inService = fleet.filter((train) => train.status !== 'EMERGÊNCIA').length;
+    const cycleSeconds = Math.round(operation.cycleTimeMs() / 1000 / env.simulationTimeScale);
+    const labels = operation.directionLabels;
+    const toPayload = (list: ReturnType<TrainMotionSimulator['arrivals']>[number]['byDirection'][1]) =>
+      list.map(({ trainId, etaMs, atPlatform, held }) => ({
+        trainId,
+        etaSeconds: Math.round(etaMs / 1000),
+        atPlatform,
+        held,
+      }));
+    // Linha sem simulação ativa (recém-cadastrada, ou sem malha): o quadro existe
+    // e vem vazio, em vez de a rota falhar.
+    const board = registry.motionOf(catalog.id)?.arrivals(now) ?? [];
+
+    res.status(200).json({
+      generatedAt: now.toISOString(),
+      timeScale: env.simulationTimeScale,
+      directions: { forward: labels[1], backward: labels[-1] },
+      service: {
+        trainsInService: inService,
+        cycleSeconds,
+        // Intervalo médio em cada plataforma: a volta completa dividida pela frota.
+        headwaySeconds: inService > 0 ? Math.round(cycleSeconds / inService) : null,
+      },
+      stations: board.map((station) => ({
+        code: station.stationCode,
+        name: station.stationName,
+        forward: toPayload(station.byDirection[1]),
+        backward: toPayload(station.byDirection[-1]),
+      })),
+    });
   });
 
   /**

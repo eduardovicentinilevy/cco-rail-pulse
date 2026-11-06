@@ -21,6 +21,9 @@ export interface StationSeed {
   /** Posição normalizada (0–1) no traçado esquemático desenhado pelo painel. */
   readonly mapX: number;
   readonly mapY: number;
+  /** Coordenadas aproximadas da estação (WGS 84) — base das distâncias da marcha. */
+  readonly lat: number;
+  readonly lon: number;
 }
 
 export interface LineSeed {
@@ -54,37 +57,48 @@ export const METRO_SP_SEED: TenantSeed = {
       code: 'L2',
       name: 'Linha 2-Verde',
       stations: [
-        { position: 1, code: 'VMD', name: 'Vila Madalena', substation: 'SR-01', nominalVoltageV: 752, connections: [], headwaySeconds: 140, mapX: 0.07, mapY: 0.15909 },
-        { position: 2, code: 'SUM', name: 'Sumaré', substation: 'SR-01', nominalVoltageV: 748, connections: [], headwaySeconds: 135, mapX: 0.177, mapY: 0.20909 },
-        { position: 3, code: 'CLI', name: 'Clínicas', substation: 'SR-02', nominalVoltageV: 750, connections: [], headwaySeconds: 132, mapX: 0.232, mapY: 0.25227 },
-        { position: 4, code: 'CNS', name: 'Consolação', substation: 'SR-02', nominalVoltageV: 746, connections: ['L4-Amarela'], headwaySeconds: 130, mapX: 0.309, mapY: 0.29318 },
-        { position: 5, code: 'TRI', name: 'Trianon-Masp', substation: 'SR-03', nominalVoltageV: 751, connections: [], headwaySeconds: 130, mapX: 0.338, mapY: 0.33864 },
-        { position: 6, code: 'BGD', name: 'Brigadeiro', substation: 'SR-03', nominalVoltageV: 749, connections: [], headwaySeconds: 132, mapX: 0.395, mapY: 0.42727 },
-        { position: 7, code: 'PSO', name: 'Paraíso', substation: 'SR-04', nominalVoltageV: 747, connections: ['L1-Azul'], headwaySeconds: 134, mapX: 0.461, mapY: 0.51364 },
-        { position: 8, code: 'ANR', name: 'Ana Rosa', substation: 'SR-04', nominalVoltageV: 750, connections: ['L1-Azul'], headwaySeconds: 135, mapX: 0.482, mapY: 0.58182 },
-        { position: 9, code: 'CKB', name: 'Chácara Klabin', substation: 'SR-05', nominalVoltageV: 748, connections: ['L5-Lilás'], headwaySeconds: 138, mapX: 0.552, mapY: 0.71818 },
-        { position: 10, code: 'SIM', name: 'Santos-Imigrantes', substation: 'SR-05', nominalVoltageV: 745, connections: [], headwaySeconds: 140, mapX: 0.612, mapY: 0.76591 },
+        { position: 1, code: 'VMD', name: 'Vila Madalena', substation: 'SR-01', nominalVoltageV: 752, connections: [], headwaySeconds: 140, mapX: 0.07, mapY: 0.15909, lat: -23.5467, lon: -46.691 },
+        { position: 2, code: 'SUM', name: 'Sumaré', substation: 'SR-01', nominalVoltageV: 748, connections: [], headwaySeconds: 135, mapX: 0.177, mapY: 0.20909, lat: -23.5509, lon: -46.6773 },
+        { position: 3, code: 'CLI', name: 'Clínicas', substation: 'SR-02', nominalVoltageV: 750, connections: [], headwaySeconds: 132, mapX: 0.232, mapY: 0.25227, lat: -23.5544, lon: -46.6703 },
+        { position: 4, code: 'CNS', name: 'Consolação', substation: 'SR-02', nominalVoltageV: 746, connections: ['L4-Amarela'], headwaySeconds: 130, mapX: 0.309, mapY: 0.29318, lat: -23.5578, lon: -46.6604 },
+        { position: 5, code: 'TRI', name: 'Trianon-Masp', substation: 'SR-03', nominalVoltageV: 751, connections: [], headwaySeconds: 130, mapX: 0.338, mapY: 0.33864, lat: -23.5614, lon: -46.6566 },
+        { position: 6, code: 'BGD', name: 'Brigadeiro', substation: 'SR-03', nominalVoltageV: 749, connections: [], headwaySeconds: 132, mapX: 0.395, mapY: 0.42727, lat: -23.5687, lon: -46.6493 },
+        { position: 7, code: 'PSO', name: 'Paraíso', substation: 'SR-04', nominalVoltageV: 747, connections: ['L1-Azul'], headwaySeconds: 134, mapX: 0.461, mapY: 0.51364, lat: -23.5758, lon: -46.6409 },
+        { position: 8, code: 'ANR', name: 'Ana Rosa', substation: 'SR-04', nominalVoltageV: 750, connections: ['L1-Azul'], headwaySeconds: 135, mapX: 0.482, mapY: 0.58182, lat: -23.5814, lon: -46.6382 },
+        { position: 9, code: 'CKB', name: 'Chácara Klabin', substation: 'SR-05', nominalVoltageV: 748, connections: ['L5-Lilás'], headwaySeconds: 138, mapX: 0.552, mapY: 0.71818, lat: -23.5926, lon: -46.6292 },
+        { position: 10, code: 'SIM', name: 'Santos-Imigrantes', substation: 'SR-05', nominalVoltageV: 745, connections: [], headwaySeconds: 140, mapX: 0.612, mapY: 0.76591, lat: -23.5965, lon: -46.6216 },
         // SR-06 opera com um grupo retificador fora de serviço no cenário simulado:
         // o trecho fica em fim de alimentação e a tensão cai abaixo da faixa normal.
-        { position: 11, code: 'AIP', name: 'Alto do Ipiranga', substation: 'SR-06', nominalVoltageV: 620, connections: [], headwaySeconds: 220, mapX: 0.683, mapY: 0.84091 },
-        { position: 12, code: 'SAC', name: 'Sacomã', substation: 'SR-06', nominalVoltageV: 680, connections: ['Expresso Tiradentes'], headwaySeconds: 175, mapX: 0.761, mapY: 0.82955 },
-        { position: 13, code: 'TTI', name: 'Tamanduateí', substation: 'SR-07', nominalVoltageV: 749, connections: ['CPTM L10-Turquesa'], headwaySeconds: 140, mapX: 0.866, mapY: 0.725 },
-        { position: 14, code: 'VPT', name: 'Vila Prudente', substation: 'SR-07', nominalVoltageV: 751, connections: ['L15-Prata'], headwaySeconds: 145, mapX: 0.93, mapY: 0.61136 },
+        { position: 11, code: 'AIP', name: 'Alto do Ipiranga', substation: 'SR-06', nominalVoltageV: 620, connections: [], headwaySeconds: 220, mapX: 0.683, mapY: 0.84091, lat: -23.6027, lon: -46.6125 },
+        { position: 12, code: 'SAC', name: 'Sacomã', substation: 'SR-06', nominalVoltageV: 680, connections: ['Expresso Tiradentes'], headwaySeconds: 175, mapX: 0.761, mapY: 0.82955, lat: -23.6017, lon: -46.6025 },
+        { position: 13, code: 'TTI', name: 'Tamanduateí', substation: 'SR-07', nominalVoltageV: 749, connections: ['CPTM L10-Turquesa'], headwaySeconds: 140, mapX: 0.866, mapY: 0.725, lat: -23.5931, lon: -46.589 },
+        { position: 14, code: 'VPT', name: 'Vila Prudente', substation: 'SR-07', nominalVoltageV: 751, connections: ['L15-Prata'], headwaySeconds: 145, mapX: 0.93, mapY: 0.61136, lat: -23.5839, lon: -46.5808 },
       ],
     },
   ],
 };
 
-/** Composições semeadas na malha, distribuídas pelo traçado. */
+/**
+ * Frota semeada: doze composições espalhadas pelos dois sentidos, no máximo uma
+ * por plataforma e sentido — a mesma regra de bloco que o motor de operação usa.
+ * Todas começam paradas na plataforma; a tensão de cada uma é a do trecho em que
+ * ela está, lida do cadastro da estação, e não um número repetido aqui.
+ */
 export const SEED_TRAINS: ReadonlyArray<
-  [trainId: string, stationCode: string, speed: number, voltage: number, status: string]
+  [trainId: string, stationCode: string, direction: 1 | -1, status: string]
 > = [
-  ['T-01', 'VMD', 42, 752, 'NORMAL'],
-  ['T-04', 'CNS', 55, 746, 'NORMAL'],
-  ['T-07', 'PSO', 48, 747, 'NORMAL'],
-  ['T-10', 'CKB', 52, 748, 'NORMAL'],
-  ['T-13', 'SAC', 30, 680, 'ATENÇÃO'],
-  ['T-16', 'VPT', 45, 751, 'NORMAL'],
+  ['T-01', 'VMD', 1, 'NORMAL'],
+  ['T-04', 'CNS', 1, 'NORMAL'],
+  ['T-07', 'PSO', 1, 'NORMAL'],
+  ['T-10', 'CKB', 1, 'NORMAL'],
+  ['T-13', 'SAC', -1, 'NORMAL'],
+  ['T-16', 'VPT', -1, 'NORMAL'],
+  ['T-19', 'AIP', 1, 'NORMAL'],
+  ['T-22', 'SIM', -1, 'NORMAL'],
+  ['T-25', 'TTI', 1, 'NORMAL'],
+  ['T-28', 'ANR', -1, 'NORMAL'],
+  ['T-31', 'BGD', -1, 'NORMAL'],
+  ['T-34', 'SUM', -1, 'NORMAL'],
 ];
 
 /** Equipe de plantão semeada para demonstrar o cadastro e os perfis de acesso. */

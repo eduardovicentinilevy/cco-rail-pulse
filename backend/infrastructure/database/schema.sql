@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS stations (
     headway_seconds     INTEGER,
     map_x               NUMERIC(6, 5),            -- Posição normalizada (0–1) no traçado
     map_y               NUMERIC(6, 5),
+    -- Coordenadas geográficas (WGS 84): base das distâncias entre estações, e
+    -- portanto da marcha simulada. Opcionais — uma linha recém-cadastrada opera
+    -- com trecho de comprimento nominal até alguém informá-las.
+    lat                 NUMERIC(9, 6),
+    lon                 NUMERIC(9, 6),
     UNIQUE (line_id, code),
     UNIQUE (line_id, position)
 );
@@ -88,7 +93,28 @@ CREATE TABLE IF NOT EXISTS trains (
     voltage_v             NUMERIC(6, 1) NOT NULL,
     status                VARCHAR(20) NOT NULL,   -- NORMAL | ATENÇÃO | EMERGÊNCIA
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- Estado de marcha (motor de operação)
+    direction             SMALLINT NOT NULL DEFAULT 1 CHECK (direction IN (1, -1)),
+    next_station_code     VARCHAR(10),            -- Destino do trecho em curso
+    segment_progress      REAL NOT NULL DEFAULT 0,-- Fração do trecho já percorrida (0–1)
+    progress_at           TIMESTAMPTZ,
+    remaining_ms          INTEGER,                -- NULL = marcha suspensa no trecho
+    hold_reason           VARCHAR(160),
     UNIQUE (line_id, train_id)
+);
+
+-- Seções de alimentação do terceiro trilho, uma por subestação retificadora da
+-- linha. A SR é dado da malha: duas linhas podem ter uma SR-01 cada uma, sem
+-- relação entre elas, então a chave é (linha, subestação) — nunca a subestação só.
+CREATE TABLE IF NOT EXISTS power_sections (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    line_id     UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    substation  VARCHAR(20) NOT NULL,
+    energized   BOOLEAN NOT NULL DEFAULT TRUE,
+    reason      TEXT,                             -- Motivo da última manobra
+    changed_by  VARCHAR(50),                      -- Crachá de quem manobrou
+    changed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (line_id, substation)
 );
 
 CREATE TABLE IF NOT EXISTS incidents (
@@ -128,3 +154,4 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_operator ON audit_logs (tenant_id, ope
 CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents (line_id, status, opened_at DESC);
 CREATE INDEX IF NOT EXISTS idx_incidents_station ON incidents (line_id, station_code);
 CREATE INDEX IF NOT EXISTS idx_telemetry_bucket ON telemetry_samples (station_id, bucket_at DESC);
+CREATE INDEX IF NOT EXISTS idx_power_sections_line ON power_sections (line_id, substation);

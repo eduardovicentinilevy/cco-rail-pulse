@@ -19,13 +19,15 @@ export const AnalyticsReportsView: React.FC<AnalyticsReportsViewProps> = ({ stat
   const metrics = useMemo(() => {
     const normalStations = stations.filter((station) => station.status === 'NORMAL').length;
     const availability = stations.length === 0 ? 0 : (normalStations / stations.length) * 100;
-    const runningTrains = trains.filter((train) => train.status !== 'EMERGÊNCIA').length;
-    const avgSpeed = trains.length === 0 ? 0 : trains.reduce((sum, train) => sum + train.speedKmH, 0) / trains.length;
+    const inService = trains.filter((train) => train.status !== 'EMERGÊNCIA').length;
+    // Média só das composições em marcha: as paradas nas plataformas puxariam a média para baixo sem sentido.
+    const moving = trains.filter((train) => train.phase === 'EM_MARCHA');
+    const avgSpeed = moving.length === 0 ? 0 : moving.reduce((sum, train) => sum + train.speedKmH, 0) / moving.length;
 
     return [
       { label: 'Disponibilidade da malha', value: `${formatNumber(availability, 1)}%`, status: availability >= 90 ? 'NORMAL' : 'ATENÇÃO', hint: `${normalStations} de ${stations.length} estações nominais` },
-      { label: 'Composições em marcha', value: `${runningTrains} / ${trains.length}`, status: runningTrains === trains.length ? 'NORMAL' : 'CRÍTICO', hint: 'Trens fora de emergência' },
-      { label: 'Velocidade média da frota', value: `${formatNumber(avgSpeed, 1)} km/h`, status: avgSpeed >= 35 ? 'NORMAL' : 'ATENÇÃO', hint: 'Média instantânea das composições' },
+      { label: 'Composições em serviço', value: `${inService} / ${trains.length}`, status: inService === trains.length ? 'NORMAL' : 'CRÍTICO', hint: `${moving.length} em marcha agora` },
+      { label: 'Velocidade média em marcha', value: moving.length === 0 ? '—' : `${formatNumber(avgSpeed, 1)} km/h`, status: moving.length === 0 || avgSpeed >= 35 ? 'NORMAL' : 'ATENÇÃO', hint: 'Abaixo de 35 km/h indica restrições de velocidade' },
       { label: 'Ocorrências na sessão', value: String(alarms.length), status: alarms.some((a) => a.level === 'CRITICAL') ? 'CRÍTICO' : 'INFO', hint: `${alarms.filter((a) => a.level === 'CRITICAL').length} críticas` },
     ] as const;
   }, [stations, trains, alarms]);

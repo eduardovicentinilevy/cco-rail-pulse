@@ -46,9 +46,18 @@ const TENANCY_DDL = `
     headway_seconds     INTEGER,
     map_x               NUMERIC(6, 5),
     map_y               NUMERIC(6, 5),
+    -- Coordenadas geográficas (WGS 84): base das distâncias entre estações, e
+    -- portanto da marcha simulada. Opcionais — uma linha recém-cadastrada opera
+    -- com trecho de comprimento nominal até alguém informá-las.
+    lat                 NUMERIC(9, 6),
+    lon                 NUMERIC(9, 6),
     UNIQUE (line_id, code),
     UNIQUE (line_id, position)
   );
+
+  -- Alcança bancos criados antes de a malha guardar coordenada geográfica.
+  ALTER TABLE stations ADD COLUMN IF NOT EXISTS lat NUMERIC(9, 6);
+  ALTER TABLE stations ADD COLUMN IF NOT EXISTS lon NUMERIC(9, 6);
 
   CREATE INDEX IF NOT EXISTS idx_lines_tenant ON lines (tenant_id);
   CREATE INDEX IF NOT EXISTS idx_stations_line ON stations (line_id, position);
@@ -101,6 +110,29 @@ const OPERATIONAL_DDL = `
     status                VARCHAR(20) NOT NULL,
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (line_id, train_id)
+  );
+
+  -- Estado de marcha (motor de operação). ADD COLUMN IF NOT EXISTS também alcança
+  -- bancos criados antes destas colunas existirem.
+  ALTER TABLE trains ADD COLUMN IF NOT EXISTS direction SMALLINT NOT NULL DEFAULT 1 CHECK (direction IN (1, -1));
+  ALTER TABLE trains ADD COLUMN IF NOT EXISTS next_station_code VARCHAR(10);
+  ALTER TABLE trains ADD COLUMN IF NOT EXISTS segment_progress REAL NOT NULL DEFAULT 0;
+  ALTER TABLE trains ADD COLUMN IF NOT EXISTS progress_at TIMESTAMPTZ;
+  ALTER TABLE trains ADD COLUMN IF NOT EXISTS remaining_ms INTEGER;
+  ALTER TABLE trains ADD COLUMN IF NOT EXISTS hold_reason VARCHAR(160);
+
+  -- Seções de alimentação do terceiro trilho, uma por subestação retificadora da
+  -- linha. A SR é dado da malha: duas linhas podem ter uma SR-01 cada uma, sem
+  -- relação entre elas, então a chave é (linha, subestação) — nunca a subestação só.
+  CREATE TABLE IF NOT EXISTS power_sections (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    line_id     UUID NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    substation  VARCHAR(20) NOT NULL,
+    energized   BOOLEAN NOT NULL DEFAULT TRUE,
+    reason      TEXT,
+    changed_by  VARCHAR(50),
+    changed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (line_id, substation)
   );
 
   CREATE TABLE IF NOT EXISTS incidents (
@@ -205,6 +237,7 @@ const INDEX_DDL = `
   CREATE INDEX IF NOT EXISTS idx_alarms_created_at ON alarms (line_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_communications_created_at ON communications (line_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_procedures_category ON procedures (line_id, category);
+  CREATE INDEX IF NOT EXISTS idx_power_sections_line ON power_sections (line_id, substation);
 `;
 
 /**
@@ -322,6 +355,10 @@ const HAS_SUPERSEDED_LINE_DATA_SQL = `
     SELECT 1 FROM procedures WHERE line_id = $1 AND title = ANY($2::text[])
     UNION ALL
     SELECT 1 FROM work_orders WHERE line_id = $1 AND category = 'TSS_SUBESTACAO'
+    UNION ALL
+    SELECT 1 FROM power_sections
+     WHERE line_id = $1
+       AND substation NOT IN (SELECT substation FROM stations WHERE line_id = $1)
   ) AS superseded
 `;
 
@@ -350,11 +387,20 @@ const purgeSupersededLineData = async (lineId: string): Promise<void> => {
       `UPDATE work_orders SET category = 'SUBESTACAO_SR' WHERE line_id = $1 AND category = 'TSS_SUBESTACAO'`,
       [lineId],
     );
+    // Seção de energia de uma SR que não alimenta mais nenhuma estação desta
+    // linha: o painel a listaria sem ter o que energizar.
+    const sections = await client.query(
+      `DELETE FROM power_sections
+        WHERE line_id = $1
+          AND substation NOT IN (SELECT substation FROM stations WHERE line_id = $1)`,
+      [lineId],
+    );
 
     logger.info(
       `Dados da malha anterior migrados: ${trains.rowCount ?? 0} composição(ões) removida(s), ` +
         `${procedures.rowCount ?? 0} procedimento(s) substituído(s), ` +
-        `${workOrders.rowCount ?? 0} OS(s) recategorizada(s).`,
+        `${workOrders.rowCount ?? 0} OS(s) recategorizada(s), ` +
+        `${sections.rowCount ?? 0} seção(ões) de energia descartada(s).`,
     );
   });
 };
@@ -379,6 +425,7 @@ export const runMigrations = async (): Promise<void> => {
 
   await seedOperators(tenantId);
   await seedTrains(lineId);
+  await seedPowerSections(lineId);
   await seedProcedures(lineId);
 
   logger.info('Carga inicial (auto-seeding) sincronizada.');
@@ -410,8 +457,9 @@ const seedTenancy = async (): Promise<{ tenantId: string; lineId: string }> => {
   for (const station of lineSeed.stations) {
     await db.query(
       `INSERT INTO stations
-         (line_id, code, name, position, substation, nominal_voltage_v, connections, headway_seconds, map_x, map_y)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10)
+         (line_id, code, name, position, substation, nominal_voltage_v, connections, headway_seconds,
+          map_x, map_y, lat, lon)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10, $11, $12)
        ON CONFLICT (line_id, code) DO NOTHING`,
       [
         lineId,
@@ -424,7 +472,20 @@ const seedTenancy = async (): Promise<{ tenantId: string; lineId: string }> => {
         station.headwaySeconds,
         station.mapX,
         station.mapY,
+        station.lat,
+        station.lon,
       ],
+    );
+  }
+
+  // A coordenada geográfica é coluna nova: onde ela está nula, ninguém a ajustou
+  // ainda — é a malha semeada antes de a coluna existir. Preencher aí não é
+  // sobrescrever cadastro do cliente, e é o que dá à linha as distâncias reais.
+  for (const station of lineSeed.stations) {
+    await db.query(
+      `UPDATE stations SET lat = $3, lon = $4
+        WHERE line_id = $1 AND code = $2 AND lat IS NULL AND lon IS NULL`,
+      [lineId, station.code, station.lat, station.lon],
     );
   }
 
@@ -493,6 +554,30 @@ const upgradeLegacySchema = async (tenantId: string, lineId: string): Promise<vo
       );
     });
     logger.info('trains migrada: numeração de composição única por linha.');
+  }
+
+  // `power_sections` nasceu com a subestação como chave primária, de quando havia
+  // uma linha só. A SR é dado da malha, então a seção pertence a uma linha: sem
+  // isso, desenergizar a `SR-01` de um cliente apagaria a tensão da `SR-01` do outro.
+  if (!(await hasColumn('power_sections', 'line_id'))) {
+    const primaryKeys = await constraintNames('power_sections', 'p');
+    await withTransaction(async (client) => {
+      await client.query(`ALTER TABLE power_sections ADD COLUMN id UUID NOT NULL DEFAULT gen_random_uuid()`);
+      await client.query(`ALTER TABLE power_sections ADD COLUMN line_id UUID`);
+      await client.query(`UPDATE power_sections SET line_id = $1 WHERE line_id IS NULL`, [lineId]);
+      await client.query(`ALTER TABLE power_sections ALTER COLUMN line_id SET NOT NULL`);
+      await dropConstraints(client, 'power_sections', primaryKeys);
+      await client.query(`ALTER TABLE power_sections ADD PRIMARY KEY (id)`);
+      await client.query(`ALTER TABLE power_sections ALTER COLUMN substation TYPE VARCHAR(20)`);
+      await client.query(
+        `ALTER TABLE power_sections ADD CONSTRAINT power_sections_line_substation_key UNIQUE (line_id, substation)`,
+      );
+      await client.query(
+        `ALTER TABLE power_sections ADD CONSTRAINT power_sections_line_fkey
+         FOREIGN KEY (line_id) REFERENCES lines(id) ON DELETE CASCADE`,
+      );
+    });
+    logger.info('power_sections migrada: seção de energia amarrada à linha.');
   }
 
   if (!(await hasColumn('incidents', 'line_id'))) {
@@ -625,18 +710,41 @@ const seedOperators = async (tenantId: string): Promise<void> => {
 };
 
 const seedTrains = async (lineId: string): Promise<void> => {
-  const known = await db.query<{ code: string }>(`SELECT code FROM stations WHERE line_id = $1`, [lineId]);
-  const knownCodes = new Set(known.rows.map((row) => row.code));
+  // A tensão de partida de cada composição é a do trecho em que ela está, lida do
+  // cadastro desta linha: a frota semeada não pode carregar a tensão de outra malha.
+  const known = await db.query<{ code: string; nominal_voltage_v: string }>(
+    `SELECT code, nominal_voltage_v FROM stations WHERE line_id = $1`,
+    [lineId],
+  );
+  const voltageByCode = new Map(known.rows.map((row) => [row.code, Number(row.nominal_voltage_v)]));
 
-  for (const [trainId, stationCode, speed, voltage, status] of SEED_TRAINS) {
-    if (!knownCodes.has(stationCode)) continue;
+  for (const [trainId, stationCode, direction, status] of SEED_TRAINS) {
+    const nominalVoltageV = voltageByCode.get(stationCode);
+    if (nominalVoltageV === undefined) continue;
     await db.query(
-      `INSERT INTO trains (line_id, train_id, current_station_code, speed_kmh, voltage_v, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO trains (line_id, train_id, current_station_code, speed_kmh, voltage_v, status, direction)
+       VALUES ($1, $2, $3, 0, $4, $5, $6)
        ON CONFLICT (line_id, train_id) DO NOTHING`,
-      [lineId, trainId, stationCode, speed, voltage, status],
+      [lineId, trainId, stationCode, nominalVoltageV, status, direction],
     );
   }
+};
+
+/**
+ * Uma seção de energia por subestação retificadora da malha desta linha.
+ *
+ * As SRs saem do cadastro das estações, não de uma lista em código: uma linha
+ * nova ganha as seções dela sem que nada aqui mude. DO NOTHING porque o estado
+ * de uma seção é operação — reiniciar o servidor não reenergiza, por engano, uma
+ * seção que a manutenção mandou desligar.
+ */
+const seedPowerSections = async (lineId: string): Promise<void> => {
+  await db.query(
+    `INSERT INTO power_sections (line_id, substation)
+     SELECT DISTINCT line_id, substation FROM stations WHERE line_id = $1
+     ON CONFLICT (line_id, substation) DO NOTHING`,
+    [lineId],
+  );
 };
 
 /**

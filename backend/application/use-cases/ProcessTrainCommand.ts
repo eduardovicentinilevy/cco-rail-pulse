@@ -6,6 +6,8 @@ import { operatorRepository } from '../../infrastructure/repositories/pg-operato
 import { AuditLogger } from '../../infrastructure/audit/AuditLogger';
 import { ConflictError, NotFoundError } from '../../shared/errors';
 import { domainEventBus } from '../events/event-bus';
+import { lineCatalogRepository } from '../../infrastructure/repositories/pg-line-catalog.repository';
+import { operationFor } from '../../domain/operation';
 import type { TrainCommand, TrainSnapshot, TrainStatus } from '../../domain/entities/TrainSession';
 
 export interface ProcessCommandRequest {
@@ -114,6 +116,9 @@ export class ProcessTrainCommandUseCase {
     const auditTarget = `TRAIN_${trainId}_BLOCK_${targetBlock ?? '?'}`;
 
     try {
+      const catalog = await lineCatalogRepository.byId(lineId);
+      const operation = catalog ? operationFor(catalog) : null;
+
       const result = await withTransaction(async (client) => {
         // 1. Adquirir lock — com prazo, para não enfileirar operadores indefinidamente
         //    atrás de uma transação travada (ver "Mitigação de deadlock" acima).
@@ -128,6 +133,10 @@ export class ProcessTrainCommandUseCase {
           throw new NotFoundError(`Composição ${trainId} não encontrada na malha ferroviária.`);
         }
         const applied = train.status !== RESULTING_STATUS[command];
+        const motion = train.motion;
+        const segmentLengthM = motion
+          ? (operation?.segmentLengthM(train.currentStationCode, motion.toStationCode) ?? 0)
+          : 0;
 
         // 3. Persistir na auditoria — atômico com o passo 4 (mesma transação/client).
         await operatorRepository.logAudit(
@@ -143,7 +152,10 @@ export class ProcessTrainCommandUseCase {
 
         // 4. Executar.
         if (applied) {
-          train.applyCommand(command);
+          // O comando replaneja o trecho em curso, e o comprimento dele é da linha:
+          // o `PSO`→`ANR` de um cliente não mede o mesmo que o de outro. Numa linha
+          // sem malha cadastrada o trecho vale zero, e aí só o estado muda.
+          train.applyCommand(command, new Date(), env.simulationTimeScale, segmentLengthM);
           await TrainRepository.save(lineId, train, client);
         }
 

@@ -3,6 +3,16 @@ import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
 import { stationAccessibleName } from '../../data/stations';
 import { ConnectionBadges } from '../common/ConnectionBadges';
+import { directionArrow, PHASE_LABELS } from '../../data/trains';
+
+/** Rótulo curto para caber no crachá do trem no esquemático. */
+const PHASE_SHORT_LABELS: Record<Train['phase'], string> = {
+  PLATAFORMA: 'plataforma',
+  RETIDO: 'retido',
+  EM_MARCHA: 'em marcha',
+  PARADO_ENTRE_ESTACOES: 'parado no trecho',
+  IMOBILIZADO: 'imobilizado',
+};
 
 interface TrackSchematicProps {
   stations: Station[];
@@ -14,7 +24,7 @@ interface TrackSchematicProps {
 }
 
 /**
- * Esquemático CBTC da via, de Vila Madalena a Vila Prudente.
+ * Esquemático CBTC da via, de um terminal da linha ao outro.
  *
  * As composições exibidas são as reais, vindas do backend via WebSocket — antes
  * o traçado animava trens fictícios que não correspondiam ao estado do sistema.
@@ -84,10 +94,23 @@ export const TrackSchematic: React.FC<TrackSchematicProps> = ({
                       key={train.trainId}
                       className="rp-train-badge"
                       data-status={train.status}
-                      title={`${train.trainId} • ${train.speedKmH} km/h • ${train.status}`}
+                      data-phase={train.phase}
+                      title={[
+                        `${train.trainId} • ${PHASE_LABELS[train.phase]}`,
+                        train.nextStationCode ? `rumo a ${train.nextStationCode}` : null,
+                        train.holdReason,
+                      ]
+                        .filter(Boolean)
+                        .join(' • ')}
                     >
-                      <span className="rp-train-badge__id">{train.trainId}</span>
-                      <span className="rp-train-badge__speed">{train.speedKmH} km/h</span>
+                      <span className="rp-train-badge__id">
+                        {directionArrow(train.direction)} {train.trainId}
+                      </span>
+                      <span className="rp-train-badge__speed">
+                        {train.phase === 'EM_MARCHA'
+                          ? `${train.speedKmH} km/h → ${train.nextStationCode}`
+                          : PHASE_SHORT_LABELS[train.phase]}
+                      </span>
                     </span>
                   ))}
                 </span>

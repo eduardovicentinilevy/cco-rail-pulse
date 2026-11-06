@@ -10,6 +10,12 @@ const toInt = (value: string | undefined, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+/** Número decimal limitado a [min, max]; ausente ou inválido cai no padrão. */
+const toBoundedNumber = (value: string | undefined, fallback: number, min: number, max: number): number => {
+  const parsed = Number.parseFloat(value ?? '');
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+};
+
 const toList = (value: string | undefined): string[] =>
   (value ?? '')
     .split(',')
@@ -46,8 +52,6 @@ export const env = {
   corsOrigin: corsOrigins.length > 0 ? corsOrigins : '*',
   bcryptRounds: toInt(process.env.BCRYPT_ROUNDS, 10),
   telemetryIntervalMs: toInt(process.env.TELEMETRY_INTERVAL_MS, 3000),
-  /** Intervalo entre avanços de uma estação na simulação de deslocamento das composições. */
-  trainMotionIntervalMs: toInt(process.env.TRAIN_MOTION_INTERVAL_MS, 4000),
   /**
    * Cliente assumido quando a requisição não traz slug (subdomínio, header ou
    * corpo do login). É o que mantém uma instalação de um cliente só funcionando
@@ -59,6 +63,12 @@ export const env = {
    * Host vira o slug do cliente: `cliente.railpulse.app` → `cliente`.
    */
   tenantBaseDomain: (process.env.TENANT_BASE_DOMAIN ?? '').trim().toLowerCase(),
+  /**
+   * Aceleração do relógio da operação simulada. 1 = tempo real (percursos de 50–115 s
+   * entre estações, paradas de 25–35 s, manobra de 2 min nos terminais); 10 = tudo
+   * dez vezes mais rápido, útil para demonstrações. Limitado a 1–60.
+   */
+  simulationTimeScale: toBoundedNumber(process.env.SIMULATION_TIME_SCALE, 1, 1, 60),
   seedOperatorId: process.env.SEED_OPERATOR_ID ?? 'EDP-042',
   seedOperatorName: process.env.SEED_OPERATOR_NAME ?? 'Eduardo Vicentini Levy',
   seedOperatorPassword: process.env.SEED_OPERATOR_PASSWORD || '123456',

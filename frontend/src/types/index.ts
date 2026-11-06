@@ -10,7 +10,7 @@ export interface TenantIdentity {
   name: string;
 }
 
-/** Linha em operação na sessão. Substitui as menções fixas à Linha 6-Laranja. */
+/** Linha em operação na sessão. Substitui as menções fixas a uma linha só. */
 export interface LineIdentity {
   id: string;
   code: string;
@@ -38,14 +38,70 @@ export interface Station {
   mapY: number | null;
 }
 
+/** 1 = sentido do último terminal do traçado; -1 = sentido do primeiro. */
+export type Direction = 1 | -1;
+
+/** Situação operacional, derivada no backend (`TrainSession.phase`). */
+export type TrainPhase = 'PLATAFORMA' | 'RETIDO' | 'EM_MARCHA' | 'PARADO_ENTRE_ESTACOES' | 'IMOBILIZADO';
+
 /** Estado de uma composição, espelhando `TrainSnapshot` do backend. */
 export interface Train {
   trainId: string;
+  /** Estação onde está parada, ou de onde partiu se estiver em marcha. */
   currentStationCode: string;
   speedKmH: number;
   voltageV: number;
   status: TrainStatus;
   updatedAt: string;
+  direction: Direction;
+  phase: TrainPhase;
+  /** Destino do trecho em curso; `null` parada na plataforma. */
+  nextStationCode: string | null;
+  holdReason: string | null;
+  /** Andamento no trecho no instante em que o snapshot chegou. */
+  movement: { progress: number; remainingMs: number | null } | null;
+  /** `performance.now()` da chegada do snapshot — base da animação, imune ao relógio do servidor. */
+  syncedAt: number;
+}
+
+/** Seção de alimentação do terceiro trilho (uma por subestação retificadora). */
+export interface PowerSection {
+  substation: string;
+  energized: boolean;
+  reason: string | null;
+  changedBy: string | null;
+  changedAt: string;
+  stationCodes: string[];
+  trainsRunning?: number;
+}
+
+export interface ArrivalEntry {
+  trainId: string;
+  etaSeconds: number;
+  atPlatform: boolean;
+  held: boolean;
+}
+
+export interface StationArrivalBoard {
+  code: string;
+  name: string;
+  /**
+   * Sentido do último terminal do traçado. Os sentidos não são nomeados por ponto
+   * cardeal: o traçado é da linha, e nem toda linha corre de oeste para leste —
+   * quem dá o nome de cada sentido é `ArrivalsPayload.directions`.
+   */
+  forward: ArrivalEntry[];
+  /** Sentido do primeiro terminal do traçado. */
+  backward: ArrivalEntry[];
+}
+
+export interface ArrivalsPayload {
+  generatedAt: string;
+  timeScale: number;
+  /** Como nomear cada sentido, vindo dos terminais da linha da sessão. */
+  directions: { forward: string; backward: string };
+  service: { trainsInService: number; cycleSeconds: number; headwaySeconds: number | null };
+  stations: StationArrivalBoard[];
 }
 
 export interface AlarmEvent {
