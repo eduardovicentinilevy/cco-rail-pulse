@@ -16,6 +16,8 @@ import { alarmRouter } from './routes/alarm.routes';
 import { communicationRouter } from './routes/communication.routes';
 import { procedureRouter } from './routes/procedure.routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import { RateLimiter, rateLimit } from './middlewares/rate-limit.middleware';
+import { rateLimitStore } from '../../infrastructure/rate-limit/pg-rate-limit.store';
 import type { TelemetrySimulator } from '../../application/services/TelemetrySimulator';
 import type { TrainMotionSimulator } from '../../application/services/TrainMotionSimulator';
 import type { PowerGrid } from '../../application/services/PowerGrid';
@@ -45,6 +47,12 @@ const securityHeaders: express.RequestHandler = (_req, res, next) => {
   next();
 };
 
+/**
+ * Teto global por origem, acima dos limites específicos de login e de renovação.
+ * Usa o mesmo contador compartilhado, então vale para o conjunto das instâncias.
+ */
+const apiLimiter = new RateLimiter(env.apiMaxRequests, env.apiWindowMs, rateLimitStore);
+
 export interface AppServices {
   simulator: TelemetrySimulator;
   operation: TrainMotionSimulator;
@@ -65,6 +73,7 @@ export const createApp = ({ simulator, operation, powerGrid }: AppServices): Exp
   app.use(express.json({ limit: '64kb' }));
 
   app.use(healthRouter);
+  app.use('/api', rateLimit(apiLimiter, (req) => `api:${req.ip ?? 'unknown'}`));
   app.use('/api/auth', authRouter);
   app.use('/api/operator', operatorRouter);
   app.use('/api/audit-logs', auditRouter);

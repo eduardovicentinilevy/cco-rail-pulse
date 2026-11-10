@@ -13,11 +13,15 @@ import { PowerGrid } from '../../application/services/PowerGrid';
 import { VoltageAlarmMonitor } from '../../application/services/VoltageAlarmMonitor';
 import { PowerSectionRepository } from '../../infrastructure/database/repositories/PowerSectionRepository';
 import { runMigrations } from '../../infrastructure/database/migrations';
+import { authSessionService } from '../../infrastructure/auth/session-service';
 import { closeDatabase, db } from '../../infrastructure/database/postgres';
 import { domainEventBus } from '../../application/events/event-bus';
 import { AlarmRepository } from '../../infrastructure/database/repositories/AlarmRepository';
 
 const logger = createLogger('BOOT');
+
+/** Frequência da limpeza das sessões vencidas. */
+const SESSION_PURGE_INTERVAL_MS = 3_600_000;
 
 const powerGrid = new PowerGrid(PowerSectionRepository);
 // Telemetria e operação se alimentam mutuamente: os trens em marcha derrubam a
@@ -62,6 +66,24 @@ server.on('error', (error: NodeJS.ErrnoException) => {
   process.exit(1);
 });
 
+let sessionPurgeTimer: NodeJS.Timeout | null = null;
+
+/** Remove sessões vencidas para que a tabela não cresça indefinidamente. */
+const startSessionPurge = (): void => {
+  const purge = () =>
+    void authSessionService
+      .purgeExpired()
+      .then((removed) => {
+        if (removed > 0) logger.info(`${removed} sessão(ões) vencida(s) removida(s).`);
+      })
+      .catch((error) => logger.error('Falha ao limpar sessões vencidas.', error));
+
+  purge();
+  sessionPurgeTimer = setInterval(purge, SESSION_PURGE_INTERVAL_MS);
+  // Não é motivo para manter o processo vivo no encerramento.
+  sessionPurgeTimer.unref();
+};
+
 let shuttingDown = false;
 
 /** Encerramento gracioso: para a telemetria, fecha sockets, HTTP e o pool do Postgres. */
@@ -73,6 +95,7 @@ const shutdown = async (signal: string): Promise<void> => {
   simulator.stop();
   trainMotion.stop();
   alarmMonitor.stop();
+  if (sessionPurgeTimer) clearInterval(sessionPurgeTimer);
   // Descarrega a janela pendente antes de derrubar o barramento.
   await archiver.stop().catch((error) => logger.error('Falha ao encerrar o arquivamento.', error));
   domainEventBus.removeAllListeners();
@@ -93,6 +116,7 @@ const bootstrap = async (): Promise<void> => {
 
     await runMigrations();
     await powerGrid.load();
+    startSessionPurge();
     archiver.start();
     alarmMonitor.start();
     simulator.start();
