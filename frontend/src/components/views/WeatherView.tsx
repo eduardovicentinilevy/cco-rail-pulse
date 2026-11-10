@@ -11,10 +11,10 @@ interface WeatherViewProps {
 }
 
 /**
- * Estações na várzea do Tamanduateí, ponto de alagamento recorrente da cidade
- * (ver procedimento METEOROLOGIA).
+ * Estações nas duas margens do Rio Tietê, atravessado em túnel entre Freguesia
+ * do Ó e Santa Marina — várzea de alagamento recorrente (ver procedimento METEOROLOGIA).
  */
-const FLOOD_RISK_CODES = new Set(['TTI']);
+const FLOOD_RISK_CODES = new Set(['FGO', 'SMA']);
 
 const TIME_BUCKET_MS = 10 * 60_000;
 
@@ -61,7 +61,7 @@ const deriveWeather = (station: Station, bucket: number): StationWeather => {
   const windRisk: RiskLevel = windKmH > 60 ? 'CRÍTICO' : windKmH > 45 ? 'ATENÇÃO' : 'NORMAL';
 
   const advisories: string[] = [];
-  if (floodRisk !== 'NORMAL') advisories.push('Risco de alagamento na várzea do Tamanduateí — monitore os acessos e siga o procedimento METEOROLOGIA.');
+  if (floodRisk !== 'NORMAL') advisories.push('Risco de alagamento na travessia do Rio Tietê (FGO–SMA) — monitore os acessos e siga o procedimento METEOROLOGIA.');
   if (heatRisk !== 'NORMAL') advisories.push('Calor elevado nas plataformas — reforce a ventilação e monitore a temperatura dos equipamentos.');
   if (windRisk !== 'NORMAL') advisories.push('Rajadas fortes — risco de queda de árvores e objetos sobre acessos e poços de ventilação.');
 

@@ -63,13 +63,14 @@
   width: 2.4rem;
   height: 2.4rem;
   flex-shrink: 0;
-  /* Verde chapado, sem gradiente: é o círculo numerado das placas do Metrô. */
-  background: var(--cco-green);
-  color: #fff;
+  /* Laranja chapado, sem gradiente: o círculo numerado da sinalização das linhas.
+     O número vai em marinho — branco sobre este laranja não chega a 3:1. */
+  background: var(--cco-brand);
+  color: var(--cco-text-on-accent);
   font-weight: 800;
   font-size: var(--fs-lg);
   border-radius: 50%;
-  box-shadow: 0 0 20px var(--cco-green-glow);
+  box-shadow: 0 0 20px var(--cco-brand-glow);
 }
 
 .rp-sidebar__wordmark {
@@ -88,7 +89,7 @@
 
 .rp-sidebar__line {
   font-size: var(--fs-2xs);
-  color: var(--cco-green-ink);
+  color: var(--cco-brand-ink);
   font-weight: 700;
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
@@ -137,11 +138,11 @@
 }
 
 .rp-nav-item[aria-current='page'] {
-  background-color: var(--cco-green-soft);
-  color: var(--cco-green-ink);
+  background-color: var(--cco-brand-soft);
+  color: var(--cco-brand-ink);
 }
 
-/* Trilho luminoso à esquerda do item ativo — o verde da Linha 2. */
+/* Trilho luminoso à esquerda do item ativo — o laranja da Linha 6. */
 .rp-nav-item[aria-current='page']::before {
   content: '';
   position: absolute;
@@ -151,8 +152,8 @@
   width: 3px;
   height: 1.4rem;
   border-radius: var(--radius-pill);
-  background: var(--cco-green);
-  box-shadow: 0 0 10px var(--cco-green-glow);
+  background: var(--cco-brand);
+  box-shadow: 0 0 10px var(--cco-brand-glow);
 }
 
 .rp-nav-item__icon {
@@ -175,7 +176,7 @@
   min-width: 1.35rem;
   padding: 0.05rem 0.35rem;
   background-color: var(--cco-danger);
-  color: #fff;
+  color: var(--cco-text-on-status);
   font-family: var(--cco-font-mono);
   font-size: var(--fs-2xs);
   font-weight: 700;
@@ -310,8 +311,8 @@
 }
 
 .rp-profile:hover {
-  border-color: var(--cco-green);
-  background-color: var(--cco-green-softer);
+  border-color: var(--cco-brand);
+  background-color: var(--cco-brand-softer);
 }
 
 .rp-profile__avatar {
@@ -319,7 +320,7 @@
   height: 2rem;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid var(--cco-green);
+  border: 1px solid var(--cco-brand);
   flex-shrink: 0;
 }
 

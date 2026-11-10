@@ -22,7 +22,7 @@ interface TrackSchematicProps {
 }
 
 /**
- * Esquemático CBTC da via, de Vila Madalena a Vila Prudente.
+ * Esquemático CBTC da via, de Brasilândia a São Joaquim.
  *
  * As composições exibidas são as reais, vindas do backend via WebSocket — antes
  * o traçado animava trens fictícios que não correspondiam ao estado do sistema.

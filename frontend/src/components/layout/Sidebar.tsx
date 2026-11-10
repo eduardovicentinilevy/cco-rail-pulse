@@ -61,9 +61,9 @@ export const Sidebar = <T extends string>({
   return (
     <nav className="rp-sidebar" aria-label="Navegação principal" onKeyDown={handleKeyDown}>
       <div className="rp-sidebar__brand">
-        {/* O número da linha num círculo verde, como na sinalização do Metrô. */}
+        {/* O número da linha num círculo laranja, como na sinalização das linhas. */}
         <span className="rp-sidebar__mark" aria-hidden="true">
-          2
+          6
         </span>
         <span className="rp-sidebar__wordmark">
           <span className="rp-sidebar__name">RailPulse CCO</span>

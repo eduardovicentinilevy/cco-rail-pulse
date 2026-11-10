@@ -127,13 +127,13 @@ describe('Contrato frontend ↔ domínio da malha', () => {
     const catalog = await frontendModule<FrontendCatalog>('stations.ts');
 
     // Backend antigo: tensão em `voltageKV`, sem `voltageV` nem `connections`.
-    const legacy = catalog.normalizeStation({ code: 'CNS', name: 'Consolação', voltageKV: 24.6, status: 'NORMAL' });
+    const legacy = catalog.normalizeStation({ code: 'HGM', name: 'Higienópolis-Mackenzie', voltageKV: 24.6, status: 'NORMAL' });
     assert.ok(legacy);
-    assert.equal(legacy.voltageV, 746);
+    assert.equal(legacy.voltageV, 747);
     assert.deepEqual(legacy.connections, ['L4-Amarela']);
 
     // Status desconhecido é reclassificado pela tensão; sem código, o item é descartado.
-    const odd = catalog.normalizeStation({ code: 'AIP', voltageV: 618, status: 'QUALQUER' });
+    const odd = catalog.normalizeStation({ code: 'ITA', voltageV: 618, status: 'QUALQUER' });
     assert.equal(odd?.status, 'CRÍTICO');
     assert.equal(catalog.normalizeStation({ name: 'sem código' }), null);
   });

@@ -8,8 +8,8 @@ const buildIncident = (overrides: Partial<{ status: 'ABERTA' | 'EM_ANDAMENTO' | 
   new Incident(
     '1',
     'Sobrecorrente na sapata coletora do T-04',
-    'Leitura de corrente acima do limite no trecho CNS-TRI durante a partida.',
-    'CNS',
+    'Leitura de corrente acima do limite no trecho JPI-FGO durante a partida.',
+    'JPI',
     'T-04',
     'ENERGIA',
     'ALTA',
@@ -94,7 +94,7 @@ describe('Incident — serialização', () => {
 
     assert.equal(snapshot.openedAt, '2026-09-16T10:00:00.000Z');
     assert.equal(snapshot.resolvedAt, null);
-    assert.equal(snapshot.stationCode, 'CNS');
+    assert.equal(snapshot.stationCode, 'JPI');
     assert.equal(snapshot.severity, 'ALTA');
   });
 });

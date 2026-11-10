@@ -1,16 +1,17 @@
 // frontend/src/data/stations.ts
-// Catálogo local da Linha 2-Verde (Metrô de São Paulo), usado como carga inicial
+// Catálogo local da Linha 6-Laranja (Linha Uni), usado como carga inicial
 // enquanto GET /api/network/stations não responde. O backend é a fonte de verdade.
 import type { Station, StationStatus } from '../types';
 import { formatVoltage } from '../lib/format';
 
-export const LINE_NAME = 'Linha 2-Verde';
-export const LINE_OPERATOR = 'Metrô de São Paulo';
+export const LINE_NAME = 'Linha 6-Laranja';
+export const LINE_OPERATOR = 'Linha Uni';
 
 /**
- * Tração por terceiro trilho, 750 Vcc — espelho de `backend/domain/line.ts`.
- * O painel precisa deles antes (e sem) resposta da API; o teste de contrato
- * `backend/tests/frontend-catalog.test.ts` falha se os dois lados divergirem.
+ * Tração captada no solo (terceiro trilho), modelada em 750 Vcc — espelho de
+ * `backend/domain/line.ts`. O painel precisa deles antes (e sem) resposta da
+ * API; o teste de contrato `backend/tests/frontend-catalog.test.ts` falha se os
+ * dois lados divergirem.
  */
 export const TRACTION_NOMINAL_V = 750;
 export const VOLTAGE_WARNING_V = 700;
@@ -27,21 +28,22 @@ interface StationSeed {
 }
 
 const SEEDS: StationSeed[] = [
-  { order: 1, code: 'VMD', name: 'Vila Madalena', substation: 'SR-01', nominalVoltageV: 752, connections: [], headway: '2min 20s' },
-  { order: 2, code: 'SUM', name: 'Sumaré', substation: 'SR-01', nominalVoltageV: 748, connections: [], headway: '2min 15s' },
-  { order: 3, code: 'CLI', name: 'Clínicas', substation: 'SR-02', nominalVoltageV: 750, connections: [], headway: '2min 12s' },
-  { order: 4, code: 'CNS', name: 'Consolação', substation: 'SR-02', nominalVoltageV: 746, connections: ['L4-Amarela'], headway: '2min 10s' },
-  { order: 5, code: 'TRI', name: 'Trianon-Masp', substation: 'SR-03', nominalVoltageV: 751, connections: [], headway: '2min 10s' },
-  { order: 6, code: 'BGD', name: 'Brigadeiro', substation: 'SR-03', nominalVoltageV: 749, connections: [], headway: '2min 12s' },
-  { order: 7, code: 'PSO', name: 'Paraíso', substation: 'SR-04', nominalVoltageV: 747, connections: ['L1-Azul'], headway: '2min 14s' },
-  { order: 8, code: 'ANR', name: 'Ana Rosa', substation: 'SR-04', nominalVoltageV: 750, connections: ['L1-Azul'], headway: '2min 15s' },
-  { order: 9, code: 'CKB', name: 'Chácara Klabin', substation: 'SR-05', nominalVoltageV: 748, connections: ['L5-Lilás'], headway: '2min 18s' },
-  { order: 10, code: 'SIM', name: 'Santos-Imigrantes', substation: 'SR-05', nominalVoltageV: 745, connections: [], headway: '2min 20s' },
-  // SR-06 com um grupo retificador fora de serviço no cenário simulado.
-  { order: 11, code: 'AIP', name: 'Alto do Ipiranga', substation: 'SR-06', nominalVoltageV: 620, connections: [], headway: '3min 40s' },
-  { order: 12, code: 'SAC', name: 'Sacomã', substation: 'SR-06', nominalVoltageV: 680, connections: ['Expresso Tiradentes'], headway: '2min 55s' },
-  { order: 13, code: 'TTI', name: 'Tamanduateí', substation: 'SR-07', nominalVoltageV: 749, connections: ['CPTM L10-Turquesa'], headway: '2min 20s' },
-  { order: 14, code: 'VPT', name: 'Vila Prudente', substation: 'SR-07', nominalVoltageV: 751, connections: ['L15-Prata'], headway: '2min 25s' },
+  { order: 1, code: 'BRA', name: 'Brasilândia', substation: 'SR-01', nominalVoltageV: 752, connections: [], headway: '4min 05s' },
+  { order: 2, code: 'MAR', name: 'Maristela', substation: 'SR-01', nominalVoltageV: 748, connections: [], headway: '4min 02s' },
+  // SR-02 com um grupo retificador fora de serviço no cenário simulado.
+  { order: 3, code: 'ITA', name: 'Itaberaba-Hospital Vila Penteado', substation: 'SR-02', nominalVoltageV: 620, connections: [], headway: '5min 40s' },
+  { order: 4, code: 'JPI', name: 'João Paulo I', substation: 'SR-02', nominalVoltageV: 746, connections: [], headway: '4min 10s' },
+  { order: 5, code: 'FGO', name: 'Freguesia do Ó', substation: 'SR-03', nominalVoltageV: 680, connections: [], headway: '4min 50s' },
+  { order: 6, code: 'SMA', name: 'Santa Marina', substation: 'SR-03', nominalVoltageV: 749, connections: [], headway: '4min 04s' },
+  { order: 7, code: 'AGB', name: 'Água Branca', substation: 'SR-04', nominalVoltageV: 750, connections: ['CPTM L7-Rubi'], headway: '4min 00s' },
+  { order: 8, code: 'POM', name: 'Sesc-Pompeia', substation: 'SR-04', nominalVoltageV: 751, connections: [], headway: '3min 58s' },
+  { order: 9, code: 'PDZ', name: 'Perdizes', substation: 'SR-05', nominalVoltageV: 748, connections: [], headway: '4min 01s' },
+  { order: 10, code: 'PUC', name: 'PUC-Cardoso de Almeida', substation: 'SR-05', nominalVoltageV: 750, connections: [], headway: '3min 59s' },
+  { order: 11, code: 'FAA', name: 'FAAP-Pacaembu', substation: 'SR-06', nominalVoltageV: 749, connections: [], headway: '4min 01s' },
+  { order: 12, code: 'HGM', name: 'Higienópolis-Mackenzie', substation: 'SR-06', nominalVoltageV: 747, connections: ['L4-Amarela'], headway: '4min 03s' },
+  { order: 13, code: '14B', name: '14 Bis-Saracura', substation: 'SR-07', nominalVoltageV: 751, connections: [], headway: '4min 02s' },
+  { order: 14, code: 'BLV', name: 'Bela Vista', substation: 'SR-07', nominalVoltageV: 749, connections: [], headway: '4min 00s' },
+  { order: 15, code: 'SJQ', name: 'São Joaquim', substation: 'SR-08', nominalVoltageV: 750, connections: ['L1-Azul'], headway: '4min 05s' },
 ];
 
 /** Classificação de tensão idêntica à do simulador SCADA no backend. */
@@ -123,10 +125,7 @@ export interface ConnectionStyle {
 const CONNECTION_STYLES: Record<string, ConnectionStyle> = {
   'L1-Azul': { short: '1', color: '#0455a1', ink: '#ffffff' },
   'L4-Amarela': { short: '4', color: '#fed304', ink: '#1b1b1b' },
-  'L5-Lilás': { short: '5', color: '#9b3894', ink: '#ffffff' },
-  'L15-Prata': { short: '15', color: '#a3a8ab', ink: '#1b1b1b' },
-  'CPTM L10-Turquesa': { short: '10', color: '#00a6a6', ink: '#0b1f1f' },
-  'Expresso Tiradentes': { short: 'ET', color: '#56616b', ink: '#ffffff' },
+  'CPTM L7-Rubi': { short: '7', color: '#a6185c', ink: '#ffffff' },
 };
 
 export const connectionStyle = (connection: string): ConnectionStyle =>

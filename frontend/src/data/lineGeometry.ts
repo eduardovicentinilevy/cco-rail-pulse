@@ -1,14 +1,16 @@
 // frontend/src/data/lineGeometry.ts
-// Geometria do mapa da Linha 2-Verde. Tudo — estações, Av. Paulista, Rio
-// Tamanduateí e os rótulos — sai das coordenadas geográficas pela MESMA
-// projeção: mudar o enquadramento move o desenho inteiro junto, em vez de
-// deixar referências desenhadas à mão soltas do trilho.
+// Geometria do mapa da Linha 6-Laranja. Tudo — estações, Rio Tietê, rosa dos
+// ventos e rótulos — sai das coordenadas geográficas pela MESMA projeção: mudar
+// o enquadramento move o desenho inteiro junto, em vez de deixar referências
+// desenhadas à mão soltas do trilho.
 import { buildCurveSegments, curveToPath } from '../lib/curve';
 import type { Point } from '../lib/curve';
 
 export const VIEW_WIDTH = 1000;
 export const VIEW_HEIGHT = 440;
 const PADDING = 70;
+/** Exagero vertical máximo em relação ao horizontal: deixa a forma da linha legível sem deformá-la demais. */
+const MAX_VERTICAL_EXAGGERATION = 1.5;
 
 interface GeoPoint {
   lat: number;
@@ -17,55 +19,82 @@ interface GeoPoint {
 
 /** Coordenadas aproximadas das estações (graus decimais, WGS 84). */
 export const STATION_COORDS: Readonly<Record<string, GeoPoint>> = {
-  VMD: { lat: -23.5467, lon: -46.691 },
-  SUM: { lat: -23.5509, lon: -46.6773 },
-  CLI: { lat: -23.5544, lon: -46.6703 },
-  CNS: { lat: -23.5578, lon: -46.6604 },
-  TRI: { lat: -23.5614, lon: -46.6566 },
-  BGD: { lat: -23.5687, lon: -46.6493 },
-  PSO: { lat: -23.5758, lon: -46.6409 },
-  ANR: { lat: -23.5814, lon: -46.6382 },
-  CKB: { lat: -23.5926, lon: -46.6292 },
-  SIM: { lat: -23.5965, lon: -46.6216 },
-  AIP: { lat: -23.6027, lon: -46.6125 },
-  SAC: { lat: -23.6017, lon: -46.6025 },
-  TTI: { lat: -23.5931, lon: -46.589 },
-  VPT: { lat: -23.5839, lon: -46.5808 },
+  BRA: { lat: -23.4683, lon: -46.6908 },
+  MAR: { lat: -23.476, lon: -46.6879 },
+  ITA: { lat: -23.4835, lon: -46.6851 },
+  JPI: { lat: -23.4912, lon: -46.6869 },
+  FGO: { lat: -23.499, lon: -46.6937 },
+  SMA: { lat: -23.5117, lon: -46.6885 },
+  AGB: { lat: -23.5198, lon: -46.6873 },
+  POM: { lat: -23.5257, lon: -46.6837 },
+  PDZ: { lat: -23.5317, lon: -46.6771 },
+  PUC: { lat: -23.5372, lon: -46.6706 },
+  FAA: { lat: -23.544, lon: -46.662 },
+  HGM: { lat: -23.5474, lon: -46.652 },
+  '14B': { lat: -23.5532, lon: -46.6466 },
+  BLV: { lat: -23.5573, lon: -46.6428 },
+  SJQ: { lat: -23.5617, lon: -46.6383 },
 };
 
-/** Eixo da Av. Paulista sob o qual a linha corre (de antes de CNS até perto de PSO). */
-const PAULISTA: readonly GeoPoint[] = [
-  { lat: -23.556, lon: -46.6625 },
-  { lat: -23.5713, lon: -46.646 },
+/** Curso aproximado do Rio Tietê, atravessado por baixo entre Freguesia do Ó e Santa Marina. */
+const TIETE: readonly GeoPoint[] = [
+  { lat: -23.5135, lon: -46.745 },
+  { lat: -23.5098, lon: -46.72 },
+  { lat: -23.5082, lon: -46.6935 },
+  { lat: -23.5115, lon: -46.6745 },
+  { lat: -23.5165, lon: -46.655 },
+  { lat: -23.5198, lon: -46.632 },
 ];
 
-/** Curso aproximado do Rio Tamanduateí, cruzado pela linha entre SAC e TTI. */
-const TAMANDUATEI: readonly GeoPoint[] = [
-  { lat: -23.63, lon: -46.57 },
-  { lat: -23.606, lon: -46.584 },
-  { lat: -23.596, lon: -46.593 },
-  { lat: -23.582, lon: -46.603 },
-  { lat: -23.566, lon: -46.614 },
-  { lat: -23.545, lon: -46.628 },
-];
+// --- Projeção -----------------------------------------------------------------
+// 1) Plano local em metros (equirretangular na latitude média da linha);
+// 2) rotação que deixa o eixo Brasilândia → São Joaquim na horizontal — a linha
+//    desce da zona noroeste ao centro, e na vertical não caberia no painel largo;
+// 3) escala para o quadro. Como o mapa sai girado, ele desenha a rosa dos ventos.
 
-const coords = Object.values(STATION_COORDS);
-const lonMin = Math.min(...coords.map((c) => c.lon));
-const lonMax = Math.max(...coords.map((c) => c.lon));
-const latMin = Math.min(...coords.map((c) => c.lat));
-const latMax = Math.max(...coords.map((c) => c.lat));
+const METERS_PER_DEGREE = 111_320;
+const stationPoints = Object.values(STATION_COORDS);
+const LAT0 = stationPoints.reduce((sum, point) => sum + point.lat, 0) / stationPoints.length;
+const LON0 = stationPoints.reduce((sum, point) => sum + point.lon, 0) / stationPoints.length;
+const COS_LAT0 = Math.cos((LAT0 * Math.PI) / 180);
 
-// Escalas independentes: o traçado ocupa o painel inteiro e o eixo vertical sai
-// comprimido — preserva a forma da linha, sem pretender ser cartografia exata.
-const scaleX = (VIEW_WIDTH - 2 * PADDING) / (lonMax - lonMin);
-const scaleY = (VIEW_HEIGHT - 2 * PADDING) / (latMax - latMin);
+const toLocal = ({ lat, lon }: GeoPoint) => ({
+  east: (lon - LON0) * METERS_PER_DEGREE * COS_LAT0,
+  north: (lat - LAT0) * METERS_PER_DEGREE,
+});
+
+const firstTerminal = toLocal(stationPoints[0]);
+const lastTerminal = toLocal(stationPoints[stationPoints.length - 1]);
+const AXIS_ANGLE = Math.atan2(lastTerminal.north - firstTerminal.north, lastTerminal.east - firstTerminal.east);
+const COS_AXIS = Math.cos(AXIS_ANGLE);
+const SIN_AXIS = Math.sin(AXIS_ANGLE);
+
+/** `along`: ao longo do eixo da linha; `across`: à esquerda de quem segue para São Joaquim. */
+const toAxis = (point: GeoPoint) => {
+  const { east, north } = toLocal(point);
+  return { along: east * COS_AXIS + north * SIN_AXIS, across: -east * SIN_AXIS + north * COS_AXIS };
+};
+
+const axisPoints = stationPoints.map(toAxis);
+const alongMin = Math.min(...axisPoints.map((p) => p.along));
+const alongMax = Math.max(...axisPoints.map((p) => p.along));
+const acrossMin = Math.min(...axisPoints.map((p) => p.across));
+const acrossMax = Math.max(...axisPoints.map((p) => p.across));
+
+const scaleX = (VIEW_WIDTH - 2 * PADDING) / (alongMax - alongMin);
+const scaleY = Math.min((VIEW_HEIGHT - 2 * PADDING) / (acrossMax - acrossMin), scaleX * MAX_VERTICAL_EXAGGERATION);
+// Centraliza verticalmente quando o exagero máximo deixa sobra no quadro.
+const offsetY = (VIEW_HEIGHT - (acrossMax - acrossMin) * scaleY) / 2;
 
 const round = (value: number) => Math.round(value * 10) / 10;
 
-export const project = ({ lat, lon }: GeoPoint): Point => ({
-  x: round(PADDING + (lon - lonMin) * scaleX),
-  y: round(PADDING + (latMax - lat) * scaleY),
-});
+export const project = (point: GeoPoint): Point => {
+  const { along, across } = toAxis(point);
+  return {
+    x: round(PADDING + (along - alongMin) * scaleX),
+    y: round(offsetY + (acrossMax - across) * scaleY),
+  };
+};
 
 /** Posição de cada estação no SVG, por código. */
 export const ROUTE: Readonly<Record<string, Point>> = Object.fromEntries(
@@ -97,17 +126,31 @@ const labelAlong = (a: Point, b: Point, offset: number): MapLabel => {
   };
 };
 
-const paulista = PAULISTA.map(project);
-const river = TAMANDUATEI.map(project);
-
-export const AVENUE = {
-  path: `M ${paulista[0].x} ${paulista[0].y} L ${paulista[1].x} ${paulista[1].y}`,
-  // Do lado sudoeste do eixo: o lado norte já tem os rótulos das estações.
-  label: labelAlong(paulista[0], paulista[1], -34),
-};
+const river = TIETE.map(project);
 
 export const RIVER = {
+  name: 'Rio Tietê',
   path: curveToPath(river, buildCurveSegments(river)),
-  // A nordeste do curso, longe do trilho que passa ao sul.
-  label: labelAlong(river[3], river[4], -24),
+  // A montante (leste) da travessia, no vão livre entre os dois braços da linha.
+  label: labelAlong(river[3], river[4], 14),
+};
+
+/**
+ * Rosa dos ventos: o norte é a direção, na tela, de um ponto um pouco ao norte
+ * do centro da malha — a mesma projeção (girada e com escalas próprias) que
+ * desenha as estações, então a seta nunca desmente o desenho.
+ */
+const center = project({ lat: LAT0, lon: LON0 });
+const northOfCenter = project({ lat: LAT0 + 0.01, lon: LON0 });
+const northLength = Math.hypot(northOfCenter.x - center.x, northOfCenter.y - center.y) || 1;
+
+export const NORTH = {
+  /** Posição da rosa no quadro: canto inferior direito, longe do trilho e do rio. */
+  x: VIEW_WIDTH - 58,
+  y: VIEW_HEIGHT - 58,
+  /** Vetor unitário do norte na tela (y cresce para baixo). */
+  dx: round(((northOfCenter.x - center.x) / northLength) * 100) / 100,
+  dy: round(((northOfCenter.y - center.y) / northLength) * 100) / 100,
+  /** Ângulo de rotação do símbolo, em graus, a partir de "para cima". */
+  angle: round((Math.atan2(northOfCenter.x - center.x, -(northOfCenter.y - center.y)) * 180) / Math.PI),
 };

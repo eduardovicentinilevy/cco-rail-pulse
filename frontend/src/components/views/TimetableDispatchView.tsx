@@ -13,12 +13,17 @@ interface TimetableDispatchViewProps {
   stations: Station[];
   /** Intervalo e ciclo da operação, vindos da previsão de chegadas (`null` até a primeira consulta). */
   service: ArrivalsPayload['service'] | null;
+  /** Aceleração do relógio da simulação: o intervalo real já vem no relógio do painel. */
+  timeScale?: number;
 }
 
 type DispatchStatus = 'EM_HORA' | 'ATRASADO';
 
-/** Intervalo-alvo da Linha 2 no pico, em segundos. */
-const TARGET_HEADWAY_SEC = 135;
+/**
+ * Intervalo-alvo adotado na simulação, em segundos: a volta completa da Linha 6
+ * (~49 min) dividida pela frota semeada de 12 composições.
+ */
+const TARGET_HEADWAY_SEC = 240;
 
 const DISPATCH_LABELS: Record<DispatchStatus, string> = { EM_HORA: 'Em hora', ATRASADO: 'Atrasado' };
 
@@ -40,7 +45,7 @@ const stoppedForSeconds = (train: Train, now: number): number | null =>
     ? Math.max(0, Math.round((now - Date.parse(train.updatedAt)) / 1000))
     : null;
 
-export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ trains, stations, service }) => {
+export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ trains, stations, service, timeScale = 1 }) => {
   const [onlyDeviations, setOnlyDeviations] = useState(false);
   // Dois relógios: o de parede (para "parado há", comparado ao carimbo do servidor) e o
   // monotônico (para o andamento no trecho, comparado à chegada do snapshot).
@@ -78,6 +83,9 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
   const visible = onlyDeviations ? dispatches.filter((item) => item.status !== 'EM_HORA') : dispatches;
   const deviationCount = dispatches.filter((item) => item.status !== 'EM_HORA').length;
   const headway = service?.headwaySeconds ?? null;
+  // A meta é em tempo real; o intervalo medido vem no relógio acelerado do painel.
+  const scale = Number.isFinite(timeScale) && timeScale > 0 ? timeScale : 1;
+  const targetHeadway = Math.round(TARGET_HEADWAY_SEC / scale);
 
   const handleExport = () => {
     const csv = toCsv(
@@ -123,13 +131,15 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
 
       <div className="rp-grid rp-grid--kpi">
         <article className="rp-metric" data-status="INFO">
-          <span className="rp-metric__label">Intervalo-alvo (pico)</span>
-          <span className="rp-metric__value mono">{formatClockDuration(TARGET_HEADWAY_SEC)}</span>
-          <span className="rp-metric__hint">Referência de projeto da Linha 2</span>
+          <span className="rp-metric__label">Intervalo-alvo</span>
+          <span className="rp-metric__value mono">{formatClockDuration(targetHeadway)}</span>
+          <span className="rp-metric__hint">
+            Meta da operação simulada (12 composições){scale > 1 ? ` — relógio ${scale}×` : ''}
+          </span>
         </article>
         <article
           className="rp-metric"
-          data-status={headway === null ? 'INFO' : headway <= TARGET_HEADWAY_SEC * 1.5 ? 'NORMAL' : 'ATENÇÃO'}
+          data-status={headway === null ? 'INFO' : headway <= targetHeadway * 1.5 ? 'NORMAL' : 'ATENÇÃO'}
         >
           <span className="rp-metric__label">Intervalo real por plataforma</span>
           <span className="rp-metric__value mono">{headway === null ? '—' : formatClockDuration(headway)}</span>

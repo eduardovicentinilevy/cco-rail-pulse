@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
 import { LINE_NAME, stationAccessibleName } from '../../data/stations';
 import { PHASE_LABELS } from '../../data/trains';
-import { AVENUE, RIVER, ROUTE, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
+import { NORTH, RIVER, ROUTE, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
 import { buildCurveSegments, curveToPath } from '../../lib/curve';
 import type { Point } from '../../lib/curve';
 import { useTrainMotion } from '../../hooks/useTrainMotion';
@@ -103,8 +103,8 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
       >
         <defs>
           <linearGradient id="rp-rail-gradient" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="var(--cco-green-bright)" />
-            <stop offset="100%" stopColor="var(--cco-green-deep)" />
+            <stop offset="0%" stopColor="var(--cco-brand-bright)" />
+            <stop offset="100%" stopColor="var(--cco-brand-deep)" />
           </linearGradient>
           <filter id="rp-rail-glow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="6" result="blur" />
@@ -115,18 +115,8 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
           </filter>
         </defs>
 
-        {/* Referências urbanas, projetadas das mesmas coordenadas das estações:
-            o eixo da Av. Paulista (CNS–PSO) e o Rio Tamanduateí, cruzado entre SAC e TTI. */}
-        <path d={AVENUE.path} className="rp-map__avenue" fill="none" />
-        <text
-          x={AVENUE.label.x}
-          y={AVENUE.label.y}
-          className="rp-map__avenue-label"
-          textAnchor="middle"
-          transform={`rotate(${AVENUE.label.angle} ${AVENUE.label.x} ${AVENUE.label.y})`}
-        >
-          Av. Paulista
-        </text>
+        {/* Referência urbana projetada das mesmas coordenadas das estações: o Rio
+            Tietê, atravessado em túnel entre Freguesia do Ó (FGO) e Santa Marina (SMA). */}
         <path d={RIVER.path} className="rp-map__river" fill="none" />
         <text
           x={RIVER.label.x}
@@ -135,8 +125,25 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
           textAnchor="middle"
           transform={`rotate(${RIVER.label.angle} ${RIVER.label.x} ${RIVER.label.y})`}
         >
-          Rio Tamanduateí
+          {RIVER.name}
         </text>
+
+        {/* O mapa é girado para a linha caber deitada no painel: a rosa indica o norte real. */}
+        <g className="rp-map__compass" transform={`translate(${NORTH.x} ${NORTH.y})`} aria-hidden="true">
+          <circle r="22" className="rp-map__compass-ring" />
+          <g transform={`rotate(${NORTH.angle})`}>
+            <path d="M 0 -17 L 6 2 L 0 -2 L -6 2 Z" className="rp-map__compass-needle" />
+            <path d="M 0 17 L 6 2 L 0 -2 L -6 2 Z" className="rp-map__compass-tail" />
+          </g>
+          <text
+            x={NORTH.dx * 32}
+            y={NORTH.dy * 32 + 4}
+            className="rp-map__compass-label"
+            textAnchor="middle"
+          >
+            N
+          </text>
+        </g>
 
         {/* Halo do trilho, depois o trilho sólido por cima. */}
         <path d={path} className="rp-map__rail-glow" fill="none" filter="url(#rp-rail-glow)" />
@@ -186,12 +193,12 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
           const above = y - 16;
           const below = y + 26;
           const [preferred, alternate] = index % 2 === 0 ? [above, below] : [below, above];
-          // O terminal oeste ancora o texto no início; os demais, no centro.
+          // O primeiro terminal ancora o texto no início; os demais, no centro.
           const [left, right] =
             index === 0 ? [x, x + 2 * LABEL_HALF_WIDTH] : [x - LABEL_HALF_WIDTH, x + LABEL_HALF_WIDTH];
           const labelY =
             labelCoverage(left, right, preferred) <= labelCoverage(left, right, alternate) ? preferred : alternate;
-          // O terminal leste fica no fim de uma subida: o rótulo vai à direita
+          // O último terminal fica no fim de uma subida: o rótulo vai à direita
           // do nó, longe do trilho e da etiqueta de trem.
           const isEastTerminal = index === points.length - 1;
           const label = isEastTerminal

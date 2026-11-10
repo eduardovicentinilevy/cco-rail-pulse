@@ -1,7 +1,7 @@
 {
   "name": "cco-rail-pulse",
   "version": "1.0.0",
-  "description": "RailPulse CCO \u2014 Centro de Controle Operacional da Linha 2-Verde do Metrô de São Paulo (backend Node/Express + PostgreSQL)",
+  "description": "RailPulse CCO \u2014 Centro de Controle Operacional da Linha 6-Laranja (Linha Uni), São Paulo (backend Node/Express + PostgreSQL)",
   "main": "backend/dist/presentation/http/server.js",
   "scripts": {
     "dev": "tsx watch backend/presentation/http/server.ts",
