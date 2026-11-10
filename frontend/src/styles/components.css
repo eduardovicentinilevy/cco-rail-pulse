@@ -15,7 +15,7 @@
 
 .rp-card--flush { padding: 0; overflow: hidden; }
 
-/* Fio verde no topo — usado em cards que abrem uma seção. */
+/* Fio laranja no topo — usado em cards que abrem uma seção. */
 .rp-card--accent::before {
   content: '';
   position: absolute;
@@ -52,7 +52,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--cco-green-ink);
+  color: var(--cco-brand-ink);
 }
 
 .rp-section-title {
@@ -98,31 +98,31 @@
 }
 
 .rp-btn--primary {
-  /* Botões primários totalmente arredondados, em verde chapado da Linha 2. */
+  /* Botões primários totalmente arredondados, no laranja da Linha 6 com texto marinho. */
   border-radius: var(--radius-pill);
   padding-inline: 1.3rem;
   background: var(--grad-accent);
-  border-color: var(--cco-green);
-  color: #fff;
-  box-shadow: 0 8px 22px -10px var(--cco-green-glow), var(--shadow-inset);
+  border-color: var(--cco-brand);
+  color: var(--cco-text-on-accent);
+  box-shadow: 0 8px 22px -10px var(--cco-brand-glow), var(--shadow-inset);
 }
 
 .rp-btn--primary:hover:not(:disabled) {
-  /* O hover escurece em vez de clarear: o verde claro com texto branco cairia
-     abaixo de 4.5:1. Sobre o verde profundo o contraste passa de 8:1. */
-  background: var(--cco-green-deep);
-  border-color: var(--cco-green-deep);
+  /* O hover clareia em vez de escurecer: com texto marinho, o laranja claro
+     sobe para ~6,9:1, enquanto o profundo cairia para ~3,4:1. */
+  background: var(--cco-brand-bright);
+  border-color: var(--cco-brand-bright);
 }
 
 .rp-btn--outline {
   background-color: transparent;
-  border-color: var(--cco-green);
-  color: var(--cco-green-ink);
+  border-color: var(--cco-brand);
+  color: var(--cco-brand-ink);
 }
 
 .rp-btn--outline:hover:not(:disabled) {
-  background-color: var(--cco-green-soft);
-  border-color: var(--cco-green);
+  background-color: var(--cco-brand-soft);
+  border-color: var(--cco-brand);
 }
 
 .rp-btn--ghost {
@@ -146,7 +146,7 @@
   background: none;
   border: none;
   padding: 0;
-  color: var(--cco-green-ink);
+  color: var(--cco-brand-ink);
   font-size: var(--fs-xs);
 }
 
@@ -206,8 +206,8 @@
 }
 
 .rp-icon-btn:hover {
-  color: var(--cco-green-ink);
-  border-color: var(--cco-green);
+  color: var(--cco-brand-ink);
+  border-color: var(--cco-brand);
 }
 
 /* --- Spinner --------------------------------------------------------------- */
@@ -255,8 +255,8 @@
 .rp-input:hover:not(:disabled) { border-color: var(--cco-border-strong); }
 
 .rp-input:focus {
-  border-color: var(--cco-green);
-  box-shadow: 0 0 0 3px var(--cco-green-soft);
+  border-color: var(--cco-brand);
+  box-shadow: 0 0 0 3px var(--cco-brand-soft);
 }
 
 .rp-input[aria-invalid='true'] {
@@ -296,7 +296,7 @@
   border-radius: var(--radius-sm);
 }
 
-.rp-search__clear:hover { color: var(--cco-green-ink); }
+.rp-search__clear:hover { color: var(--cco-brand-ink); }
 
 /* --- Badges e pílulas de status -------------------------------------------- */
 .rp-badge {
@@ -326,12 +326,12 @@
   font-size: var(--fs-2xs);
   border-radius: var(--radius-pill);
   background-color: var(--rp-status, var(--cco-text-muted));
-  color: #fff;
+  color: var(--cco-text-on-status);
 }
 
 .rp-badge--code {
-  color: var(--cco-green-ink);
-  background-color: var(--cco-green-soft);
+  color: var(--cco-brand-ink);
+  background-color: var(--cco-brand-soft);
 }
 
 /* Ponto de status pulsante (conexão, telemetria ao vivo). */
@@ -399,10 +399,10 @@
 .rp-chip:hover { color: var(--cco-text-main); border-color: var(--cco-border-strong); }
 
 .rp-chip[aria-pressed='true'] {
-  border-color: var(--cco-green);
-  color: var(--cco-green-ink);
-  background-color: var(--cco-green-soft);
-  box-shadow: 0 0 14px -6px var(--cco-green-glow);
+  border-color: var(--cco-brand);
+  color: var(--cco-brand-ink);
+  background-color: var(--cco-brand-soft);
+  box-shadow: 0 0 14px -6px var(--cco-brand-glow);
 }
 
 /* Amostra da cor da série no chip — o chip vira a legenda do gráfico. */
@@ -457,7 +457,7 @@
   inset-block: 0;
   left: 0;
   width: 3px;
-  background: var(--rp-status, var(--cco-green));
+  background: var(--rp-status, var(--cco-brand));
   opacity: 0.85;
 }
 
@@ -511,7 +511,7 @@
 .rp-progress__fill {
   height: 100%;
   border-radius: inherit;
-  background-color: var(--rp-status, var(--cco-green));
+  background-color: var(--rp-status, var(--cco-brand));
   transition: width var(--dur-slow) var(--ease);
 }
 
@@ -549,10 +549,10 @@
 }
 
 .rp-table tbody tr { transition: background-color var(--dur-fast) var(--ease); }
-.rp-table tbody tr:hover { background-color: var(--cco-green-softer); }
+.rp-table tbody tr:hover { background-color: var(--cco-brand-softer); }
 .rp-table tbody tr:last-child td { border-bottom: none; }
 
-.rp-table__accent { color: var(--cco-green-ink); font-family: var(--cco-font-mono); }
+.rp-table__accent { color: var(--cco-brand-ink); font-family: var(--cco-font-mono); }
 
 /* --- Estados vazios / carregamento ------------------------------------------ */
 .rp-empty {
@@ -690,7 +690,7 @@
   background-image: var(--grad-surface);
   border: 1px solid var(--cco-border-strong);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg), var(--glow-green);
+  box-shadow: var(--shadow-lg), var(--glow-brand);
   animation: rp-fade-in var(--dur-base) var(--ease-out);
 }
 
@@ -741,8 +741,8 @@
 }
 
 .rp-palette__item[aria-selected='true'] {
-  background-color: var(--cco-green-soft);
-  color: var(--cco-green-ink);
+  background-color: var(--cco-brand-soft);
+  color: var(--cco-brand-ink);
 }
 
 .rp-palette__icon {
@@ -840,10 +840,10 @@
   transition: transform var(--dur-base) var(--ease-out), background-color var(--dur-base) var(--ease);
 }
 
-.rp-switch[aria-checked='true'] { background-color: var(--cco-green-soft); border-color: var(--cco-green); }
-.rp-switch[aria-checked='true']::after { transform: translateX(1.25rem); background-color: var(--cco-green); }
+.rp-switch[aria-checked='true'] { background-color: var(--cco-brand-soft); border-color: var(--cco-brand); }
+.rp-switch[aria-checked='true']::after { transform: translateX(1.25rem); background-color: var(--cco-brand); }
 .rp-switch:disabled { opacity: 0.5; cursor: not-allowed; }
-.rp-switch:focus-visible { outline: 2px solid var(--cco-green); outline-offset: 2px; }
+.rp-switch:focus-visible { outline: 2px solid var(--cco-brand); outline-offset: 2px; }
 
 /* --- Lista de verificações de sistema (Status do Sistema) ------------------- */
 .rp-check-list { display: flex; flex-direction: column; }
@@ -874,7 +874,7 @@
 
 /* --- Integrações com outras linhas ------------------------------------------
    Círculo com o número da linha, na cor oficial dela — o mesmo código visual
-   das placas de integração nas estações do Metrô. */
+   das placas de integração nas estações. */
 .rp-connections {
   display: inline-flex;
   flex-wrap: wrap;

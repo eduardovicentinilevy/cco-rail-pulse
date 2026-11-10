@@ -1,6 +1,7 @@
 // backend/infrastructure/database/bootstrap.ts
 import { env } from '../../config/env';
 import { createLogger } from '../../shared/logger';
+import { adoptLine } from './line-adoption';
 import { migrate } from './migrator';
 import { runSeed } from './seed';
 
@@ -16,6 +17,7 @@ const logger = createLogger('DB-BOOT');
 export const prepareDatabase = async (): Promise<void> => {
   if (env.migrateOnBoot) {
     await migrate();
+    await adoptLine();
   } else {
     logger.info('Migrações no boot desativadas (DB_MIGRATE_ON_BOOT=false).');
   }

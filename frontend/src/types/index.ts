@@ -5,7 +5,7 @@ export type TrainStatus = 'NORMAL' | 'ATENÇÃO' | 'EMERGÊNCIA';
 export type AlarmLevel = 'INFO' | 'WARNING' | 'CRITICAL';
 
 export interface Station {
-  /** Ordem física no traçado (1 = Vila Madalena). */
+  /** Ordem física no traçado (1 = Brasilândia). */
   order: number;
   code: string;
   name: string;
@@ -21,7 +21,7 @@ export interface Station {
   connections: string[];
 }
 
-/** 1 = sentido Vila Prudente (leste); -1 = sentido Vila Madalena (oeste). */
+/** 1 = sentido São Joaquim (centro); -1 = sentido Brasilândia (zona noroeste). */
 export type Direction = 1 | -1;
 
 /** Situação operacional, derivada no backend (`TrainSession.phase`). */
@@ -68,9 +68,9 @@ export interface ArrivalEntry {
 export interface StationArrivalBoard {
   code: string;
   name: string;
-  /** Sentido Vila Prudente. */
+  /** Sentido São Joaquim (último terminal). */
   east: ArrivalEntry[];
-  /** Sentido Vila Madalena. */
+  /** Sentido Brasilândia (primeiro terminal). */
   west: ArrivalEntry[];
 }
 

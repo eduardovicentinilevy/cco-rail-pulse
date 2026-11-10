@@ -57,7 +57,7 @@ describe('PowerGrid — seções do terceiro trilho', () => {
     });
 
     assert.equal(result?.energized, false);
-    assert.deepEqual(result?.stationCodes, ['AIP', 'SAC']);
+    assert.deepEqual(result?.stationCodes, ['FAA', 'HGM']);
     assert.equal(grid.isEnergized('SR-06'), false);
     assert.equal(store.saved.length, 1);
     assert.deepEqual(events, ['power', 'alert']);

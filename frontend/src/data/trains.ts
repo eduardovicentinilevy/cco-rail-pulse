@@ -22,7 +22,7 @@ export const PHASE_STATUS: Record<TrainPhase, 'NORMAL' | 'ATENÇÃO' | 'CRÍTICO
   IMOBILIZADO: 'CRÍTICO',
 };
 
-/** Seta no sentido do mapa: o traçado corre de Vila Madalena (esquerda) a Vila Prudente (direita). */
+/** Seta no sentido do mapa: o traçado corre de Brasilândia (esquerda) a São Joaquim (direita). */
 export const directionArrow = (direction: Direction): string => (direction === 1 ? '▶' : '◀');
 
 const isDirection = (value: unknown): value is Direction => value === 1 || value === -1;

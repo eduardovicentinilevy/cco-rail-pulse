@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { wsService } from '../services/websocket.service';
 import { api, ApiError } from '../services/api';
-import { isFiniteNumber, isStationStatus, LINE_STATIONS, normalizeStation } from '../data/stations';
+import { isFiniteNumber, isStationStatus, LINE_NAME, LINE_STATIONS, LINE_TERMINALS, normalizeStation } from '../data/stations';
 import { normalizeTrain, normalizeTrains, PHASE_LABELS } from '../data/trains';
 import type {
   AlarmEvent,
@@ -530,7 +530,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
 
   // O título da aba funciona como alerta periférico quando o painel está em segundo plano.
   useEffect(() => {
-    document.title = criticalAlarms > 0 ? `(${criticalAlarms}) RailPulse CCO` : 'RailPulse CCO — Linha 2-Verde';
+    document.title = criticalAlarms > 0 ? `(${criticalAlarms}) RailPulse CCO` : `RailPulse CCO — ${LINE_NAME}`;
   }, [criticalAlarms]);
 
   // Atalhos de teclado: 1–6 alternam abas, "/" foca a busca da malha.
@@ -813,7 +813,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         {activeTab === 'ats' && (
           <div className="rp-stack rp-animate-in">
             <div className="rp-row rp-row--between">
-              <h2 className="rp-section-title">Supervisão da via — Vila Madalena ↔ Vila Prudente</h2>
+              <h2 className="rp-section-title">Supervisão da via — {LINE_TERMINALS.west} ↔ {LINE_TERMINALS.east}</h2>
               <div className="rp-segmented" role="group" aria-label="Forma de visualização da malha">
                 <button
                   type="button"
@@ -986,7 +986,12 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         )}
         {activeTab === 'analytics' && <AnalyticsReportsView stations={stations} trains={trains} alarms={alarms} />}
         {activeTab === 'timetable' && (
-          <TimetableDispatchView trains={trains} stations={stations} service={arrivals?.service ?? null} />
+          <TimetableDispatchView
+            trains={trains}
+            stations={stations}
+            service={arrivals?.service ?? null}
+            timeScale={arrivals?.timeScale ?? 1}
+          />
         )}
         {activeTab === 'handover' && (
           <ShiftHandoverView session={session} shiftStartedAt={shiftStartedAt} onAuthError={onExpireSession} />

@@ -23,7 +23,7 @@ const peakFactor = (hour: number, minute: number): number => {
 };
 
 /**
- * Peso de fluxo da estação: o miolo do traçado (o eixo da Av. Paulista) recebe
+ * Peso de fluxo da estação: o miolo do traçado (Água Branca a Higienópolis) recebe
  * mais gente que as pontas, e cada integração com outra linha soma baldeação.
  */
 const flowWeight = (station: Station, total: number): number => {

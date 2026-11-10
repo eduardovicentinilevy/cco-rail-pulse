@@ -19,8 +19,8 @@ import {
 } from '../domain/operation';
 
 describe('Operação — geometria da linha', () => {
-  it('soma ~14,7 km de Vila Madalena a Vila Prudente', () => {
-    assert.ok(LINE_LENGTH_M > 14_400 && LINE_LENGTH_M < 15_000, `extensão ${LINE_LENGTH_M} m`);
+  it('soma ~15,3 km de Brasilândia a São Joaquim', () => {
+    assert.ok(LINE_LENGTH_M > 15_000 && LINE_LENGTH_M < 15_600, `extensão ${LINE_LENGTH_M} m`);
   });
 
   it('tem trecho entre toda estação vizinha, nos dois sentidos, e só entre vizinhas', () => {
@@ -31,7 +31,7 @@ describe('Operação — geometria da linha', () => {
       assert.ok(length !== undefined && length > 400 && length < 2_000, `${a}-${b}: ${length} m`);
       assert.equal(segmentLengthM(b, a), length);
     }
-    assert.equal(segmentLengthM('VMD', 'CLI'), undefined);
+    assert.equal(segmentLengthM('BRA', 'ITA'), undefined);
   });
 });
 
@@ -49,7 +49,7 @@ describe('Operação — perfil de marcha', () => {
   });
 
   it('restrição de 20 km/h torna o percurso bem mais longo', () => {
-    assert.ok(segmentRunTimeMs('VMD', 'SUM', 20) > 2 * segmentRunTimeMs('VMD', 'SUM', LINE_SPEED_KMH));
+    assert.ok(segmentRunTimeMs('BRA', 'MAR', 20) > 2 * segmentRunTimeMs('BRA', 'MAR', LINE_SPEED_KMH));
   });
 
   it('percursos reais entre estações ficam entre 40 s e 2 min', () => {
@@ -69,28 +69,29 @@ describe('Operação — perfil de marcha', () => {
 
 describe('Operação — paradas e sentido', () => {
   it('estações de integração têm parada mais longa', () => {
-    assert.equal(dwellTimeMs('PSO'), TRANSFER_DWELL_MS);
-    assert.equal(dwellTimeMs('SUM'), DWELL_MS);
+    assert.equal(dwellTimeMs('HGM'), TRANSFER_DWELL_MS);
+    assert.equal(dwellTimeMs('AGB'), TRANSFER_DWELL_MS);
+    assert.equal(dwellTimeMs('MAR'), DWELL_MS);
   });
 
   it('reconhece os terminais', () => {
-    assert.equal(isTerminal('VMD'), true);
-    assert.equal(isTerminal('VPT'), true);
-    assert.equal(isTerminal('PSO'), false);
+    assert.equal(isTerminal('BRA'), true);
+    assert.equal(isTerminal('SJQ'), true);
+    assert.equal(isTerminal('HGM'), false);
   });
 
   it('segue a ordem do traçado em cada sentido e para no fim da linha', () => {
-    assert.equal(nextStationCode('PSO', 1), 'ANR');
-    assert.equal(nextStationCode('PSO', -1), 'BGD');
-    assert.equal(nextStationCode('VPT', 1), undefined);
-    assert.equal(nextStationCode('VMD', -1), undefined);
+    assert.equal(nextStationCode('HGM', 1), '14B');
+    assert.equal(nextStationCode('HGM', -1), 'FAA');
+    assert.equal(nextStationCode('SJQ', 1), undefined);
+    assert.equal(nextStationCode('BRA', -1), undefined);
     assert.equal(nextStationCode('XYZ', 1), undefined);
   });
 
   it('inverte o sentido só ao chegar a um terminal', () => {
-    assert.equal(directionAfterArrival('VPT', 1), -1);
-    assert.equal(directionAfterArrival('VMD', -1), 1);
-    assert.equal(directionAfterArrival('TTI', 1), 1);
+    assert.equal(directionAfterArrival('SJQ', 1), -1);
+    assert.equal(directionAfterArrival('BRA', -1), 1);
+    assert.equal(directionAfterArrival('BLV', 1), 1);
   });
 });
 

@@ -9,8 +9,8 @@ export type TrainStatus = (typeof TRAIN_STATUSES)[number];
 export const TRAIN_COMMANDS = ['HALT', 'RESTRICT_SPEED', 'RELEASE'] as const;
 export type TrainCommand = (typeof TRAIN_COMMANDS)[number];
 
-/** Velocidade máxima operacional adotada pelo simulador, em km/h. */
-export const MAX_SPEED_KMH = 80;
+/** Velocidade máxima dos trens Metropolis da Linha 6 (limite de projeto), em km/h. */
+export const MAX_SPEED_KMH = 90;
 /** Velocidade imposta por restrição operacional (V.R.), em km/h. */
 export const RESTRICTED_SPEED_KMH = 20;
 /** Velocidade de cruzeiro: a velocidade máxima de linha da marcha. */

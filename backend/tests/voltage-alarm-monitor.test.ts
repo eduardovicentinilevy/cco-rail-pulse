@@ -68,22 +68,22 @@ describe('Alarme de tensão — monitor', () => {
     domainEventBus.on('system:alert', listener);
     const monitor = new VoltageAlarmMonitor();
     for (const voltage of [0, 0, 0, 748, 750]) {
-      monitor.observe({ currentStationCode: 'AIP', voltageV: voltage, status: 'NORMAL' });
+      monitor.observe({ currentStationCode: 'ITA', voltageV: voltage, status: 'NORMAL' });
     }
 
     assert.equal(received.length, 2);
     assert.equal(received[0].severity, 'CRITICAL');
     assert.match(received[0].message, /sem tensão/);
-    assert.match(received[0].message, /SR-06/);
+    assert.match(received[0].message, /SR-02/);
     assert.equal(received[1].severity, 'INFO');
-    assert.equal(monitor.statusOf('AIP'), 'NORMAL');
+    assert.equal(monitor.statusOf('ITA'), 'NORMAL');
   });
 
   it('ignora leitura inválida', () => {
     domainEventBus.on('system:alert', listener);
     const monitor = new VoltageAlarmMonitor();
-    monitor.observe({ currentStationCode: 'VMD', voltageV: Number.NaN, status: 'NORMAL' });
-    monitor.observe({ currentStationCode: 'VMD', voltageV: Number.NaN, status: 'NORMAL' });
+    monitor.observe({ currentStationCode: 'BRA', voltageV: Number.NaN, status: 'NORMAL' });
+    monitor.observe({ currentStationCode: 'BRA', voltageV: Number.NaN, status: 'NORMAL' });
     assert.equal(received.length, 0);
   });
 });

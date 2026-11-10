@@ -16,7 +16,7 @@
   padding: var(--sp-8);
   background-color: var(--cco-bg-secondary);
   border: 1px solid var(--cco-border);
-  border-top: 2px solid var(--cco-green);
+  border-top: 2px solid var(--cco-brand);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   animation: rp-fade-in var(--dur-slow) var(--ease);
@@ -33,8 +33,8 @@
 
 .rp-login__tag {
   padding: 0.3rem 0.6rem;
-  background-color: var(--cco-green-soft);
-  color: var(--cco-green-ink);
+  background-color: var(--cco-brand-soft);
+  color: var(--cco-brand-ink);
   font-size: var(--fs-2xs);
   font-weight: 700;
   text-transform: uppercase;
@@ -121,7 +121,7 @@
   gap: 0.3rem;
   padding: 0.15rem 0.4rem;
   background-color: var(--cco-bg-card);
-  border: 1px solid var(--rp-status, var(--cco-green));
+  border: 1px solid var(--rp-status, var(--cco-brand));
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   font-family: var(--cco-font-mono);
@@ -129,7 +129,7 @@
   white-space: nowrap;
 }
 
-.rp-train-badge__id { font-weight: 700; color: var(--rp-status, var(--cco-green-ink)); }
+.rp-train-badge__id { font-weight: 700; color: var(--rp-status, var(--cco-brand-ink)); }
 .rp-train-badge__speed { color: var(--cco-text-muted); }
 
 .rp-station-node__rail {
@@ -170,15 +170,15 @@
 
 .rp-station-node[data-alert='true'] .rp-station-node__dot {
   background-color: var(--rp-status);
-  color: #0a0a0a;
+  color: var(--cco-text-on-status);
   box-shadow: 0 0 10px var(--rp-status);
 }
 
 .rp-station-node[aria-pressed='true'] .rp-station-node__dot {
-  border-color: var(--cco-green);
-  background-color: var(--cco-green);
-  color: #fff;
-  box-shadow: 0 0 16px var(--cco-green-glow);
+  border-color: var(--cco-brand);
+  background-color: var(--cco-brand);
+  color: var(--cco-text-on-accent);
+  box-shadow: 0 0 16px var(--cco-brand-glow);
 }
 
 .rp-station-node__name {
@@ -196,14 +196,14 @@
   transition: all var(--dur-base) var(--ease);
 }
 
-.rp-station-node:hover .rp-station-node__name { background-color: var(--cco-green-softer); }
+.rp-station-node:hover .rp-station-node__name { background-color: var(--cco-brand-softer); }
 
 .rp-station-node[aria-pressed='true'] .rp-station-node__name {
-  /* Branco sobre o verde sólido da Linha 2: ~5:1 de contraste (WCAG AA). */
+  /* Marinho sobre o laranja sólido da Linha 6: ~5,5:1 de contraste (WCAG AA). */
   color: var(--cco-text-on-accent);
   font-weight: 700;
-  background-color: var(--cco-green);
-  border-color: var(--cco-green);
+  background-color: var(--cco-brand);
+  border-color: var(--cco-brand);
 }
 
 /* --- Cartões de estação ----------------------------------------------------- */
@@ -229,9 +229,9 @@
 .rp-station-card[data-alert='true'] { border-color: var(--rp-status); }
 
 .rp-station-card[aria-pressed='true'] {
-  border-color: var(--cco-green);
-  background-color: var(--cco-green-softer);
-  box-shadow: 0 0 0 1px var(--cco-green-soft);
+  border-color: var(--cco-brand);
+  background-color: var(--cco-brand-softer);
+  box-shadow: 0 0 0 1px var(--cco-brand-soft);
 }
 
 .rp-station-card__name {
@@ -288,7 +288,7 @@
 .rp-feed__source {
   font-family: var(--cco-font-mono);
   font-weight: 700;
-  color: var(--cco-green-ink);
+  color: var(--cco-brand-ink);
   flex-shrink: 0;
 }
 
@@ -384,9 +384,9 @@
 .rp-map__canvas {
   width: 100%;
   height: auto;
-  /* O traçado corre na diagonal; este fundo dá profundidade sem competir. */
+  /* O traçado desenha um "V"; este fundo dá profundidade sem competir. */
   background:
-    radial-gradient(ellipse 60% 70% at 20% 10%, rgba(0, 126, 94, 0.07), transparent 65%),
+    radial-gradient(ellipse 60% 70% at 50% 85%, rgba(242, 135, 26, 0.07), transparent 65%),
     var(--cco-bg-void);
   border: 1px solid var(--cco-border);
   border-radius: var(--radius-md);
@@ -405,19 +405,20 @@
   font-family: var(--cco-font);
 }
 
-/* Eixo da Av. Paulista: faixa larga e apagada sob o trilho, só como referência. */
-.rp-map__avenue {
-  stroke: var(--map-avenue-stroke);
-  stroke-width: 26;
-  stroke-linecap: round;
+/* Rosa dos ventos: o mapa é girado para a linha caber deitada no painel. */
+.rp-map__compass-ring {
+  fill: var(--cco-bg-secondary);
+  stroke: var(--map-compass-ring);
+  stroke-width: 1.5;
 }
 
-.rp-map__avenue-label {
-  fill: var(--map-avenue-label);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.rp-map__compass-needle { fill: var(--cco-brand-ink); }
+.rp-map__compass-tail { fill: var(--map-compass-tail); }
+
+.rp-map__compass-label {
+  fill: var(--cco-brand-ink);
+  font-size: 12px;
+  font-weight: 800;
   font-family: var(--cco-font);
 }
 
@@ -428,7 +429,7 @@
 }
 
 .rp-map__rail-glow {
-  stroke: var(--cco-green);
+  stroke: var(--cco-brand);
   stroke-width: 9;
   stroke-linecap: round;
   opacity: 0.28;
@@ -446,7 +447,7 @@
 .rp-map__station:hover .rp-map__node { fill: var(--rp-status); }
 
 .rp-map__station[data-selected='true'] .rp-map__node {
-  fill: var(--cco-green);
+  fill: var(--cco-brand);
   stroke: #fff;
   stroke-width: 2.5;
 }
@@ -472,8 +473,8 @@
   pointer-events: none;
 }
 
-/* Texto: usa o verde de tinta, que clareia no tema escuro (o sólido cai a ~3:1). */
-.rp-map__station[data-selected='true'] .rp-map__label { fill: var(--cco-green-ink); }
+/* Texto: usa o laranja de tinta — o chapado não chega a 3:1 sobre o fundo claro. */
+.rp-map__station[data-selected='true'] .rp-map__label { fill: var(--cco-brand-ink); }
 
 /* O deslocamento entre estações é interpolado quadro a quadro em JS (useTrainMotion) —
    uma transição CSS aqui competiria com esse cálculo e produziria um movimento "borrado". */
@@ -482,19 +483,19 @@
 }
 
 .rp-map__train-halo {
-  fill: var(--rp-status, var(--cco-green));
+  fill: var(--rp-status, var(--cco-brand));
   opacity: 0.18;
 }
 
 .rp-map__train-leader {
-  stroke: var(--rp-status, var(--cco-green));
+  stroke: var(--rp-status, var(--cco-brand));
   stroke-width: 1;
   opacity: 0.6;
 }
 
 .rp-map__train-tag {
   fill: var(--cco-bg-card);
-  stroke: var(--rp-status, var(--cco-green));
+  stroke: var(--rp-status, var(--cco-brand));
   stroke-width: 1.5;
 }
 
@@ -537,7 +538,7 @@
 
 .rp-segmented__option[aria-pressed='true'] {
   background: var(--grad-accent);
-  color: #fff;
+  color: var(--cco-text-on-accent);
 }
 
 /* --- Seção desenergizada ----------------------------------------------------- */
@@ -557,5 +558,5 @@
 }
 
 .rp-arrival__eta { color: var(--cco-text-muted); }
-.rp-arrival__eta[data-state='platform'] { color: var(--cco-green-ink); font-weight: 700; }
+.rp-arrival__eta[data-state='platform'] { color: var(--cco-brand-ink); font-weight: 700; }
 .rp-arrival__eta[data-state='arriving'] { color: var(--cco-warning); font-weight: 700; }

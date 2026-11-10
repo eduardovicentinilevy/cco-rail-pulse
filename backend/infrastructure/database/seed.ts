@@ -20,18 +20,18 @@ const logger = createLogger('DB-SEED');
  * Todas circulam normalmente; restrições de velocidade são comando do operador.
  */
 const SEED_TRAINS: ReadonlyArray<[trainId: string, stationCode: string, direction: 1 | -1, status: string]> = [
-  ['T-01', 'VMD', 1, 'NORMAL'],
-  ['T-04', 'CNS', 1, 'NORMAL'],
-  ['T-07', 'PSO', 1, 'NORMAL'],
-  ['T-10', 'CKB', 1, 'NORMAL'],
-  ['T-13', 'SAC', -1, 'NORMAL'],
-  ['T-16', 'VPT', -1, 'NORMAL'],
-  ['T-19', 'AIP', 1, 'NORMAL'],
-  ['T-22', 'SIM', -1, 'NORMAL'],
-  ['T-25', 'TTI', 1, 'NORMAL'],
-  ['T-28', 'ANR', -1, 'NORMAL'],
-  ['T-31', 'BGD', -1, 'NORMAL'],
-  ['T-34', 'SUM', -1, 'NORMAL'],
+  ['T-01', 'BRA', 1, 'NORMAL'],
+  ['T-03', 'ITA', 1, 'NORMAL'],
+  ['T-05', 'SMA', 1, 'NORMAL'],
+  ['T-07', 'POM', 1, 'NORMAL'],
+  ['T-09', 'PUC', 1, 'NORMAL'],
+  ['T-11', '14B', 1, 'NORMAL'],
+  ['T-13', 'SJQ', -1, 'NORMAL'],
+  ['T-15', 'HGM', -1, 'NORMAL'],
+  ['T-17', 'PUC', -1, 'NORMAL'],
+  ['T-19', 'POM', -1, 'NORMAL'],
+  ['T-21', 'SMA', -1, 'NORMAL'],
+  ['T-22', 'ITA', -1, 'NORMAL'],
 ];
 
 /** Equipe de plantão semeada para demonstrar o cadastro e os perfis de acesso. */
@@ -41,7 +41,12 @@ const SEED_TEAM: ReadonlyArray<[id: string, name: string, role: string]> = [
   ['LIV-551', 'Lívia Nakamura', 'SUPERVISOR'],
 ];
 
-/** Biblioteca de referência semeada para a Central de Procedimentos. */
+/**
+ * Biblioteca de referência semeada para a Central de Procedimentos. A Linha 6
+ * opera em modo automático sem condutor (UTO): a confirmação a bordo é feita
+ * pelo CFTV e pelo interfone das composições, e o apoio presencial vem dos
+ * agentes de estação.
+ */
 const SEED_PROCEDURES: ReadonlyArray<{
   category: string;
   title: string;
@@ -53,17 +58,17 @@ const SEED_PROCEDURES: ReadonlyArray<{
     title: 'Acionamento de frenagem de emergência',
     summary: 'Parada imediata de uma composição diante de risco iminente à via ou a pessoas.',
     steps: [
-      'Emita o comando EMERGENCY_BRAKE_OVERRIDE para a composição envolvida a partir do terminal da estação.',
-      'Confirme com o operador de trem pelo rádio que o freio foi aplicado e que não há feridos.',
+      'Acione a frenagem de emergência da composição envolvida pelo painel do CCO.',
+      'Sem condutor a bordo, confirme pelo CFTV embarcado e pelo interfone dos carros que o trem parou e que não há feridos.',
       'Registre uma ocorrência de severidade CRÍTICA vinculando a composição e a estação do evento.',
-      'Notifique o supervisor de plantão e mantenha a via interditada até a liberação formal.',
-      'Só libere o sinal (RELEASE_SIGNAL) após inspeção visual do trecho pela equipe de via permanente.',
+      'Notifique o supervisor de plantão e mantenha o trecho interditado até a liberação formal.',
+      'Só libere a composição após inspeção do trecho pela equipe de via permanente ou pelos agentes de estação.',
     ],
   },
   {
     category: 'ENERGIA',
     title: 'Desenergização de trecho do terceiro trilho',
-    summary: `Corte controlado da alimentação de tração (${TRACTION_NOMINAL_V} Vcc) para intervenção segura na via.`,
+    summary: `Corte controlado da alimentação de tração (${TRACTION_NOMINAL_V} Vcc, captada no solo) para intervenção segura na via.`,
     steps: [
       'Confirme com a manutenção qual subestação retificadora (SR) e qual seção elétrica precisam ser isoladas.',
       'Retire ou retenha nas plataformas as composições da seção antes do corte — nenhuma pode ficar entre estações.',
@@ -86,25 +91,25 @@ const SEED_PROCEDURES: ReadonlyArray<{
   },
   {
     category: 'SINALIZACAO',
-    title: 'Falha de comunicação com o sistema ATS/CBTC',
-    summary: 'Perda de supervisão entre o painel do CCO e o sistema de sinalização e controle de trens.',
+    title: 'Falha de comunicação com o CBTC (operação sem condutor)',
+    summary: 'Perda de supervisão entre o CCO e o sistema de controle de trens que conduz as composições automaticamente.',
     steps: [
       'Verifique o indicador de conexão no cabeçalho do painel e tente reconectar ao gateway.',
-      'Se a falha persistir, passe a operação ao modo de condução restrita, com autorização de movimento por rádio.',
-      'Aumente o intervalo entre composições até restabelecer a supervisão automática.',
-      'Acione a equipe de sinalização informando o horário exato da perda de comunicação.',
+      'Sem supervisão, as composições automáticas param em posição segura: confirme onde está cada uma pelo painel e pelo CFTV.',
+      'Embarque agentes de operação nas composições paradas para a condução em modo restrito, com autorização de movimento por rádio.',
+      'Aumente o intervalo entre composições até restabelecer a operação automática e acione a equipe de sinalização.',
       'Registre o intervalo sem supervisão automática na passagem de turno, mesmo após o retorno.',
     ],
   },
   {
     category: 'METEOROLOGIA',
-    title: 'Risco de alagamento na várzea do Tamanduateí',
-    summary: 'Chuva intensa com risco de acúmulo de água nos acessos e na integração com a CPTM em Tamanduateí.',
+    title: 'Risco de alagamento na travessia do Rio Tietê',
+    summary: 'Chuva intensa com risco de acúmulo de água nos acessos de Freguesia do Ó e Santa Marina, nas duas margens do rio.',
     steps: [
-      'Acompanhe os alertas do CGE e o nível do rio Tamanduateí durante o evento de chuva.',
-      'Solicite ronda nos acessos de Tamanduateí (TTI) e na passagem de integração com a CPTM Linha 10-Turquesa.',
-      'Se houver água próxima ao terceiro trilho, desenergize a seção e interdite o trecho antes de qualquer outra ação.',
-      'Mantenha contato com a Defesa Civil e com o CCO da CPTM; registre a interdição como ocorrência.',
+      'Acompanhe os alertas do CGE e o nível do Rio Tietê durante o evento de chuva.',
+      'Solicite ronda nos acessos de Freguesia do Ó (FGO) e Santa Marina (SMA) e nos poços de drenagem do túnel sob o rio.',
+      'Se houver água próxima ao terceiro trilho, retenha as composições nas plataformas, desenergize a seção e interdite o trecho.',
+      'Mantenha contato com a Defesa Civil e registre a interdição como ocorrência.',
       'Só normalize a circulação após confirmação de via seca e liberada pela equipe de via permanente.',
     ],
   },
@@ -114,9 +119,9 @@ const SEED_PROCEDURES: ReadonlyArray<{
     summary: 'Desembarque de passageiros fora de plataforma, por falha prolongada ou risco à composição.',
     steps: [
       'Confirme a desenergização do terceiro trilho na seção e a ausência de tráfego antes de qualquer desembarque.',
-      'Oriente o operador de trem a informar os passageiros e preparar o desembarque pela passarela de emergência.',
+      'Informe os passageiros pelo sistema de som de bordo e envie agentes de estação até a composição — não há condutor a bordo.',
       'Acione equipe de apoio e, se necessário, Corpo de Bombeiros e Defesa Civil.',
-      'Conduza os passageiros a pé até a estação mais próxima, sempre afastados do terceiro trilho.',
+      'Conduza os passageiros pela saída de emergência da extremidade do trem e pela passarela do túnel até a estação mais próxima.',
       'Registre a ocorrência com horário de parada, de início e de fim da evacuação.',
     ],
   },
@@ -127,7 +132,7 @@ const SEED_PROCEDURES: ReadonlyArray<{
     steps: [
       'Retenha nas plataformas as composições que se aproximam do trecho afetado.',
       'Solicite a desenergização imediata do terceiro trilho na seção se houver pessoa na via.',
-      'Acione a segurança da estação pelo canal de rádio de segurança.',
+      'Acione a segurança da estação pelo canal de rádio de segurança e acompanhe pelo CFTV.',
       'Só normalize a circulação após confirmação de via livre pela segurança ou pela via permanente.',
       'Registre a ocorrência com categoria OUTROS e severidade proporcional ao risco observado.',
     ],
@@ -189,6 +194,18 @@ export const runSeed = async (): Promise<void> => {
     await db.query(`INSERT INTO power_sections (substation) VALUES ($1) ON CONFLICT (substation) DO NOTHING`, [
       substation,
     ]);
+  }
+
+  // A biblioteca é conteúdo desta carga, então é ela quem troca os títulos que
+  // uma versão anterior do projeto semeou — e não a adoção de malha, que roda
+  // também num deploy real. Numa instalação de verdade a carga fica desligada
+  // (`DB_SEED_ON_BOOT=false`) e a biblioteca é do operador; aqui, onde ela roda,
+  // o que não está em `SEED_PROCEDURES` é resto de demonstração.
+  const replaced = await db.query(`DELETE FROM procedures WHERE title <> ALL($1::text[])`, [
+    SEED_PROCEDURES.map((procedure) => procedure.title),
+  ]);
+  if (replaced.rowCount && replaced.rowCount > 0) {
+    logger.info(`${replaced.rowCount} procedimento(s) de uma versão anterior da biblioteca removido(s).`);
   }
 
   for (const procedure of SEED_PROCEDURES) {

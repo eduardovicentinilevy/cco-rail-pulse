@@ -421,7 +421,7 @@ const CreateCommunicationModal: React.FC<CreateCommunicationModalProps> = ({
             rows={4}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
-            placeholder="Ex: Confirmado com o maquinista do T-04 a restrição de velocidade no trecho FGO-SMA."
+            placeholder="Ex: Agente de estação confirma pelo CFTV a restrição de velocidade do T-05 no trecho FGO-SMA."
             maxLength={500}
             required
           />

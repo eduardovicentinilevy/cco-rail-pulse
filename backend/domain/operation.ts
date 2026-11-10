@@ -1,11 +1,11 @@
 // backend/domain/operation.ts
-// Regras de marcha da Linha 2-Verde: distâncias entre estações, perfil de
+// Regras de marcha da Linha 6-Laranja: distâncias entre estações, perfil de
 // velocidade, tempos de parada e sentido de circulação. Tudo puro — sem I/O —
 // para que o simulador e a previsão de chegadas usem exatamente as mesmas contas.
 import { LINE_STATIONS, LINE_STATION_CODES, findStation } from './line';
 import type { LineStation } from './line';
 
-/** 1 = sentido Vila Prudente (leste); -1 = sentido Vila Madalena (oeste). */
+/** 1 = sentido São Joaquim (centro); -1 = sentido Brasilândia (zona noroeste). */
 export type Direction = 1 | -1;
 
 export const isDirection = (value: unknown): value is Direction => value === 1 || value === -1;
@@ -16,16 +16,16 @@ export const DIRECTION_LABELS: Record<Direction, string> = {
 };
 
 /** Velocidade máxima de linha adotada pela marcha simulada, em km/h. */
-export const LINE_SPEED_KMH = 70;
+export const LINE_SPEED_KMH = 80;
 /** Aceleração de partida e desaceleração de frenagem de serviço, em m/s². */
 export const ACCELERATION_MS2 = 1.0;
 export const SERVICE_BRAKING_MS2 = 1.0;
 
 /**
  * As coordenadas dão a distância em linha reta; o traçado real tem curvas. O
- * fator calibra a soma das distâncias para os ~14,7 km da Linha 2.
+ * fator calibra a soma das distâncias para os ~15,3 km da Linha 6.
  */
-const ALIGNMENT_FACTOR = 1.015;
+const ALIGNMENT_FACTOR = 1.163;
 
 /** Parada típica numa estação, em ms. Estações de integração têm mais embarque. */
 export const DWELL_MS = 25_000;
