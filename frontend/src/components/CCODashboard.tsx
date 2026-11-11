@@ -1038,7 +1038,12 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         )}
         {activeTab === 'analytics' && <AnalyticsReportsView stations={stations} trains={trains} alarms={alarms} />}
         {activeTab === 'timetable' && (
-          <TimetableDispatchView trains={trains} stations={stations} service={arrivals?.service ?? null} />
+          <TimetableDispatchView
+            trains={trains}
+            stations={stations}
+            service={arrivals?.service ?? null}
+            timeScale={arrivals?.timeScale ?? 1}
+          />
         )}
         {activeTab === 'handover' && (
           <ShiftHandoverView session={session} shiftStartedAt={shiftStartedAt} onAuthError={onExpireSession} />

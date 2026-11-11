@@ -1,56 +1,65 @@
 /* ==========================================================================
    RailPulse CCO — Design tokens
-   Identidade da Linha 2-Verde do Metrô de São Paulo: o verde da linha como
-   cor de marca, grafite como par neutro e branco como superfície.
+   Identidade da Linha 6-Laranja (Linha Uni): o laranja da linha como cor de
+   marca e o azul-marinho como par. Os dois são quase complementares no
+   círculo cromático (~30° e ~220°), então o laranja salta sobre o marinho
+   sem que nenhum dos dois precise de saturação extra.
    ========================================================================== */
 
 :root {
   /* --- Superfícies ------------------------------------------------------ */
-  /* Cinzas com um leve viés verde — combinam com a marca sem tingir o painel. */
-  --cco-bg-void: #edf1ef;      /* Fundo mais externo do console */
-  --cco-bg-primary: #f5f7f6;   /* Fundo do painel */
+  /* Cinzas com um leve viés azulado — o marinho da marca sem tingir o painel. */
+  --cco-bg-void: #eef1f6;      /* Fundo mais externo do console */
+  --cco-bg-primary: #f5f7fa;   /* Fundo do painel */
   --cco-bg-secondary: #ffffff; /* Cards e barras */
   --cco-bg-card: #ffffff;      /* Elementos internos de card */
-  --cco-bg-elevated: #edf1ef;  /* Hover / estados elevados */
+  --cco-bg-elevated: #eef1f6;  /* Hover / estados elevados */
 
-  --cco-border: #d9e0dd;
-  --cco-border-strong: #c0cac6;
+  --cco-border: #dbe1ea;
+  --cco-border-strong: #c3ccd9;
 
   /* --- Marca ------------------------------------------------------------ */
-  /* Verde da Linha 2. Texto branco sobre ele fica em ~5:1 (WCAG AA), por isso
-     a cor sólida é a mesma nos dois temas: badges e botões preenchidos
-     continuam legíveis sem um segundo tom. */
-  --cco-green: #007e5e;
-  --cco-green-bright: #00956f; /* Traços e realces sem texto (ex.: trilho do mapa) */
-  --cco-green-deep: #005a43;   /* Sombras e gradientes */
-  --cco-green-soft: rgba(0, 126, 94, 0.12);
-  --cco-green-softer: rgba(0, 126, 94, 0.06);
-  --cco-green-glow: rgba(0, 126, 94, 0.26);
-  /* Verde usado como cor de TEXTO. No tema claro é a própria marca (5:1 sobre
-     branco); no escuro precisa clarear, já que o verde sólido cai a ~3:1
-     sobre o grafite. */
-  --cco-green-ink: #007e5e;
+  /* Laranja da Linha 6. Branco sobre ele fica em ~2,5:1 — reprovado —, então
+     todo preenchimento de marca leva texto marinho (~5,5:1, WCAG AA). O tom
+     claro também aceita marinho (~6,9:1); o profundo não (~3,4:1) e fica só
+     para traços, sombras e gradientes sem texto. */
+  --cco-brand: #f2871a;
+  --cco-brand-bright: #ff9f3d; /* Realces e hover de preenchimentos com texto */
+  --cco-brand-deep: #c2650a;   /* Sombras e gradientes do trilho */
+  --cco-brand-soft: rgba(242, 135, 26, 0.14);
+  --cco-brand-softer: rgba(242, 135, 26, 0.07);
+  --cco-brand-glow: rgba(242, 135, 26, 0.3);
+  /* Laranja usado como TEXTO (e anel de foco). O laranja chapado não passa de
+     2,6:1 sobre branco; este tom queimado passa de 4,5:1 inclusive sobre o
+     fundo suave da marca. No escuro, o inverso: clareia. */
+  --cco-brand-ink: #a14f00;
+  /* Azul-marinho da marca: texto sobre o laranja, superfícies do mosaico. */
+  --cco-navy: #1c2b4a;
 
   /* --- Status ------------------------------------------------------------ */
-  /* O "normal" é um verde-folha, mais amarelado que a marca: lado a lado, o
-     operador distingue um estado bom da identidade da linha. Os estados sempre
-     aparecem com rótulo, nunca só pela cor. */
-  --cco-success: #2c8f3c;
-  --cco-success-soft: rgba(44, 143, 60, 0.12);
-  --cco-warning: #c27606;
-  --cco-warning-soft: rgba(194, 118, 6, 0.13);
-  --cco-danger: #d13a36;
-  --cco-danger-soft: rgba(209, 58, 54, 0.12);
+  /* O "atenção" é âmbar-dourado, bem mais amarelo que a marca: lado a lado,
+     o operador não confunde um alerta com a identidade da linha. Cada tom
+     passa de 4,5:1 sobre branco e sobre o próprio fundo suave, e os estados
+     sempre aparecem com rótulo, nunca só pela cor. */
+  --cco-success: #1f7a3a;
+  --cco-success-soft: rgba(31, 122, 58, 0.12);
+  --cco-warning: #856100;
+  --cco-warning-soft: rgba(133, 97, 0, 0.13);
+  --cco-danger: #bf2e2a;
+  --cco-danger-soft: rgba(191, 46, 42, 0.12);
   --cco-info: #3363c2;
   --cco-info-soft: rgba(51, 99, 194, 0.12);
 
   /* --- Texto ------------------------------------------------------------ */
-  /* O grafite da marca vive aqui e nas superfícies escuras: o texto principal
-     é um grafite esverdeado, não um preto neutro. */
-  --cco-text-main: #17201d;
-  --cco-text-muted: #56605c;
-  --cco-text-dim: #838c88;
-  --cco-text-on-accent: #ffffff;
+  /* O marinho da marca vive aqui e nas superfícies escuras: o texto principal
+     é um marinho profundo, não um preto neutro. */
+  --cco-text-main: #172238;
+  --cco-text-muted: #556079;
+  --cco-text-dim: #848ca0;
+  /* Texto sobre preenchimentos de marca (laranja). */
+  --cco-text-on-accent: #1c2b4a;
+  /* Texto sobre preenchimentos de status (badges sólidos). */
+  --cco-text-on-status: #ffffff;
 
   /* --- Tipografia ------------------------------------------------------- */
   --cco-font: 'Montserrat', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -85,16 +94,17 @@
   --radius-xl: 18px;
   --radius-pill: 999px;
 
-  --shadow-sm: 0 2px 8px rgba(16, 28, 24, 0.06);
-  --shadow-md: 0 8px 24px rgba(16, 28, 24, 0.08);
-  --shadow-lg: 0 24px 56px rgba(16, 28, 24, 0.14);
+  --shadow-sm: 0 2px 8px rgba(18, 28, 50, 0.06);
+  --shadow-md: 0 8px 24px rgba(18, 28, 50, 0.08);
+  --shadow-lg: 0 24px 56px rgba(18, 28, 50, 0.14);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  --glow-green: 0 0 0 1px var(--cco-green-soft), 0 8px 24px -10px var(--cco-green-glow);
+  --glow-brand: 0 0 0 1px var(--cco-brand-soft), 0 8px 24px -10px var(--cco-brand-glow);
 
   /* --- Gradientes da marca ---------------------------------------------- */
-  --grad-surface: linear-gradient(160deg, rgba(16, 28, 24, 0.02), transparent 62%);
-  --grad-accent: linear-gradient(135deg, var(--cco-green) 0%, var(--cco-green-deep) 100%);
-  --grad-rail: linear-gradient(90deg, transparent, var(--cco-green), transparent);
+  --grad-surface: linear-gradient(160deg, rgba(18, 28, 50, 0.02), transparent 62%);
+  /* Do claro para o chapado: as duas pontas aceitam texto marinho (≥ 5,5:1). */
+  --grad-accent: linear-gradient(135deg, var(--cco-brand-bright) 0%, var(--cco-brand) 100%);
+  --grad-rail: linear-gradient(90deg, transparent, var(--cco-brand), transparent);
 
   /* --- Movimento -------------------------------------------------------- */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -109,13 +119,19 @@
   --content-gutter: clamp(0.875rem, 2.2vw, 1.75rem);
 
   /* --- Fundo do body (tons sutis sobre a superfície) --------------------- */
-  --body-tint-green: rgba(0, 126, 94, 0.06);
-  --body-tint-graphite: rgba(35, 42, 40, 0.04);
+  --body-tint-brand: rgba(242, 135, 26, 0.06);
+  --body-tint-navy: rgba(28, 43, 74, 0.05);
+
+  /* --- Mapa da linha ------------------------------------------------------ */
+  /* A decoração geográfica de uma linha (rio, avenida) não é desenhada no mapa
+     compartilhado; a rosa dos ventos é, porque sai da projeção da própria malha. */
+  --map-compass-ring: rgba(28, 43, 74, 0.16);
+  --map-compass-tail: rgba(28, 43, 74, 0.32);
 
   /* --- Séries de gráfico -------------------------------------------------- */
   /* Ordem fixa, validada para daltonismo (ΔE adjacente ≥ 8) e contraste ≥ 3:1
-     nos dois temas. Nenhuma série usa verde, âmbar ou vermelho: essas cores
-     pertencem à marca e aos estados operacionais. */
+     nos dois temas. Nenhuma série usa laranja, âmbar, verde ou vermelho: essas
+     cores pertencem à marca e aos estados operacionais. */
   --chart-1: #2a78d6;
   --chart-2: #d55181;
   --chart-3: #6250d6;
@@ -123,26 +139,35 @@
 }
 
 /* --- Tema escuro --------------------------------------------------------
-   Console de baixo brilho em grafite. O verde sólido e as cores de status
-   não mudam (badges sólidos usam texto branco fixo); só o verde usado como
-   texto clareia, para manter contraste sobre o fundo escuro.
+   Console de baixo brilho em azul-marinho. O laranja da marca não muda (o
+   texto sobre ele já é marinho); clareiam o laranja usado como texto e as
+   cores de status, que passam a levar texto escuro quando preenchidas.
    ========================================================================== */
 :root[data-theme='dark'] {
-  --cco-bg-void: #0b0e0d;
-  --cco-bg-primary: #101413;
-  --cco-bg-secondary: #161b1a;
-  --cco-bg-card: #161b1a;
-  --cco-bg-elevated: #1e2523;
+  --cco-bg-void: #0a0f1a;
+  --cco-bg-primary: #0f1524;
+  --cco-bg-secondary: #151d30;
+  --cco-bg-card: #151d30;
+  --cco-bg-elevated: #1d273d;
 
-  --cco-border: #2a3330;
-  --cco-border-strong: #3a4541;
+  --cco-border: #273349;
+  --cco-border-strong: #364460;
 
-  --cco-text-main: #edf2f0;
-  --cco-text-muted: #a2aca8;
-  --cco-text-dim: #75807c;
+  --cco-text-main: #edf1f7;
+  --cco-text-muted: #a3adc0;
+  --cco-text-dim: #76819a;
+  --cco-text-on-status: #0b1220;
 
-  --cco-green-ink: #3fc79c;
-  --cco-green-bright: #1aa680;
+  --cco-brand-ink: #ffa94d;
+
+  --cco-success: #4cc27a;
+  --cco-success-soft: rgba(76, 194, 122, 0.14);
+  --cco-warning: #e0b02a;
+  --cco-warning-soft: rgba(224, 176, 42, 0.14);
+  --cco-danger: #f2655f;
+  --cco-danger-soft: rgba(242, 101, 95, 0.14);
+  --cco-info: #7aa5f2;
+  --cco-info-soft: rgba(122, 165, 242, 0.14);
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.32);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38);
@@ -151,8 +176,11 @@
 
   --grad-surface: linear-gradient(160deg, rgba(255, 255, 255, 0.035), transparent 62%);
 
-  --body-tint-green: rgba(0, 126, 94, 0.10);
-  --body-tint-graphite: rgba(60, 75, 70, 0.14);
+  --body-tint-brand: rgba(242, 135, 26, 0.08);
+  --body-tint-navy: rgba(60, 85, 140, 0.16);
+
+  --map-compass-ring: rgba(237, 241, 247, 0.16);
+  --map-compass-tail: rgba(237, 241, 247, 0.3);
 
   --chart-1: #3987e5;
   --chart-2: #d55181;

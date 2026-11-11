@@ -2,7 +2,7 @@
 
 > **RailPulse CCO** é um sistema de monitoramento SCADA e supervisão operacional em tempo real para malhas ferroviárias. A plataforma integra a telemetria do terceiro trilho (750 Vcc) por subestação retificadora (SR), a supervisão CBTC das estações do traçado e o envio de comandos operacionais de alta prioridade sob arquitetura orientada a eventos.
 >
-> A malha é **dado, não código**: cada cliente cadastra as suas linhas e estações, e uma instalação atende vários clientes sem fork. A carga inicial traz a Linha 2-Verde do Metrô de São Paulo, de Vila Madalena a Vila Prudente, como cliente de demonstração.
+> A malha é **dado, não código**: cada cliente cadastra as suas linhas e estações, e uma instalação atende vários clientes sem fork. A carga inicial traz a Linha 6-Laranja de São Paulo, concedida à Linha Uni, de Brasilândia a São Joaquim, como cliente de demonstração.
 
 ---
 
@@ -21,12 +21,13 @@
 * [Credenciais de Teste](#-credenciais-de-teste)
 * [Atalhos de Teclado](#️-atalhos-de-teclado)
 * [Documentação do Barramento e APIs](#-documentação-do-barramento-e-apis)
+* [Fontes](#-fontes)
 
 ---
 
 ## 📌 Visão Geral
 
-O **RailPulse CCO** fornece aos operadores do Centro de Controle uma interface de alta fidelidade visual para acompanhar os ativos críticos da Linha 2-Verde entre **Vila Madalena** e **Vila Prudente** — o eixo da Av. Paulista, as integrações com as linhas 1-Azul, 4-Amarela, 5-Lilás, 15-Prata e 10-Turquesa (CPTM) e a descida pelo Ipiranga.
+O **RailPulse CCO** fornece aos operadores do Centro de Controle uma interface de alta fidelidade visual para acompanhar os ativos críticos da Linha 6-Laranja entre **Brasilândia**, na zona noroeste, e **São Joaquim**, no centro — cerca de 15,3 km em túnel, a travessia sob o Rio Tietê entre Freguesia do Ó e Santa Marina e as integrações com a CPTM 7-Rubi (Água Branca), a 4-Amarela (Higienópolis-Mackenzie) e a 1-Azul (São Joaquim). A frota real é de trens Alstom Metropolis em operação automática sem condutor (UTO).
 
 O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo **auto-inicialização de schema (Self-Healing DDL)** e **sincronização de carga inicial (Auto-Seeding)** sem dependência de scripts manuais.
 
@@ -34,9 +35,9 @@ O sistema foi desenhado para operar de forma resiliente e autônoma, garantindo 
 
 ## 🔍 Sobre os Dados
 
-Este é um projeto de portfólio independente, sem vínculo com a Companhia do
-Metropolitano de São Paulo e sem integração com sistemas SCADA/CBTC reais da
-Linha 2-Verde. Para que quem avalia o projeto — inclusive quem opera a linha
+Este é um projeto de portfólio independente, sem vínculo com a Linha Uni, com
+a Alstom ou com o Governo do Estado de São Paulo, e sem integração com sistemas
+SCADA/CBTC reais da Linha 6-Laranja. Para que quem avalia o projeto — inclusive quem opera a linha
 de verdade — saiba exatamente o que está vendo, a tabela abaixo separa o que é
 **infraestrutura real** (mecanismo de verdade, dado fabricado) do que é
 **simulação declarada** (mecanismo e dado ambos ilustrativos):
@@ -45,11 +46,12 @@ de verdade — saiba exatamente o que está vendo, a tabela abaixo separa o que 
 | --- | --- | --- |
 | Autenticação, 2FA/TOTP, RBAC, JWT | **Real** | Implementação própria, sem mocks — inclusive o segundo fator segue RFC 4226/6238 de verdade |
 | Persistência (PostgreSQL), auditoria, ciclo de vida de ocorrências | **Real** | Escritas e leituras de banco de verdade; nada é mantido só em memória |
-| Tensão do terceiro trilho por subestação (SR) | **Simulação declarada** | *Random walk* ancorado em valores de referência de um sistema de 750 Vcc, com queda proporcional aos trens em marcha na seção — gerado no servidor, não lido de campo. A numeração das SRs e o cenário degradado da SR-06 são fictícios |
+| Tensão do terceiro trilho por subestação (SR) | **Simulação declarada** | *Random walk* ancorado em valores de referência de um sistema de 750 Vcc, com queda proporcional aos trens em marcha na seção — gerado no servidor, não lido de campo. A tensão de 750 Vcc é premissa do projeto (a concessionária não a divulga); a numeração das SRs e o cenário degradado da SR-02 são fictícios |
 | Marcha das composições | **Simulação declarada** | Motor de operação com distâncias reais entre estações, perfil de aceleração/frenagem, paradas, manobra nos terminais, separação por bloco e regulação de intervalo — física simplificada, não um simulador homologado de sinalização |
 | Ocupação de plataformas | **Simulação declarada** | Estimativa calculada no navegador (horário de pico + posição da estação no traçado), sem qualquer sensor de fato |
 | CFTV | **Simulação declarada** | Status de câmera sorteado de forma determinística por estação — não há vídeo nem integração real; "Reportar falha" abre uma ocorrência de verdade no banco |
-| Estações, ordem, nomes e integrações da Linha 2-Verde | **Real** | Confere com o traçado e a nomenclatura oficiais; os códigos de 3 letras são do projeto e o mapa é projetado a partir das coordenadas das estações, com o eixo vertical comprimido |
+| Estações, ordem, nomes e integrações da Linha 6-Laranja | **Real** | Confere com o traçado e a nomenclatura divulgados — inclusive **Maristela** (antiga Vila Cardoso, renomeada em 2024); os códigos de 3 caracteres são do projeto e as coordenadas, aproximadas. O mapa é girado para a linha caber deitada no painel (com rosa dos ventos) e o eixo vertical sai levemente exagerado |
+| Fase de operação | **Simulação declarada** | A linha real começou a operar em 2026 de forma parcial; o simulador roda as 15 estações e 12 composições como se a operação fosse plena |
 
 Onde a interface poderia sugerir uma fonte real (um "sensor", uma "câmera"), o
 texto da própria tela deixa claro que é uma estimativa ou uma simulação.
@@ -58,8 +60,11 @@ texto da própria tela deixa claro que é uma estimativa ou uma simulação.
 
 ## ⚡ Modelo Elétrico
 
-A Linha 2 é alimentada por **terceiro trilho em 750 Vcc** — não há catenária. O
-modelo do projeto segue isso de ponta a ponta:
+A Linha 6 é **100% livre de catenária**: segundo a Alstom, os trens captam a
+energia pelo solo, num trilho de alimentação. A tensão não é divulgada, então o
+projeto adota **750 Vcc**, a classe dos metrôs de terceiro trilho de São Paulo —
+uma premissa declarada, não um dado da concessionária. O modelo segue isso de
+ponta a ponta:
 
 * **Fonte única:** `backend/domain/line.ts` define a tensão nominal (`750 V`) e os
   limiares de alarme do CCO; o simulador, o relatório de turno, a série histórica
@@ -68,20 +73,26 @@ modelo do projeto segue isso de ponta a ponta:
   **640 V** — bem acima do mínimo permanente que a EN 50163 admite para 750 Vcc
   (500 V), porque o objetivo é avisar o operador antes que o desempenho de tração
   caia, não no limite normativo.
-* **Cenário simulado:** a **SR-06** opera com um grupo retificador fora de serviço,
-  deixando **Alto do Ipiranga** em fim de alimentação (crítico) e **Sacomã** em
-  atenção — o que alimenta os alarmes, a saúde de ativos e o procedimento de
-  subtensão.
-* **Migração automática:** bancos criados na versão anterior do projeto (com
-  tensão em kV) têm as colunas renomeadas no boot, e o estado operacional da malha
-  antiga é descartado; ocorrências, OSs e comunicações ficam como histórico.
+* **Cenário simulado:** a **SR-02** opera com um grupo retificador fora de serviço,
+  deixando **Itaberaba-Hospital Vila Penteado** em fim de alimentação (crítico), e
+  **Freguesia do Ó**, na SR-03, opera em atenção — o que alimenta os alarmes, a
+  saúde de ativos e o procedimento de subtensão.
+* **Migração automática:** cada linha registra qual malha representa
+  (`lines.mesh_version`) — não existe "a malha" no singular numa instalação que
+  atende vários clientes. Num banco de outra versão do projeto — a primeira, com
+  catenária em kV, ou a da Linha 2-Verde —, o boot renomeia as colunas de tensão
+  quando preciso e descarta, numa única transação e só na linha semeada, o estado
+  operacional que não pertence à malha nova (estações que saíram, composições,
+  telemetria em kV, seções de energia e procedimentos substituídos); ocorrências,
+  OSs, comunicações e alarmes ficam como histórico. O cliente e a linha de
+  demonstração são renomeados, não duplicados.
 
 ---
 
 ## 🚀 Principais Funcionalidades
 
-* 🚉 **Supervisão CBTC da via:** Acompanhamento interativo das composições ao longo das estações da linha, cadastradas por cliente, com sentido, situação (na plataforma, em marcha, retida, parada no trecho, imobilizada) e as integrações sinalizadas no número e na cor de cada linha (a demonstração traz as 14 estações da Linha 2-Verde com doze composições circulando nos dois sentidos).
-* 🚦 **Motor de operação realista:** Percurso calculado pela distância real entre as estações cadastradas (perfil trapezoidal a 70 km/h), paradas de 25–35 s, manobra de 2 min nos terminais, separação por bloco (quem vem atrás fica retido) e regulação de intervalo como num ATS — sem ela a frota vira comboio. Frenagem de emergência para o trem onde ele está, inclusive no meio do trecho, e segura a fila atrás dele. Uma linha ainda sem coordenadas cadastradas opera com trecho de comprimento nominal.
+* 🚉 **Supervisão CBTC da via:** Acompanhamento interativo das composições ao longo das estações da linha, cadastradas por cliente, com sentido, situação (na plataforma, em marcha, retida, parada no trecho, imobilizada) e as integrações sinalizadas no número e na cor de cada linha (a demonstração traz as 15 estações da Linha 6-Laranja, sem condutor, com doze composições circulando nos dois sentidos).
+* 🚦 **Motor de operação realista:** Percurso calculado pela distância real entre as estações cadastradas (perfil trapezoidal a 80 km/h, com os trens limitados a 90 km/h), paradas de 25–35 s, manobra de 2 min nos terminais, separação por bloco (quem vem atrás fica retido) e regulação de intervalo como num ATS — sem ela a frota vira comboio. Frenagem de emergência para o trem onde ele está, inclusive no meio do trecho, e segura a fila atrás dele. Uma linha ainda sem coordenadas cadastradas opera com trecho de comprimento nominal.
 * ⏱ **Chegadas & intervalos:** Quadro de passageiros por estação e sentido, com contagem regressiva, intervalo entre as próximas composições, volta completa e intervalo médio da frota. Os sentidos são nomeados pelos terminais da linha, não por ponto cardeal.
 * 🔌 **Manobra de energia:** Supervisores desenergizam e reenergizam seções do terceiro trilho (uma por SR da malha cadastrada) com motivo obrigatório e trilha de auditoria; a seção lê 0 V, nenhum trem parte rumo a ela e quem está em marcha para no trecho até a tensão voltar. A seção pertence à linha: a `SR-01` de um cliente não é a de outro.
 * 📟 **Alarmes SCADA automáticos:** Subtensão, falta de tensão e normalização geram alarmes por transição, com debounce e histerese — uma estação parada em subtensão gera um alarme, não um por ciclo. Há um monitor por linha.
@@ -91,7 +102,7 @@ modelo do projeto segue isso de ponta a ponta:
 * 🔐 **Autenticação em Duas Etapas (2FA/TOTP):** Segundo fator compatível com Google Authenticator, Authy e afins — implementação própria de HOTP/TOTP (RFC 4226/6238), sem dependências externas, validada contra os vetores de teste oficiais do RFC.
 * 🚨 **Gestão de Ocorrências:** Ciclo de vida completo (abertura → tratativa → resolução) com máquina de estados no domínio, designação de responsável, MTTR e difusão em tempo real por WebSocket.
 * 👥 **Cadastro de Operadores com RBAC:** Perfis hierárquicos (Operador de Controle, Supervisor, Administrador) com permissões aplicadas no servidor e refletidas na interface.
-* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG desenhado a partir das coordenadas cadastradas de cada estação — na demonstração, as 14 da Linha 2 projetadas das coordenadas reais —, com as composições percorrendo o trecho no tempo real de marcha (com seta de sentido) e realce pulsante das estações em alerta. Uma linha sem coordenadas cai num eixo reto uniforme.
+* 🗺️ **Mapa Geográfico da Linha:** Traçado em SVG desenhado a partir das coordenadas cadastradas de cada estação — na demonstração, as 15 da Linha 6 projetadas das coordenadas reais e giradas para o eixo Brasilândia → São Joaquim ficar na horizontal, com rosa dos ventos —, com as composições percorrendo o trecho no tempo real de marcha (com seta de sentido) e realce pulsante das estações em alerta. Uma linha sem coordenadas geográficas é desenhada pela coordenada normalizada do cadastro e, sem ela, cai num eixo reto uniforme.
 * ⇄ **Passagem de Turno:** Relatório consolidado do turno — comandos emitidos, ocorrências abertas/resolvidas, pendências herdadas e comportamento da tensão — com folha de impressão que gera o documento assinável.
 * ⌘ **Paleta de Comandos (Ctrl+K):** Busca difusa por seções, estações, composições e ações rápidas, navegável inteiramente pelo teclado.
 * 🔔 **Alertas de Eventos Críticos:** Sinal sonoro sintetizado (Web Audio) e notificação do sistema para ocorrências críticas, com preferência persistida.
@@ -156,7 +167,7 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 * **Biblioteca:** React 19 com TypeScript (modo `strict`)
 * **Visualização de Dados:** Recharts
-* **Estilização:** Design system em CSS puro (tokens `--cco-*`, componentes e breakpoints) — Montserrat + JetBrains Mono. Identidade da Linha 2-Verde: verde da linha (`#007E5E`, ~5:1 com texto branco), grafite e branco, com temas claro e escuro e um mosaico de sala de controle em grafite profundo
+* **Estilização:** Design system em CSS puro (tokens `--cco-*`, componentes e breakpoints) — Montserrat + JetBrains Mono. Identidade da Linha 6-Laranja: laranja da linha (`#F2871A`) com o azul-marinho (`#1C2B4A`) como par quase complementar — o texto sobre o laranja é marinho (~5,5:1), já que o branco não passa de 2,5:1 —, cores de status separadas da marca, temas claro e escuro e um mosaico de sala de controle em marinho profundo
 * **Build Tool:** Vite
 
 ---
@@ -187,7 +198,7 @@ cco-rail-pulse/
 │   │   └── use-cases/                      # Comando de trem e relatório de turno
 │   ├── infrastructure/
 │   │   ├── database/migrations.ts          # Self-healing DDL + auto-seeding + backfill multi-cliente
-│   │   ├── database/seeds/metro-sp.ts      # Cliente, malha e procedimentos de demonstração
+│   │   ├── database/seeds/linha-uni.ts     # Cliente, malha e procedimentos de demonstração
 │   │   ├── database/repositories/          # Trens, ocorrências, telemetria, alarmes, comunicações e procedimentos (por linha)
 │   │   ├── repositories/                   # Operadores, auditoria e catálogo de malha (por cliente)
 │   │   └── audit/AuditLogger.ts            # Trilha append-only em disco
@@ -231,7 +242,7 @@ cco-rail-pulse/
 | **Central de Alarmes** | Histórico persistido de alarmes, com reconhecimento e exportação |
 | **Ocupação** | Estimativa de fluxo de passageiros por estação, com alerta de superlotação |
 | **CFTV** | Cobertura de câmeras por estação, com abertura de ocorrência ao reportar falha |
-| **Clima & riscos** | Alagamento na várzea do Tamanduateí, calor nas plataformas e vento nos acessos (simulados) |
+| **Clima & riscos** | Alagamento na travessia do Rio Tietê (Freguesia do Ó e Santa Marina), calor nas plataformas e vento nos acessos (simulados) |
 | **Energia de tração** | Tensão por subestação retificadora, manobra de energia (supervisor) e comparação de curvas |
 | **Série histórica** | Janelas agregadas (mín./méd./máx.) persistidas, por período |
 | **Saúde de ativos** | Carga estimada dos grupos retificadores a partir do afundamento de tensão |
@@ -321,7 +332,7 @@ Referência completa em [`.env.example`](.env.example). Principais:
 | `TRAIN_COMMAND_LOCK_TIMEOUT_MS` | `4000` | Prazo do lock pessimista (`FOR UPDATE`) de um comando de trem antes de recusar com `409` |
 | `SEED_OPERATOR_*` | `EDP-042` | Operador criado na primeira inicialização — `SEED_OPERATOR_PASSWORD` é obrigatório e não pode ficar no valor padrão quando `NODE_ENV=production` (o boot falha sem isso) |
 | `SEED_OPERATOR_ROLE` | `SUPERVISOR` | Perfil do operador de demonstração |
-| `DEFAULT_TENANT_SLUG` | `metro-sp` | Cliente assumido quando a requisição não traz slug |
+| `DEFAULT_TENANT_SLUG` | `linha-uni` | Cliente assumido quando a requisição não traz slug |
 | `TENANT_BASE_DOMAIN` | — | Domínio base: define o cliente pelo subdomínio (`cliente.exemplo.app`) |
 
 > ⚠️ O arquivo `.env` **não é versionado**. Use `.env.example` como modelo.
@@ -459,6 +470,18 @@ comandos vem do token — nunca do payload enviado pelo cliente.
   * `incident:changed` — ocorrência registrada ou alterada por qualquer operador.
   * `alert:critical` — alarmes e notificações operacionais.
   * `train:command:acknowledged` — confirmação (`EXECUTED` | `FAILED`) do comando.
+
+---
+
+## 📚 Fontes
+
+Dados públicos usados para a malha (consultados em novembro de 2026):
+
+* [Alstom e Linha Uni revelam o design dos trens da Linha 6-Laranja](https://www.alstom.com/pt/press-releases-news/2024/6/alstom-e-linha-uni-revelam-o-design-dos-trens-da-linha-6-laranja-de-sao-paulo) — trens Metropolis, operação sem condutor, captação de energia pelo solo.
+* [Tuneladora chega à futura estação Maristela](https://diariodotransporte.com.br/2024/11/13/linha-6-laranja-tuneladora-chega-a-futura-estacao-maristela-zona-norte-da-capital/) — o nome Maristela no lugar de Vila Cardoso.
+* [Line 6 (São Paulo Metro)](https://ipfs.ssi.eecc.de/ipns/en.wikipedia-on-ipfs.org/wiki/Line_6_(S%C3%A3o_Paulo_Metro)) — estações, extensão e integrações (espelho da Wikipédia em inglês).
+* [Linha 6-Laranja é inaugurada](https://www.band.com.br/nacional/brasil/linha-6-laranja-e-inaugurada-com-estacao-mais-profunda-da-america-latina) e [estações Brasilândia e Itaberaba serão entregues em 2026](https://diariodotransporte.com.br/2026/07/02/estacoes-brasilandia-e-itaberaba-hospital-vila-penteado-da-nova-linha-6-laranja-serao-entregues-ainda-em-2026-diz-governador-tarcisio-de-freitas/) — início da operação parcial.
+* [Linha 6 recebe o 14º trem](https://www.correiodamanha.com.br/nacional/sao-paulo/estado-de-sao-paulo/2026/08/311127-linha-6-laranja-recebe-14-trem-para-ampliar-operacao-do-novo-ramal.html) — frota em recebimento.
 
 ---
 

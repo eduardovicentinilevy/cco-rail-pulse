@@ -2,25 +2,36 @@
    RailPulse CCO — Mosaico Operacional (telão da sala de controle)
    Paleta fixa, escura, independente do tema claro/escuro do operador — como o
    telão físico de uma sala de controle, que não segue a preferência de cada
-   estação de trabalho. Grafite profundo com o verde da Linha 2 nos destaques. Reaproveita os tokens --cco-* redefinindo-os apenas
-   neste escopo, então os componentes reutilizados (TrackSchematic) herdam o
-   visual sem precisar de nenhuma variante própria.
+   estação de trabalho. Azul-marinho profundo com o laranja da Linha 6 nos
+   destaques. Reaproveita os tokens --cco-* redefinindo-os apenas neste
+   escopo, então os componentes reutilizados (TrackSchematic) herdam o visual
+   sem precisar de nenhuma variante própria — inclusive as cores de status,
+   fixas na versão clara para fundo escuro, seja qual for o tema do operador.
    ========================================================================== */
 
 .rp-wall {
-  --cco-bg-void: #060908;
-  --cco-bg-primary: #0a0e0d;
-  --cco-bg-secondary: #0f1514;
-  --cco-bg-card: #111917;
-  --cco-bg-elevated: #182220;
-  --cco-border: #22302b;
-  --cco-border-strong: #34453f;
-  --cco-text-main: #edf3f0;
-  --cco-text-muted: #98a7a1;
-  --cco-text-dim: #63736d;
-  /* Verde de texto mais claro: o telão é lido a metros de distância. */
-  --cco-green-ink: #45cfa3;
-  --cco-green-bright: #45cfa3;
+  --cco-bg-void: #060a14;
+  --cco-bg-primary: #0a0f1c;
+  --cco-bg-secondary: #0e1526;
+  --cco-bg-card: #111a2e;
+  --cco-bg-elevated: #18233b;
+  --cco-border: #22304b;
+  --cco-border-strong: #34456a;
+  --cco-text-main: #eef2f8;
+  --cco-text-muted: #9ba8c0;
+  --cco-text-dim: #66738f;
+  --cco-text-on-status: #0b1220;
+  /* Laranja de texto mais claro: o telão é lido a metros de distância. */
+  --cco-brand-ink: #ffb265;
+  --cco-brand-bright: #ffa94d;
+  --cco-success: #4cc27a;
+  --cco-success-soft: rgba(76, 194, 122, 0.14);
+  --cco-warning: #e0b02a;
+  --cco-warning-soft: rgba(224, 176, 42, 0.14);
+  --cco-danger: #f2655f;
+  --cco-danger-soft: rgba(242, 101, 95, 0.14);
+  --cco-info: #7aa5f2;
+  --cco-info-soft: rgba(122, 165, 242, 0.14);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -32,8 +43,8 @@
   gap: var(--sp-4);
   padding: var(--sp-4);
   background:
-    radial-gradient(ellipse 1200px 700px at 50% -10%, rgba(0, 126, 94, 0.16), transparent 60%),
-    radial-gradient(ellipse 800px 500px at 100% 100%, rgba(60, 80, 74, 0.12), transparent 60%),
+    radial-gradient(ellipse 1200px 700px at 50% -10%, rgba(242, 135, 26, 0.13), transparent 60%),
+    radial-gradient(ellipse 800px 500px at 100% 100%, rgba(60, 85, 140, 0.16), transparent 60%),
     var(--cco-bg-void);
   border-radius: var(--radius-xl);
   color: var(--cco-text-main);
@@ -57,7 +68,7 @@
   font-weight: 700;
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: var(--cco-green-bright);
+  color: var(--cco-brand-bright);
 }
 
 .rp-wall__title h2 {
@@ -90,7 +101,7 @@
 .rp-wall__clock {
   font-size: var(--fs-2xl);
   font-weight: 700;
-  color: var(--cco-green-bright);
+  color: var(--cco-brand-bright);
   letter-spacing: 0.03em;
   font-variant-numeric: tabular-nums;
 }
@@ -150,8 +161,8 @@
 .rp-wall__panel {
   background-color: var(--cco-bg-card);
   background-image:
-    linear-gradient(rgba(150, 180, 168, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(150, 180, 168, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(150, 168, 200, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 168, 200, 0.05) 1px, transparent 1px),
     var(--grad-surface);
   background-size: 28px 28px, 28px 28px, auto;
   border: 1px solid var(--cco-border);
@@ -200,20 +211,20 @@
   overflow: hidden;
   border: 1px solid var(--cco-border-strong);
   border-radius: var(--radius-sm);
-  background: radial-gradient(ellipse at 30% 20%, #0f1e1a, #040706 75%);
+  background: radial-gradient(ellipse at 30% 20%, #0f1a2e, #04060c 75%);
   cursor: pointer;
   padding: 0;
   transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
 .rp-wall__cam-tile:hover {
-  border-color: var(--cco-green-bright);
+  border-color: var(--cco-brand-bright);
   transform: translateY(-1px);
 }
 
 .rp-wall__cam-tile[aria-pressed='true'] {
-  border-color: var(--cco-green);
-  box-shadow: 0 0 0 2px var(--cco-green-soft);
+  border-color: var(--cco-brand);
+  box-shadow: 0 0 0 2px var(--cco-brand-soft);
 }
 
 .rp-wall__cam-noise {
@@ -232,7 +243,7 @@
 .rp-wall__cam-crosshair {
   position: absolute;
   inset: 0.5rem;
-  border: 1px solid rgba(150, 180, 168, 0.18);
+  border: 1px solid rgba(150, 168, 200, 0.18);
 }
 
 .rp-wall__cam-tile[data-online='false'] .rp-wall__cam-noise {
@@ -241,7 +252,7 @@
 }
 
 .rp-wall__cam-tile[data-online='false'] {
-  background: radial-gradient(ellipse at 30% 20%, #2a1010, #050706 75%);
+  background: radial-gradient(ellipse at 30% 20%, #2a1010, #05060c 75%);
 }
 
 .rp-wall__cam-code {

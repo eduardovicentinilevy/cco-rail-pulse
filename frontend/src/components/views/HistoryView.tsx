@@ -45,7 +45,7 @@ interface ChartRow {
 
 export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onAuthError }) => {
   const [hours, setHours] = useState(6);
-  const [stationCode, setStationCode] = useState(() => stations[0]?.code ?? 'VMD');
+  const [stationCode, setStationCode] = useState(() => stations[0]?.code ?? 'BRA');
 
   const load = useCallback(
     () => api.telemetryHistory(session.token, { hours, stations: [stationCode] }),

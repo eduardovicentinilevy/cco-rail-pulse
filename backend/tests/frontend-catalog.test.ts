@@ -9,7 +9,7 @@ import {
   VOLTAGE_WARNING_V,
   classifyVoltage,
 } from '../domain/line';
-import { METRO_SP_SEED } from '../infrastructure/database/seeds/metro-sp';
+import { DEMO_TENANT_SEED } from '../infrastructure/database/seeds/linha-uni';
 
 /**
  * Contrato entre o painel e o backend.
@@ -52,14 +52,23 @@ interface PanelStations {
   stationAccessibleName: (station: PanelStation) => string;
 }
 
+/** O mínimo que a projeção precisa de uma estação: onde ela fica. */
+type PlaceableStation = {
+  code?: string;
+  mapX: number | null;
+  mapY: number | null;
+  lat?: number | null;
+  lon?: number | null;
+};
+
 interface PanelGeometry {
   VIEW_WIDTH: number;
   VIEW_HEIGHT: number;
-  projectStation: (
-    station: { mapX: number | null; mapY: number | null },
-    index: number,
-    total: number,
-  ) => { x: number; y: number };
+  projectStation: (station: PlaceableStation, index: number, total: number) => { x: number; y: number };
+  projectionFor: (stations: readonly PlaceableStation[]) => {
+    stationPoint: (station: PlaceableStation, index: number, total: number) => { x: number; y: number };
+    compass: { x: number; y: number; dx: number; dy: number; angle: number } | null;
+  };
 }
 
 const panelModule = <T>(relative: string): Promise<T> =>
@@ -85,7 +94,7 @@ describe('Contrato painel ↔ domínio', () => {
    */
   it('reconhece todos os campos que a rota de malha manda', async () => {
     const panel = await panelModule<PanelStations>('stations.ts');
-    const seeded = METRO_SP_SEED.lines[0].stations[0];
+    const seeded = DEMO_TENANT_SEED.lines[0].stations[0];
 
     const station = panel.normalizeStation({
       code: seeded.code,
@@ -97,6 +106,8 @@ describe('Contrato painel ↔ domínio', () => {
       headwaySeconds: seeded.headwaySeconds,
       mapX: seeded.mapX,
       mapY: seeded.mapY,
+      lat: seeded.lat,
+      lon: seeded.lon,
       voltageV: 683.2,
       status: 'ATENÇÃO',
     });
@@ -111,6 +122,8 @@ describe('Contrato painel ↔ domínio', () => {
       headwaySeconds: seeded.headwaySeconds,
       mapX: seeded.mapX,
       mapY: seeded.mapY,
+      lat: seeded.lat,
+      lon: seeded.lon,
       voltageV: 683.2,
       status: 'ATENÇÃO',
     });
@@ -148,7 +161,7 @@ describe('Contrato painel ↔ domínio', () => {
 
   it('tem identidade visual para toda integração semeada', async () => {
     const panel = await panelModule<PanelStations>('stations.ts');
-    const connections = new Set(METRO_SP_SEED.lines.flatMap((line) => line.stations.flatMap((s) => s.connections)));
+    const connections = new Set(DEMO_TENANT_SEED.lines.flatMap((line) => line.stations.flatMap((s) => s.connections)));
 
     for (const connection of connections) {
       // O fallback genérico usa as duas primeiras letras; uma integração mapeada nunca cai nele.
@@ -166,10 +179,11 @@ describe('Contrato painel ↔ domínio', () => {
    */
   it('projeta no quadro toda estação, com ou sem coordenada cadastrada', async () => {
     const geometry = await panelModule<PanelGeometry>('lineGeometry.ts');
-    const seeded = METRO_SP_SEED.lines[0].stations;
+    const seeded = DEMO_TENANT_SEED.lines[0].stations;
+    const projection = geometry.projectionFor(seeded);
 
     seeded.forEach((station, index) => {
-      const point = geometry.projectStation(station, index, seeded.length);
+      const point = projection.stationPoint(station, index, seeded.length);
       assert.ok(point.x >= 0 && point.x <= geometry.VIEW_WIDTH, `${station.code} fora do quadro (x=${point.x})`);
       assert.ok(point.y >= 0 && point.y <= geometry.VIEW_HEIGHT, `${station.code} fora do quadro (y=${point.y})`);
     });
@@ -180,5 +194,39 @@ describe('Contrato painel ↔ domínio', () => {
     const last = geometry.projectStation(semMapa, 2, 3);
     assert.ok(first.x < last.x);
     assert.equal(first.y, geometry.VIEW_HEIGHT / 2);
+  });
+
+  /**
+   * O traçado sai girado para o eixo entre os terminais da linha, e o eixo é
+   * calculado das estações recebidas: a malha de outro cliente é enquadrada pela
+   * dela, não pela da linha de demonstração.
+   */
+  it('gira o traçado para o eixo da própria linha, e só então desenha', async () => {
+    const geometry = await panelModule<PanelGeometry>('lineGeometry.ts');
+    const seeded = DEMO_TENANT_SEED.lines[0].stations;
+    const projection = geometry.projectionFor(seeded);
+
+    // Com o eixo na horizontal, a posição no quadro avança de terminal a terminal.
+    const xs = seeded.map((station, index) => projection.stationPoint(station, index, seeded.length).x);
+    for (let index = 1; index < xs.length; index += 1) {
+      assert.ok(xs[index] > xs[index - 1], `${seeded[index].code} não avança no traçado (x=${xs[index]})`);
+    }
+    // E o mapa girado diz para que lado fica o norte.
+    assert.ok(projection.compass);
+    assert.ok(Math.abs(Math.hypot(projection.compass.dx, projection.compass.dy) - 1) < 0.01);
+
+    // Uma linha norte-sul: o mesmo código a deita no quadro, sem coordenada
+    // normalizada nenhuma cadastrada.
+    const outra: PlaceableStation[] = [
+      { code: 'AAA', mapX: null, mapY: null, lat: -23.4, lon: -46.6 },
+      { code: 'BBB', mapX: null, mapY: null, lat: -23.5, lon: -46.6 },
+      { code: 'CCC', mapX: null, mapY: null, lat: -23.6, lon: -46.6 },
+    ];
+    const outraProjecao = geometry.projectionFor(outra);
+    const outrosXs = outra.map((station, index) => outraProjecao.stationPoint(station, index, outra.length).x);
+    assert.ok(outrosXs[0] < outrosXs[1] && outrosXs[1] < outrosXs[2]);
+
+    // Sem coordenada geográfica não há orientação a mostrar.
+    assert.equal(geometry.projectionFor([{ mapX: 0.1, mapY: 0.5 }, { mapX: 0.9, mapY: 0.5 }]).compass, null);
   });
 });

@@ -13,7 +13,7 @@ export interface LineStation {
   readonly position: number;
   readonly code: string;
   readonly name: string;
-  /** Subestação retificadora (SR) que alimenta o terceiro trilho no trecho. */
+  /** Subestação retificadora (SR) que alimenta o trilho de alimentação no trecho. */
   readonly substation: string;
   /** Tensão de referência do trecho que alimenta a estação, em volts. */
   readonly nominalVoltageV: number;
@@ -40,6 +40,12 @@ export interface LineIdentity {
   readonly tenantName: string;
   readonly code: string;
   readonly name: string;
+  /**
+   * Fator de traçado da linha: quanto a via é mais longa que a reta entre as
+   * estações. Calibra a soma das distâncias para a extensão conhecida da linha,
+   * e por isso é dela — 1 significa "sem correção informada".
+   */
+  readonly alignmentFactor: number;
 }
 
 export const normalizeStationCode = (value: unknown): string => String(value ?? '').trim().toUpperCase();
@@ -55,7 +61,9 @@ export const normalizeStationCode = (value: unknown): string => String(value ?? 
  *
  * Os limiares ficam bem acima do mínimo permanente que a EN 50163 admite para
  * 750 Vcc (500 V): o objetivo é avisar o operador antes que o desempenho de
- * tração caia, não no limite normativo.
+ * tração caia, não no limite normativo. Onde a concessionária não divulga a
+ * tensão de tração, 750 Vcc é premissa declarada do modelo — a classe dos
+ * metrôs de captação no solo de São Paulo.
  */
 export const TRACTION_NOMINAL_V = 750;
 export const VOLTAGE_WARNING_V = 700;
@@ -79,6 +87,8 @@ export const classifyVoltage = (voltageV: number): VoltageStatus => {
 export class LineCatalog {
   public readonly stations: readonly LineStation[];
   public readonly codes: readonly string[];
+  /** Atalho para `line.alignmentFactor`, que a marcha consulta ao medir os trechos. */
+  public readonly alignmentFactor: number;
   private readonly byCode: ReadonlyMap<string, LineStation>;
   private readonly indexByCode: ReadonlyMap<string, number>;
 
@@ -87,6 +97,7 @@ export class LineCatalog {
     stations: readonly LineStation[],
   ) {
     this.stations = [...stations].sort((a, b) => a.position - b.position);
+    this.alignmentFactor = line.alignmentFactor > 0 ? line.alignmentFactor : 1;
     this.codes = this.stations.map((station) => station.code);
     this.byCode = new Map(this.stations.map((station) => [station.code, station]));
     this.indexByCode = new Map(this.stations.map((station, index) => [station.code, index]));

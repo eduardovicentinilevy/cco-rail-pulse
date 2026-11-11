@@ -2,12 +2,12 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { TRACTION_NOMINAL_V, VOLTAGE_CRITICAL_V, VOLTAGE_WARNING_V, classifyVoltage } from '../domain/line';
-import { METRO_SP_SEED } from '../infrastructure/database/seeds/metro-sp';
+import { DEMO_TENANT_SEED } from '../infrastructure/database/seeds/linha-uni';
 import { demoCatalog, otherTenantCatalog } from './helpers/catalog';
 
 /**
- * O mapa do frontend posiciona cada estação pela coordenada normalizada que vem
- * do catálogo. Se a malha ganhar ou perder uma estação sem que as coordenadas
+ * O mapa do frontend posiciona cada estação pelas coordenadas que vêm do
+ * catálogo. Se a malha ganhar ou perder uma estação sem que as coordenadas
  * acompanhem, a composição some do traçado — estes testes travam o contrato.
  */
 describe('Contrato do catálogo da malha', () => {
@@ -38,30 +38,47 @@ describe('Contrato do catálogo da malha', () => {
     }
   });
 
-  it('dá a toda estação uma coordenada normalizada entre 0 e 1', () => {
+  /**
+   * O mapa desenha a estação pela coordenada geográfica quando ela existe, e pela
+   * coordenada normalizada do cadastro quando não. Sem nenhuma das duas a estação
+   * cai num eixo reto — aparece, mas não no lugar dela.
+   */
+  it('dá a toda estação uma posição desenhável', () => {
     for (const station of catalog.stations) {
-      assert.ok(station.mapX != null && station.mapY != null, `${station.code} sem coordenada de mapa`);
-      assert.ok(station.mapX >= 0 && station.mapX <= 1, `${station.code} com mapX fora de 0–1: ${station.mapX}`);
-      assert.ok(station.mapY >= 0 && station.mapY <= 1, `${station.code} com mapY fora de 0–1: ${station.mapY}`);
+      const geographic = station.lat != null && station.lon != null;
+      const schematic = station.mapX != null && station.mapY != null;
+      assert.ok(geographic || schematic, `${station.code} sem coordenada nenhuma`);
+      if (geographic) {
+        assert.ok(station.lat! >= -90 && station.lat! <= 90, `${station.code} com latitude inválida`);
+        assert.ok(station.lon! >= -180 && station.lon! <= 180, `${station.code} com longitude inválida`);
+      }
+      if (schematic) {
+        assert.ok(station.mapX! >= 0 && station.mapX! <= 1, `${station.code} com mapX fora de 0–1`);
+        assert.ok(station.mapY! >= 0 && station.mapY! <= 1, `${station.code} com mapY fora de 0–1`);
+      }
     }
   });
 
-  it('avança monotonicamente ao longo do traçado', () => {
-    const xs = catalog.stations.map((station) => station.mapX ?? 0);
-    for (let index = 1; index < xs.length; index += 1) {
-      assert.ok(xs[index] > xs[index - 1], `${catalog.codes[index]} não avança no traçado`);
+  it('não repete coordenada entre estações vizinhas', () => {
+    for (let index = 1; index < catalog.stations.length; index += 1) {
+      const previous = catalog.stations[index - 1];
+      const station = catalog.stations[index];
+      assert.ok(
+        previous.lat !== station.lat || previous.lon !== station.lon,
+        `${station.code} na mesma coordenada de ${previous.code}`,
+      );
     }
   });
 });
 
 describe('Semeadura do cliente de demonstração', () => {
   it('descreve um cliente com ao menos uma linha', () => {
-    assert.ok(METRO_SP_SEED.lines.length >= 1);
-    assert.equal(METRO_SP_SEED.slug, 'metro-sp');
+    assert.ok(DEMO_TENANT_SEED.lines.length >= 1);
+    assert.equal(DEMO_TENANT_SEED.slug, 'linha-uni');
   });
 
   it('não repete posição nem código dentro da linha', () => {
-    for (const line of METRO_SP_SEED.lines) {
+    for (const line of DEMO_TENANT_SEED.lines) {
       assert.equal(new Set(line.stations.map((s) => s.code)).size, line.stations.length);
       assert.equal(new Set(line.stations.map((s) => s.position)).size, line.stations.length);
     }

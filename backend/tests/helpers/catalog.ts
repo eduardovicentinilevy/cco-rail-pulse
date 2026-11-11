@@ -1,15 +1,15 @@
 // backend/tests/helpers/catalog.ts
 import { LineCatalog } from '../../domain/line';
 import type { LineStation } from '../../domain/line';
-import { METRO_SP_SEED } from '../../infrastructure/database/seeds/metro-sp';
+import { DEMO_TENANT_SEED } from '../../infrastructure/database/seeds/linha-uni';
 
 /** Ids estáveis por código: os testes não tocam o banco, mas o catálogo exige um id por estação. */
 const stationId = (lineCode: string, code: string): string => `sta-${lineCode.toLowerCase()}-${code.toLowerCase()}`;
 
 /** Catálogo montado a partir de uma semeadura, sem passar pelo banco. */
 export const catalogFromSeed = (
-  seed: (typeof METRO_SP_SEED)['lines'][number],
-  tenant = { id: 'tenant-demo', name: METRO_SP_SEED.name },
+  seed: (typeof DEMO_TENANT_SEED)['lines'][number],
+  tenant = { id: 'tenant-demo', name: DEMO_TENANT_SEED.name },
 ): LineCatalog => {
   const stations: LineStation[] = seed.stations.map((station) => ({
     id: stationId(seed.code, station.code),
@@ -33,13 +33,14 @@ export const catalogFromSeed = (
       tenantName: tenant.name,
       code: seed.code,
       name: seed.name,
+      alignmentFactor: seed.alignmentFactor,
     },
     stations,
   );
 };
 
 /** Malha do cliente de demonstração, a que era constante de código antes do multi-tenant. */
-export const demoCatalog = (): LineCatalog => catalogFromSeed(METRO_SP_SEED.lines[0]);
+export const demoCatalog = (): LineCatalog => catalogFromSeed(DEMO_TENANT_SEED.lines[0]);
 
 /**
  * Malha de um segundo cliente, para provar que dois catálogos coexistem sem se
@@ -48,7 +49,9 @@ export const demoCatalog = (): LineCatalog => catalogFromSeed(METRO_SP_SEED.line
  */
 export const otherTenantCatalog = (): LineCatalog =>
   new LineCatalog(
-    { id: 'line-m1', tenantId: 'tenant-outro', tenantName: 'Metrô Exemplo', code: 'M1', name: 'Linha 1-Azul' },
+    // Sem fator de traçado informado: a linha recém-cadastrada opera com a soma
+    // em linha reta, sem correção inventada.
+    { id: 'line-m1', tenantId: 'tenant-outro', tenantName: 'Metrô Exemplo', code: 'M1', name: 'Linha 1-Azul', alignmentFactor: 1 },
     [
       { id: 'sta-m1-jab', position: 1, code: 'JAB', name: 'Jabaquara', substation: 'SR-A1', nominalVoltageV: 749, connections: [], headwaySeconds: 180, mapX: 0.1, mapY: 0.9, lat: null, lon: null },
       { id: 'sta-m1-cnc', position: 2, code: 'CNC', name: 'Conceição', substation: 'SR-A1', nominalVoltageV: 747, connections: [], headwaySeconds: 180, mapX: 0.3, mapY: 0.7, lat: null, lon: null },

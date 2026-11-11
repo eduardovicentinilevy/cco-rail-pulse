@@ -19,6 +19,8 @@ interface LineRow {
   tenant_name: string;
   code: string;
   name: string;
+  /** NUMERIC chega como string no driver. */
+  alignment_factor: string | null;
 }
 
 interface StationRow {
@@ -54,7 +56,7 @@ const toStation = (row: StationRow): LineStation => ({
   lon: toNumberOrNull(row.lon),
 });
 
-const LINE_COLUMNS = `l.id, l.tenant_id, t.name AS tenant_name, l.code, l.name`;
+const LINE_COLUMNS = `l.id, l.tenant_id, t.name AS tenant_name, l.code, l.name, l.alignment_factor`;
 
 /**
  * Catálogo de malha lido do banco, com cache em processo por linha.
@@ -158,6 +160,7 @@ const toIdentity = (row: LineRow): LineIdentity => ({
   tenantName: row.tenant_name,
   code: row.code,
   name: row.name,
+  alignmentFactor: Number.parseFloat(row.alignment_factor ?? '') || 1,
 });
 
 export const lineCatalogRepository = new PgLineCatalogRepository();

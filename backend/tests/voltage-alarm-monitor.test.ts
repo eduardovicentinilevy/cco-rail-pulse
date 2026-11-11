@@ -75,15 +75,15 @@ describe('Alarme de tensão — monitor', () => {
     domainEventBus.on('system:alert', listener);
     const monitor = new VoltageAlarmMonitor(catalog);
     for (const voltage of [0, 0, 0, 748, 750]) {
-      monitor.observe({ stationId: 'sta-l2-aip', currentStationCode: 'AIP', voltageV: voltage, status: 'NORMAL' });
+      monitor.observe({ stationId: 'sta-l6-ita', currentStationCode: 'ITA', voltageV: voltage, status: 'NORMAL' });
     }
 
     assert.equal(received.length, 2);
     assert.equal(received[0].severity, 'CRITICAL');
     assert.match(received[0].message, /sem tensão/);
-    assert.match(received[0].message, /SR-06/);
+    assert.match(received[0].message, /SR-02/);
     assert.equal(received[1].severity, 'INFO');
-    assert.equal(monitor.statusOf('AIP'), 'NORMAL');
+    assert.equal(monitor.statusOf('ITA'), 'NORMAL');
     // Todo alarme sai carimbado com a linha: o painel de outro cliente não o recebe.
     assert.deepEqual(lines, [catalog.id, catalog.id]);
   });
@@ -104,8 +104,8 @@ describe('Alarme de tensão — monitor', () => {
   it('ignora leitura inválida', () => {
     domainEventBus.on('system:alert', listener);
     const monitor = new VoltageAlarmMonitor(catalog);
-    monitor.observe({ stationId: 'sta-l2-vmd', currentStationCode: 'VMD', voltageV: Number.NaN, status: 'NORMAL' });
-    monitor.observe({ stationId: 'sta-l2-vmd', currentStationCode: 'VMD', voltageV: Number.NaN, status: 'NORMAL' });
+    monitor.observe({ stationId: 'sta-l6-bra', currentStationCode: 'BRA', voltageV: Number.NaN, status: 'NORMAL' });
+    monitor.observe({ stationId: 'sta-l6-bra', currentStationCode: 'BRA', voltageV: Number.NaN, status: 'NORMAL' });
     assert.equal(received.length, 0);
   });
 });

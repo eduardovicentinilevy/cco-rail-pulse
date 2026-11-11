@@ -169,7 +169,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSubmitMfaCo
                     setTenantSlug(event.target.value.toLowerCase());
                     if (error) setError(null);
                   }}
-                  placeholder="Ex: metro-sp"
+                  placeholder="Ex: linha-uni"
                   disabled={isLoading}
                 />
               </div>

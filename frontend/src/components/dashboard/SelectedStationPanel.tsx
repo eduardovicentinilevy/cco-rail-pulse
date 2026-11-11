@@ -122,7 +122,7 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
         </div>
         <div className="rp-metric-row">
           <span>Terceiro trilho</span>
-          <strong className="mono" style={{ color: 'var(--cco-green-ink)' }}>
+          <strong className="mono" style={{ color: 'var(--cco-brand-ink)' }}>
             {formatVoltage(station.voltageV)}
           </strong>
         </div>

@@ -10,35 +10,46 @@ import {
   operationFor,
   runTimeMs,
 } from '../domain/operation';
+import { LineCatalog } from '../domain/line';
 import { demoCatalog, otherTenantCatalog } from './helpers/catalog';
 
-const line2 = operationFor(demoCatalog());
-const codes = line2.catalog.codes;
+const demo = operationFor(demoCatalog());
+const codes = demo.catalog.codes;
 
 describe('Operação — geometria da linha', () => {
-  it('soma ~14,7 km de Vila Madalena a Vila Prudente', () => {
+  it('soma ~15,3 km de ponta a ponta da linha semeada', () => {
     assert.ok(
-      line2.lineLengthM > 14_400 && line2.lineLengthM < 15_000,
-      `extensão ${line2.lineLengthM} m`,
+      demo.lineLengthM > 15_000 && demo.lineLengthM < 15_600,
+      `extensão ${demo.lineLengthM} m`,
     );
+  });
+
+  it('o fator de traçado é da linha: sem ele cadastrado, vale a soma em linha reta', () => {
+    const { catalog } = demo;
+    assert.equal(catalog.alignmentFactor, 1.163);
+    // A mesma malha, cadastrada sem fator, mede a reta entre as estações.
+    const semFator = operationFor(new LineCatalog({ ...catalog.line, alignmentFactor: 1 }, catalog.stations));
+    assert.ok(semFator.lineLengthM < demo.lineLengthM);
+    assert.ok(Math.abs(demo.lineLengthM / semFator.lineLengthM - 1.163) < 0.01);
   });
 
   it('tem trecho entre toda estação vizinha, nos dois sentidos, e só entre vizinhas', () => {
     for (let index = 0; index < codes.length - 1; index += 1) {
       const a = codes[index];
       const b = codes[index + 1];
-      const length = line2.segmentLengthM(a, b);
+      const length = demo.segmentLengthM(a, b);
       assert.ok(length !== undefined && length > 400 && length < 2_000, `${a}-${b}: ${length} m`);
-      assert.equal(line2.segmentLengthM(b, a), length);
+      assert.equal(demo.segmentLengthM(b, a), length);
     }
-    assert.equal(line2.segmentLengthM('VMD', 'CLI'), undefined);
+    // BRA e ITA não são vizinhas: há MAR entre elas.
+    assert.equal(demo.segmentLengthM('BRA', 'ITA'), undefined);
   });
 
   it('a geometria é da linha: a malha de outro cliente tem os trechos dela', () => {
     const outra = operationFor(otherTenantCatalog());
     // Código que não existe na outra malha não tem trecho lá, e vice-versa.
-    assert.equal(outra.segmentLengthM('VMD', 'SUM'), undefined);
-    assert.equal(line2.segmentLengthM('JAB', 'CNC'), undefined);
+    assert.equal(outra.segmentLengthM('BRA', 'MAR'), undefined);
+    assert.equal(demo.segmentLengthM('JAB', 'CNC'), undefined);
     assert.ok(outra.segmentLengthM('JAB', 'CNC') !== undefined);
   });
 
@@ -72,13 +83,13 @@ describe('Operação — perfil de marcha', () => {
 
   it('restrição de 20 km/h torna o percurso bem mais longo', () => {
     assert.ok(
-      line2.segmentRunTimeMs('VMD', 'SUM', 20) > 2 * line2.segmentRunTimeMs('VMD', 'SUM', LINE_SPEED_KMH),
+      demo.segmentRunTimeMs('BRA', 'MAR', 20) > 2 * demo.segmentRunTimeMs('BRA', 'MAR', LINE_SPEED_KMH),
     );
   });
 
   it('percursos reais entre estações ficam entre 40 s e 2 min', () => {
     for (let index = 0; index < codes.length - 1; index += 1) {
-      const time = line2.segmentRunTimeMs(codes[index], codes[index + 1], LINE_SPEED_KMH);
+      const time = demo.segmentRunTimeMs(codes[index], codes[index + 1], LINE_SPEED_KMH);
       assert.ok(time > 40_000 && time < 120_000, `${codes[index]}: ${time} ms`);
     }
   });
@@ -93,36 +104,36 @@ describe('Operação — perfil de marcha', () => {
 
 describe('Operação — paradas e sentido', () => {
   it('estações de integração têm parada mais longa', () => {
-    assert.equal(line2.dwellTimeMs('PSO'), TRANSFER_DWELL_MS);
-    assert.equal(line2.dwellTimeMs('SUM'), DWELL_MS);
+    assert.equal(demo.dwellTimeMs('HGM'), TRANSFER_DWELL_MS);
+    assert.equal(demo.dwellTimeMs('MAR'), DWELL_MS);
   });
 
   it('reconhece os terminais', () => {
-    assert.equal(line2.isTerminal('VMD'), true);
-    assert.equal(line2.isTerminal('VPT'), true);
-    assert.equal(line2.isTerminal('PSO'), false);
+    assert.equal(demo.isTerminal('BRA'), true);
+    assert.equal(demo.isTerminal('SJQ'), true);
+    assert.equal(demo.isTerminal('HGM'), false);
     // Estação de outra linha não é terminal desta.
-    assert.equal(line2.isTerminal('JAB'), false);
+    assert.equal(demo.isTerminal('JAB'), false);
   });
 
   it('segue a ordem do traçado em cada sentido e para no fim da linha', () => {
-    assert.equal(line2.nextStationCode('PSO', 1), 'ANR');
-    assert.equal(line2.nextStationCode('PSO', -1), 'BGD');
-    assert.equal(line2.nextStationCode('VPT', 1), undefined);
-    assert.equal(line2.nextStationCode('VMD', -1), undefined);
-    assert.equal(line2.nextStationCode('XYZ', 1), undefined);
+    assert.equal(demo.nextStationCode('PDZ', 1), 'PUC');
+    assert.equal(demo.nextStationCode('PDZ', -1), 'POM');
+    assert.equal(demo.nextStationCode('SJQ', 1), undefined);
+    assert.equal(demo.nextStationCode('BRA', -1), undefined);
+    assert.equal(demo.nextStationCode('XYZ', 1), undefined);
   });
 
   it('inverte o sentido só ao chegar a um terminal', () => {
-    assert.equal(line2.directionAfterArrival('VPT', 1), -1);
-    assert.equal(line2.directionAfterArrival('VMD', -1), 1);
-    assert.equal(line2.directionAfterArrival('TTI', 1), 1);
+    assert.equal(demo.directionAfterArrival('SJQ', 1), -1);
+    assert.equal(demo.directionAfterArrival('BRA', -1), 1);
+    assert.equal(demo.directionAfterArrival('HGM', 1), 1);
   });
 
   it('nomeia os sentidos pelos terminais da linha, não por ponto cardeal', () => {
-    assert.deepEqual(line2.directionLabels, {
-      1: 'sentido Vila Prudente',
-      [-1]: 'sentido Vila Madalena',
+    assert.deepEqual(demo.directionLabels, {
+      1: 'sentido São Joaquim',
+      [-1]: 'sentido Brasilândia',
     });
     assert.deepEqual(operationFor(otherTenantCatalog()).directionLabels, {
       1: 'sentido São Judas',
@@ -133,15 +144,15 @@ describe('Operação — paradas e sentido', () => {
 
 describe('Operação — ciclo da frota', () => {
   it('uma volta completa leva entre 40 e 60 minutos', () => {
-    const minutes = line2.cycleTimeMs() / 60_000;
+    const minutes = demo.cycleTimeMs() / 60_000;
     assert.ok(minutes > 40 && minutes < 60, `ciclo de ${minutes.toFixed(1)} min`);
   });
 
   it('a 20 km/h a volta fica bem mais longa', () => {
-    assert.ok(line2.cycleTimeMs(20) > 1.5 * line2.cycleTimeMs());
+    assert.ok(demo.cycleTimeMs(20) > 1.5 * demo.cycleTimeMs());
   });
 
-  it('a volta de uma linha curta é bem menor que a da Linha 2', () => {
-    assert.ok(operationFor(otherTenantCatalog()).cycleTimeMs() < line2.cycleTimeMs());
+  it('a volta de uma linha curta é bem menor que a da linha semeada', () => {
+    assert.ok(operationFor(otherTenantCatalog()).cycleTimeMs() < demo.cycleTimeMs());
   });
 });

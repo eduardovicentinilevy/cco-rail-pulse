@@ -8,13 +8,13 @@ import { demoCatalog, otherTenantCatalog } from './helpers/catalog';
 
 describe('StationCode', () => {
   it('normaliza para maiúsculas', () => {
-    assert.equal(new StationCode('vmd').getValue(), 'VMD');
+    assert.equal(new StationCode('bra').getValue(), 'BRA');
   });
 
   it('rejeita vazio e comprimento diferente de 3', () => {
     assert.throws(() => new StationCode(''), ValidationError);
-    assert.throws(() => new StationCode('VM'), ValidationError);
-    assert.throws(() => new StationCode('VMDA'), ValidationError);
+    assert.throws(() => new StationCode('BR'), ValidationError);
+    assert.throws(() => new StationCode('BRAS'), ValidationError);
   });
 
   it('aceita o código alfanumérico 14B', () => {
@@ -29,14 +29,14 @@ describe('StationCode', () => {
   });
 
   it('compara por valor', () => {
-    assert.equal(new StationCode('VMD').equals(new StationCode('vmd')), true);
-    assert.equal(new StationCode('VMD').equals(new StationCode('SUM')), false);
+    assert.equal(new StationCode('BRA').equals(new StationCode('bra')), true);
+    assert.equal(new StationCode('BRA').equals(new StationCode('MAR')), false);
   });
 });
 
 describe('StationCode.inLine', () => {
   it('aceita um código da malha da linha', () => {
-    assert.equal(StationCode.inLine('vmd', demoCatalog()).getValue(), 'VMD');
+    assert.equal(StationCode.inLine('bra', demoCatalog()).getValue(), 'BRA');
   });
 
   it('rejeita um código que não pertence à linha', () => {
@@ -52,7 +52,7 @@ describe('StationCode.inLine', () => {
     const demo = demoCatalog();
     const outro = otherTenantCatalog();
 
-    assert.throws(() => StationCode.inLine('VMD', outro), ValidationError);
+    assert.throws(() => StationCode.inLine('BRA', outro), ValidationError);
     assert.throws(() => StationCode.inLine('JAB', demo), ValidationError);
     assert.equal(StationCode.inLine('JAB', outro).getValue(), 'JAB');
   });
@@ -68,15 +68,15 @@ describe('StationCode.inLine', () => {
 describe('Catálogo da malha', () => {
   const catalog = demoCatalog();
 
-  it('possui as 14 estações da linha semeada', () => {
-    assert.equal(catalog.size, 14);
+  it('possui as 15 estações da linha semeada', () => {
+    assert.equal(catalog.size, 15);
   });
 
-  it('mantém a ordem física contígua de Vila Madalena a Vila Prudente', () => {
+  it('mantém a ordem física contígua de Brasilândia a São Joaquim', () => {
     catalog.stations.forEach((station, index) => assert.equal(station.position, index + 1));
-    assert.equal(catalog.stations[0].code, 'VMD');
-    assert.equal(catalog.stations.at(-1)?.code, 'VPT');
-    assert.deepEqual(catalog.terminals, { first: 'Vila Madalena', last: 'Vila Prudente' });
+    assert.equal(catalog.stations[0].code, 'BRA');
+    assert.equal(catalog.stations.at(-1)?.code, 'SJQ');
+    assert.deepEqual(catalog.terminals, { first: 'Brasilândia', last: 'São Joaquim' });
   });
 
   it('não repete códigos', () => {
@@ -84,8 +84,8 @@ describe('Catálogo da malha', () => {
   });
 
   it('busca estação sem diferenciar caixa ou espaços', () => {
-    assert.equal(catalog.find('  pso ')?.name, 'Paraíso');
-    assert.equal(catalog.has('vpt'), true);
+    assert.equal(catalog.find('  fgo ')?.name, 'Freguesia do Ó');
+    assert.equal(catalog.has('sjq'), true);
     assert.equal(catalog.has('ZZZ'), false);
   });
 
@@ -107,7 +107,7 @@ describe('Catálogo da malha', () => {
       lon: null,
     });
 
-    const embaralhado = new LineCatalog({ id: 'l', tenantId: 't', tenantName: 'T', code: 'L', name: 'L' }, [
+    const embaralhado = new LineCatalog({ id: 'l', tenantId: 't', tenantName: 'T', code: 'L', name: 'L', alignmentFactor: 1 }, [
       station('CCC', 3),
       station('AAA', 1),
       station('BBB', 2),
@@ -119,10 +119,8 @@ describe('Catálogo da malha', () => {
   });
 
   it('registra as integrações com outras linhas', () => {
-    assert.deepEqual(catalog.find('PSO')?.connections, ['L1-Azul']);
-    assert.deepEqual(catalog.find('CNS')?.connections, ['L4-Amarela']);
-    assert.deepEqual(catalog.find('CKB')?.connections, ['L5-Lilás']);
-    assert.deepEqual(catalog.find('TTI')?.connections, ['CPTM L10-Turquesa']);
-    assert.deepEqual(catalog.find('VPT')?.connections, ['L15-Prata']);
+    assert.deepEqual(catalog.find('SJQ')?.connections, ['L1-Azul']);
+    assert.deepEqual(catalog.find('HGM')?.connections, ['L4-Amarela']);
+    assert.deepEqual(catalog.find('AGB')?.connections, ['CPTM L7-Rubi']);
   });
 });

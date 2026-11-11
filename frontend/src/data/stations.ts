@@ -79,6 +79,10 @@ export const normalizeStation = (raw: Record<string, unknown>): Station | null =
       : [],
     mapX: numberOr(raw.mapX, null),
     mapY: numberOr(raw.mapY, null),
+    // Sem coordenada no payload o mapa cai na coordenada normalizada: completar
+    // com um número qualquer desenharia a estação de um cliente no lugar errado.
+    lat: numberOr(raw.lat, null),
+    lon: numberOr(raw.lon, null),
   };
 };
 
@@ -106,10 +110,7 @@ export interface ConnectionStyle {
 const CONNECTION_STYLES: Record<string, ConnectionStyle> = {
   'L1-Azul': { short: '1', color: '#0455a1', ink: '#ffffff' },
   'L4-Amarela': { short: '4', color: '#fed304', ink: '#1b1b1b' },
-  'L5-Lilás': { short: '5', color: '#9b3894', ink: '#ffffff' },
-  'L15-Prata': { short: '15', color: '#a3a8ab', ink: '#1b1b1b' },
-  'CPTM L10-Turquesa': { short: '10', color: '#00a6a6', ink: '#0b1f1f' },
-  'Expresso Tiradentes': { short: 'ET', color: '#56616b', ink: '#ffffff' },
+  'CPTM L7-Rubi': { short: '7', color: '#a6185c', ink: '#ffffff' },
 };
 
 export const connectionStyle = (connection: string): ConnectionStyle =>

@@ -12,6 +12,8 @@ interface TimetableDispatchViewProps {
   stations: Station[];
   /** Intervalo e ciclo da operação, vindos da previsão de chegadas (`null` até a primeira consulta). */
   service: ArrivalsPayload['service'] | null;
+  /** Aceleração do relógio da simulação: o intervalo real já vem no relógio do painel. */
+  timeScale?: number;
 }
 
 type DispatchStatus = 'EM_HORA' | 'ATRASADO';
@@ -36,7 +38,7 @@ const stoppedForSeconds = (train: Train, now: number): number | null =>
     ? Math.max(0, Math.round((now - Date.parse(train.updatedAt)) / 1000))
     : null;
 
-export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ trains, stations, service }) => {
+export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ trains, stations, service, timeScale = 1 }) => {
   const [onlyDeviations, setOnlyDeviations] = useState(false);
   // Dois relógios: o de parede (para "parado há", comparado ao carimbo do servidor) e o
   // monotônico (para o andamento no trecho, comparado à chegada do snapshot).
@@ -93,6 +95,11 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
   const visible = onlyDeviations ? dispatches.filter((item) => item.status !== 'EM_HORA') : dispatches;
   const deviationCount = dispatches.filter((item) => item.status !== 'EM_HORA').length;
   const headway = service?.headwaySeconds ?? null;
+  // A meta é o intervalo cadastrado, em tempo real; o intervalo medido vem no
+  // relógio acelerado do painel. Sem dividir pela escala, os dois números não
+  // se comparam — a meta pareceria sempre folgada.
+  const scale = Number.isFinite(timeScale) && timeScale > 0 ? timeScale : 1;
+  const targetHeadway = targetHeadwaySec === null ? null : Math.round(targetHeadwaySec / scale);
 
   const handleExport = () => {
     const csv = toCsv(
@@ -140,16 +147,18 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
         <article className="rp-metric" data-status="INFO">
           <span className="rp-metric__label">Intervalo-alvo (pico)</span>
           <span className="rp-metric__value mono">
-            {targetHeadwaySec === null ? '—' : formatClockDuration(targetHeadwaySec)}
+            {targetHeadway === null ? '—' : formatClockDuration(targetHeadway)}
           </span>
-          <span className="rp-metric__hint">Menor intervalo cadastrado na malha</span>
+          <span className="rp-metric__hint">
+            Menor intervalo cadastrado na malha{scale > 1 ? ` — relógio ${scale}×` : ''}
+          </span>
         </article>
         <article
           className="rp-metric"
           data-status={
-            headway === null || targetHeadwaySec === null
+            headway === null || targetHeadway === null
               ? 'INFO'
-              : headway <= targetHeadwaySec * 1.5
+              : headway <= targetHeadway * 1.5
                 ? 'NORMAL'
                 : 'ATENÇÃO'
           }

@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
 import { stationAccessibleName } from '../../data/stations';
 import { PHASE_LABELS } from '../../data/trains';
-import { projectStation, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
+import { projectionFor, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
 import { buildCurveSegments, curveToPath } from '../../lib/curve';
 import type { Point } from '../../lib/curve';
 import { useTrainMotion } from '../../hooks/useTrainMotion';
@@ -44,9 +44,17 @@ export const LineMap: React.FC<LineMapProps> = ({
   lineName,
   onSelectStation,
 }) => {
+  // Uma projeção por malha recebida: é ela que decide se o traçado sai das
+  // coordenadas geográficas da linha ou da coordenada normalizada do cadastro.
+  const projection = useMemo(() => projectionFor(stations), [stations]);
+  const compass = projection.compass;
   const points = useMemo(
-    () => stations.map((station, index) => ({ station, ...projectStation(station, index, stations.length) })),
-    [stations],
+    () =>
+      stations.map((station, index) => ({
+        station,
+        ...projection.stationPoint(station, index, stations.length),
+      })),
+    [stations, projection],
   );
 
   // Curva Catmull-Rom (convertida para Bézier cúbica) compartilhada entre o
@@ -111,8 +119,8 @@ export const LineMap: React.FC<LineMapProps> = ({
       >
         <defs>
           <linearGradient id="rp-rail-gradient" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="var(--cco-green-bright)" />
-            <stop offset="100%" stopColor="var(--cco-green-deep)" />
+            <stop offset="0%" stopColor="var(--cco-brand-bright)" />
+            <stop offset="100%" stopColor="var(--cco-brand-deep)" />
           </linearGradient>
           <filter id="rp-rail-glow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="6" result="blur" />
@@ -122,6 +130,27 @@ export const LineMap: React.FC<LineMapProps> = ({
             </feMerge>
           </filter>
         </defs>
+
+        {/* O mapa é girado para a linha caber deitada no painel: a rosa indica o
+            norte real. Só aparece onde o traçado vem de coordenada geográfica —
+            coordenada normalizada não tem orientação a mostrar. */}
+        {compass && (
+          <g className="rp-map__compass" transform={`translate(${compass.x} ${compass.y})`} aria-hidden="true">
+          <circle r="22" className="rp-map__compass-ring" />
+          <g transform={`rotate(${compass.angle})`}>
+            <path d="M 0 -17 L 6 2 L 0 -2 L -6 2 Z" className="rp-map__compass-needle" />
+            <path d="M 0 17 L 6 2 L 0 -2 L -6 2 Z" className="rp-map__compass-tail" />
+          </g>
+          <text
+            x={compass.dx * 32}
+            y={compass.dy * 32 + 4}
+            className="rp-map__compass-label"
+            textAnchor="middle"
+          >
+              N
+            </text>
+          </g>
+        )}
 
         {/* Halo do trilho, depois o trilho sólido por cima. */}
         <path d={path} className="rp-map__rail-glow" fill="none" filter="url(#rp-rail-glow)" />
@@ -171,12 +200,12 @@ export const LineMap: React.FC<LineMapProps> = ({
           const above = y - 16;
           const below = y + 26;
           const [preferred, alternate] = index % 2 === 0 ? [above, below] : [below, above];
-          // O terminal oeste ancora o texto no início; os demais, no centro.
+          // O primeiro terminal ancora o texto no início; os demais, no centro.
           const [left, right] =
             index === 0 ? [x, x + 2 * LABEL_HALF_WIDTH] : [x - LABEL_HALF_WIDTH, x + LABEL_HALF_WIDTH];
           const labelY =
             labelCoverage(left, right, preferred) <= labelCoverage(left, right, alternate) ? preferred : alternate;
-          // O terminal leste fica no fim de uma subida: o rótulo vai à direita
+          // O último terminal fica no fim de uma subida: o rótulo vai à direita
           // do nó, longe do trilho e da etiqueta de trem.
           const isEastTerminal = index === points.length - 1;
           const label = isEastTerminal

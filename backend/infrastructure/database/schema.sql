@@ -11,7 +11,7 @@
 
 CREATE TABLE IF NOT EXISTS tenants (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    slug        VARCHAR(40) UNIQUE NOT NULL,      -- Ex: 'metro-sp'
+    slug        VARCHAR(40) UNIQUE NOT NULL,      -- Ex: 'linha-uni'
     name        VARCHAR(120) NOT NULL,
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()

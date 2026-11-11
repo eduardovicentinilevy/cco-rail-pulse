@@ -16,25 +16,30 @@ export type Direction = 1 | -1;
 export const isDirection = (value: unknown): value is Direction => value === 1 || value === -1;
 
 /** Velocidade máxima de linha adotada pela marcha simulada, em km/h. */
-export const LINE_SPEED_KMH = 70;
+export const LINE_SPEED_KMH = 80;
 /** Aceleração de partida e desaceleração de frenagem de serviço, em m/s². */
 export const ACCELERATION_MS2 = 1.0;
 export const SERVICE_BRAKING_MS2 = 1.0;
 
 /**
- * As coordenadas dão a distância em linha reta; o traçado real tem curvas. O
- * fator calibra a soma das distâncias (nos ~14,7 km da Linha 2-Verde, a malha
- * de referência, a diferença é de cerca de 220 m).
+ * Fator de traçado adotado quando a linha não tem o seu cadastrado.
+ *
+ * As coordenadas dão a distância em linha reta; o traçado real tem curvas, e o
+ * fator calibra a soma das distâncias para a extensão conhecida da linha. Ele
+ * não é regra da instalação: é medida de um traçado — a mesma malha medida com
+ * 1,015 numa linha e 1,163 noutra. Por isso é cadastro (`lines.alignment_factor`),
+ * e quem não informou opera com a soma em linha reta, sem correção inventada.
  */
-export const ALIGNMENT_FACTOR = 1.015;
+export const DEFAULT_ALIGNMENT_FACTOR = 1;
 
 /**
  * Comprimento adotado para um trecho cujas estações não têm coordenada, em metros.
  *
  * As coordenadas são cadastro como o resto da malha e podem faltar: uma linha
  * recém-cadastrada opera com trecho de comprimento nominal até alguém informá-las.
- * O valor é a média dos entre-estações da Linha 2-Verde; a marcha simulada fica
- * plausível, e as distâncias reais aparecem assim que o cadastro as tiver.
+ * O valor é a ordem de grandeza do entre-estações de um metrô urbano; a marcha
+ * simulada fica plausível, e as distâncias reais aparecem assim que o cadastro
+ * as tiver.
  */
 export const NOMINAL_SEGMENT_LENGTH_M = 1_130;
 
@@ -70,11 +75,16 @@ export const coordinatesOf = (station: Pick<LineStation, 'lat' | 'lon'>): GeoPoi
  * cadastro errado — vale o comprimento nominal: um trecho de comprimento zero
  * faria a composição atravessá-lo instantaneamente.
  */
-export const segmentLengthBetween = (from: LineStation, to: LineStation): number => {
+export const segmentLengthBetween = (
+  from: LineStation,
+  to: LineStation,
+  alignmentFactor: number = DEFAULT_ALIGNMENT_FACTOR,
+): number => {
   const a = coordinatesOf(from);
   const b = coordinatesOf(to);
   if (!a || !b) return NOMINAL_SEGMENT_LENGTH_M;
-  const length = Math.round(haversineM(a, b) * ALIGNMENT_FACTOR);
+  const factor = alignmentFactor > 0 ? alignmentFactor : DEFAULT_ALIGNMENT_FACTOR;
+  const length = Math.round(haversineM(a, b) * factor);
   return length > 0 ? length : NOMINAL_SEGMENT_LENGTH_M;
 };
 
@@ -119,7 +129,7 @@ export class LineOperation {
     for (let index = 0; index < catalog.stations.length - 1; index += 1) {
       const from = catalog.stations[index];
       const to = catalog.stations[index + 1];
-      const length = segmentLengthBetween(from, to);
+      const length = segmentLengthBetween(from, to, catalog.alignmentFactor);
       lengths.set(`${from.code}>${to.code}`, length);
       lengths.set(`${to.code}>${from.code}`, length);
       total += length;

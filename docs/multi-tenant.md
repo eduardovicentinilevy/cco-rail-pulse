@@ -348,3 +348,59 @@ O que mudou entre o desenho e o que foi entregue:
   valendo só até o próximo boot. As rotas de malha e de energia chamam
   `SimulationRegistry.ensureLine(lineId)` antes de ler o estado simulado; a
   chamada é idempotente e custa uma consulta a um `Map` no caso normal.
+
+- **O marcador de malha é da linha, não da instalação.** A master passou a gravar
+  em `app_meta` qual malha o banco representa, para descartar o estado operacional
+  quando a linha do produto muda. Numa instalação que atende vários clientes não
+  existe "a malha" no singular: o marcador virou `lines.mesh_version`, e a adoção
+  de uma malha nova roda só na linha semeada — a linha que o cliente cadastrou tem
+  o marcador dele e nunca entra na limpeza. Gatilhar pelo marcador, e não pela
+  presença de resíduo, é melhor do que a detecção por dado que estava aqui: uma
+  troca de malha que por acaso não deixe órfão ainda precisa reiniciar as seções
+  de energia, porque os nomes das SRs se repetem entre malhas e passam a alimentar
+  outras estações. O advisory lock da master entrou junto, com a linha na chave.
+
+- **O fator de traçado virou cadastro da linha.** As coordenadas dão a distância
+  em linha reta, e um fator calibra a soma para a extensão conhecida da linha. A
+  master o manteve em código e, ao trocar de linha, trocou o número: 1,015 nos
+  ~14,7 km da Linha 2, 1,163 nos ~15,3 km da Linha 6. Isso é medida de um traçado,
+  não regra da instalação — com duas linhas no mesmo processo, um número não serve
+  para as duas. Entrou como `lines.alignment_factor`, com o valor da malha gravado
+  junto dela; quem não informou opera com a soma em linha reta, sem correção
+  inventada. A velocidade de linha e o resto do perfil de tração continuam em
+  código, e a velocidade homologada por linha segue anotada como passo seguinte.
+
+- **O cliente e a linha de demonstração são renomeados, não duplicados.** A troca
+  de linha também trocou a concessionária (de Metrô de São Paulo para Linha Uni) e
+  o código da linha (de `L2` para `L6`). Com a malha em código isso é um commit;
+  aqui seria um segundo cliente e uma segunda linha no banco, com as estações, as
+  composições e o histórico da anterior penduradas nela. A semeadura declara os
+  identificadores anteriores (`previousSlugs`, `previousCodes`) e renomeia o
+  registro existente — idempotente, porque num banco já renomeado nenhum deles
+  existe mais. É também como a renomeação de um cliente de verdade funcionaria.
+
+- **A adoção da malha remove as estações que saíram, e a série medida em kV.** A
+  semeadura é aditiva (`ON CONFLICT DO NOTHING`), o que é certo para a estação que
+  o cliente ajustou, mas deixaria as 14 estações da malha anterior ao lado das 15
+  novas — uma linha com 29 estações, metade delas de outra malha. A adoção da
+  malha apaga, só na linha semeada, as estações que a malha nova não tem, e com
+  elas (por cascata) a série histórica delas. A série em kV também sai: a
+  renomeação de coluna não converte 25 kV em volts de trilho, e mantê-la faria o
+  painel classificar leituras de outro sistema de tração.
+
+- **O mapa projeta as coordenadas cadastradas, girando pelo eixo da própria linha.**
+  A master passou a derivar o traçado, o rio e a rosa dos ventos das coordenadas
+  das estações, girando o desenho para o eixo entre os terminais ficar na
+  horizontal. Essa projeção já é por linha por construção — a latitude média e o
+  eixo saem das estações recebidas —, então entrou inteira, e com ela caiu a
+  necessidade de normalizar coordenada à mão para cada cliente novo: `map_x`/`map_y`
+  passaram a ser a alternativa para a linha cadastrada sem coordenada geográfica.
+  A rosa dos ventos entrou (sai da projeção da própria malha); a decoração
+  geográfica da linha, como o Rio Tietê, continua fora do componente compartilhado.
+
+- **A meta de intervalo é o cadastro dividido pela escala do relógio.** A master
+  passou a dividir a meta pela aceleração da simulação, e o motivo vale aqui: o
+  intervalo medido vem do relógio acelerado do painel e o cadastrado é em tempo
+  real, então sem dividir os dois números não se comparam. O que mudou é a origem
+  da meta — o menor `headway_seconds` da malha da sessão, não uma constante da
+  Linha 6.

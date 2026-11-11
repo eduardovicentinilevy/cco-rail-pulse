@@ -12,9 +12,11 @@ export type TrainCommand = (typeof TRAIN_COMMANDS)[number];
 /**
  * Teto de velocidade aceito pela plataforma, em km/h.
  * Limite de sanidade da telemetria, não a homologação de uma linha específica:
- * a velocidade homologada por linha ainda não é dado cadastrado.
+ * a velocidade homologada por linha ainda não é dado cadastrado. Fica acima da
+ * velocidade de linha da marcha para deixar folga ao material rodante — os
+ * trens da linha de demonstração são de projeto para 90 km/h.
  */
-export const MAX_SPEED_KMH = 80;
+export const MAX_SPEED_KMH = 90;
 /** Velocidade imposta por restrição operacional (V.R.), em km/h. */
 export const RESTRICTED_SPEED_KMH = 20;
 /** Velocidade de cruzeiro: a velocidade máxima de linha da marcha. */

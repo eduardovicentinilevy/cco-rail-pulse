@@ -41,6 +41,10 @@ export const createNetworkRouter = (registry: SimulationRegistry): Router => {
           headwaySeconds: station.headwaySeconds,
           mapX: station.mapX,
           mapY: station.mapY,
+          // O mapa do painel projeta o traçado destas: é a mesma coordenada que
+          // mede os trechos da marcha, então desenho e distância não divergem.
+          lat: station.lat,
+          lon: station.lon,
           voltageV: reading?.voltageV ?? station.nominalVoltageV,
           status: reading?.status ?? 'NORMAL',
         };

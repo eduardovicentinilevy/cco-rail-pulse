@@ -3,7 +3,8 @@ import bcrypt from 'bcrypt';
 import type { PoolClient } from 'pg';
 import { db, withTransaction } from './postgres';
 import { env } from '../../config/env';
-import { METRO_SP_SEED, SEED_PROCEDURES, SEED_TEAM, SEED_TRAINS } from './seeds/metro-sp';
+import { DEMO_TENANT_SEED, SEED_PROCEDURES, SEED_TEAM, SEED_TRAINS } from './seeds/linha-uni';
+import type { LineSeed } from './seeds/linha-uni';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('DB-MIGRATE');
@@ -29,10 +30,21 @@ const TENANCY_DDL = `
     tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     code        VARCHAR(20) NOT NULL,
     name        VARCHAR(120) NOT NULL,
+    -- Quanto a via é mais longa que a reta entre as estações. Calibra as
+    -- distâncias para a extensão conhecida da linha; 1 = sem correção informada.
+    alignment_factor NUMERIC(5, 3) NOT NULL DEFAULT 1,
+    -- Qual malha esta linha representa. Para a linha semeada, é o identificador
+    -- da malha que o deploy escreveu: quando ele muda, o estado operacional da
+    -- malha anterior é descartado. Fica aqui, e não numa tabela de instalação,
+    -- porque não existe "a malha" no singular — cada linha tem a sua.
+    mesh_version VARCHAR(40),
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (tenant_id, code)
   );
+
+  ALTER TABLE lines ADD COLUMN IF NOT EXISTS alignment_factor NUMERIC(5, 3) NOT NULL DEFAULT 1;
+  ALTER TABLE lines ADD COLUMN IF NOT EXISTS mesh_version VARCHAR(40);
 
   CREATE TABLE IF NOT EXISTS stations (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -251,6 +263,19 @@ const INDEX_DDL = `
  * consultas olham só o schema corrente — o mesmo que o `ALTER TABLE` resolve —
  * para que uma cópia antiga em outro schema não dispare a renomeação.
  */
+/**
+ * As consultas olham só o schema corrente — o mesmo que o `ALTER TABLE` abaixo
+ * resolve —, para que uma cópia antiga em outro schema não dispare a migração.
+ */
+const HAS_LEGACY_VOLTAGE_COLUMNS_SQL = `
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND ((table_name = 'trains' AND column_name = 'voltage_kv')
+        OR (table_name = 'telemetry_samples' AND column_name = 'min_kv'))
+  ) AS legacy
+`;
+
 const LEGACY_VOLTAGE_COLUMNS_DDL = `
   DO $$
   BEGIN
@@ -285,13 +310,19 @@ const LEGACY_VOLTAGE_COLUMNS_DDL = `
   ALTER TABLE stations ADD COLUMN IF NOT EXISTS connections TEXT[] NOT NULL DEFAULT '{}';
 `;
 
-/** Procedimentos semeados na versão da Linha 6-Laranja, substituídos pela biblioteca atual. */
-const LEGACY_PROCEDURE_TITLES = [
-  'Desenergização de trecho da catenária',
-  'Subtensão ou sobretensão em subestação (TSS)',
-  'Risco de alagamento no entorno do Rio Tietê',
-  'Falha de comunicação com o sistema ATS',
-];
+/** O banco guarda tensão em kV (primeira versão do produto, catenária)? */
+const hasLegacyVoltageColumns = async (): Promise<boolean> => {
+  const result = await db.query<{ legacy: boolean }>(HAS_LEGACY_VOLTAGE_COLUMNS_SQL);
+  return Boolean(result.rows[0]?.legacy);
+};
+
+const hasTable = async (table: string): Promise<boolean> => {
+  const result = await db.query(
+    `SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1`,
+    [table],
+  );
+  return (result.rowCount ?? 0) > 0;
+};
 
 const hasColumn = async (table: string, column: string): Promise<boolean> => {
   const result = await db.query(
@@ -322,59 +353,133 @@ const dropConstraints = async (client: PoolClient, table: string, names: string[
 };
 
 /**
- * Remove de uma linha o que sobrou de uma malha anterior.
+ * Adota a malha corrente nesta linha, descartando o que sobrou da anterior.
  *
- * O cenário é o de um banco que já rodou a versão da Linha 6-Laranja: a malha
- * mudou, e composição ou série histórica apontando para estação que não existe
- * mais naquela linha não tem como ser exibida. A versão anterior disto varria o
- * banco inteiro, comparando com a lista fixa de estações do código; aqui a
- * comparação é com a malha cadastrada **daquela linha**, senão a limpeza de um
- * cliente alcançaria os dados do outro.
+ * O cenário é um banco que já rodou com outra malha na linha de demonstração:
+ * a lista de estações mudou com o deploy, e composição, seção de energia ou
+ * série histórica apontando para estação que não existe mais não tem como ser
+ * exibida. A versão anterior disto varria o banco inteiro contra a lista fixa
+ * de estações do código; aqui tudo é por linha, senão a limpeza de um cliente
+ * alcançaria os dados do outro.
  *
- * A série histórica não aparece aqui porque pende da estação por chave
- * estrangeira com `ON DELETE CASCADE`: remover a estação já a leva embora.
+ * O gatilho é o marcador de malha gravado na própria linha (`lines.mesh_version`),
+ * e não a presença de resíduo: uma troca de malha que por acaso não deixe órfão
+ * ainda precisa reiniciar as seções de energia, porque os nomes das SRs se
+ * repetem entre malhas e passam a alimentar outras estações. Uma linha que o
+ * cliente cadastrou tem o marcador dele e nunca entra aqui — só a linha semeada,
+ * cuja malha o deploy move.
  *
- * Ocorrências, comunicações e ordens de serviço ficam: são registro histórico,
- * e o código de estação nelas é texto, não referência.
+ * Ocorrências, comunicações, alarmes e ordens de serviço ficam: são registro
+ * histórico, e o código de estação neles é texto, não referência. A série
+ * histórica das estações que ficaram também fica, exceto quando vem de um banco
+ * em kV: ali os números foram medidos noutro sistema de tração, e a renomeação
+ * das colunas os deixaria passar por volts.
  */
-/**
- * Detecção do que ainda está por converter nesta linha.
- *
- * No master a limpeza era gatilhada pela existência das colunas em kV, o que é
- * uma consulta só; aqui a pergunta é feita sobre o dado em si, porque a
- * renomeação das colunas acontece antes de a linha existir e não pode ficar na
- * mesma transação que a limpeza. Perguntando pelo dado, um processo que caia no
- * meio é refeito no boot seguinte, e um banco já convertido paga uma consulta.
- */
-const HAS_SUPERSEDED_LINE_DATA_SQL = `
-  SELECT EXISTS (
-    SELECT 1 FROM trains
-     WHERE line_id = $1
-       AND current_station_code NOT IN (SELECT code FROM stations WHERE line_id = $1)
-    UNION ALL
-    SELECT 1 FROM procedures WHERE line_id = $1 AND title = ANY($2::text[])
-    UNION ALL
-    SELECT 1 FROM work_orders WHERE line_id = $1 AND category = 'TSS_SUBESTACAO'
-    UNION ALL
-    SELECT 1 FROM power_sections
-     WHERE line_id = $1
-       AND substation NOT IN (SELECT substation FROM stations WHERE line_id = $1)
-  ) AS superseded
-`;
+const MESH_MIGRATION_LOCK = 6_060_601;
 
-const purgeSupersededLineData = async (lineId: string): Promise<void> => {
-  const detection = await db.query<{ superseded: boolean }>(HAS_SUPERSEDED_LINE_DATA_SQL, [
+interface LineMeshRow {
+  mesh_version: string | null;
+}
+
+/**
+ * Procedimentos de malhas anteriores, substituídos pela biblioteca corrente.
+ *
+ * A lista é explícita, e não "tudo que a semeadura não escreve": um procedimento
+ * que o cliente escreveu na linha dele não é resíduo de deploy.
+ */
+const LEGACY_PROCEDURE_TITLES = [
+  // Primeira versão do produto (catenária em kV, subestações TSS).
+  'Desenergização de trecho da catenária',
+  'Subtensão ou sobretensão em subestação (TSS)',
+  'Risco de alagamento no entorno do Rio Tietê',
+  'Falha de comunicação com o sistema ATS',
+  // Biblioteca da Linha 2-Verde.
+  'Falha de comunicação com o sistema ATS/CBTC',
+  'Risco de alagamento na várzea do Tamanduateí',
+];
+
+/**
+ * Adota como marcador da linha o registro de malha que a versão anterior mantinha
+ * na instalação (`app_meta.key = 'line'`).
+ *
+ * Sem isto, um banco vindo daquela versão chegaria aqui como "malha não
+ * registrada" e a adoção reiniciaria as seções de energia — uma seção que um
+ * supervisor deixou desenergizada voltaria energizada no deploy, embora a malha
+ * seja a mesma. O registro era da instalação porque lá havia uma linha só; aqui
+ * ele passa a ser da linha semeada, que é de onde esses dados vieram.
+ */
+const adoptInstallationMeshMarker = async (lineId: string): Promise<void> => {
+  if (!(await hasTable('app_meta'))) return;
+
+  const adopted = await db.query(
+    `UPDATE lines SET mesh_version = (SELECT value FROM app_meta WHERE key = 'line')
+      WHERE id = $1 AND mesh_version IS NULL
+        AND EXISTS (SELECT 1 FROM app_meta WHERE key = 'line')`,
+    [lineId],
+  );
+  if (adopted.rowCount) {
+    logger.info('Marcador de malha da instalação adotado pela linha semeada.');
+  }
+};
+
+/** A linha representa outra malha (ou nenhuma) que não a que a semeadura escreve? */
+const meshSuperseded = async (lineId: string, meshVersion: string): Promise<boolean> => {
+  const row = await db.query<LineMeshRow>(`SELECT mesh_version FROM lines WHERE id = $1`, [lineId]);
+  return (row.rows[0]?.mesh_version ?? null) !== meshVersion;
+};
+
+/**
+ * Remove as estações que a malha nova não tem, antes de semear as dela.
+ *
+ * Vem antes da semeadura porque a posição é única dentro da linha: inserir a
+ * estação de posição 1 da malha nova com a posição 1 da anterior ainda no lugar
+ * é erro de chave, não semeadura aditiva. Com as estações saem, por cascata, as
+ * séries históricas delas — a estação de outra malha não aparece em mapa nem em
+ * relatório desta linha.
+ *
+ * O marcador de malha só é gravado no fim da adoção, então um processo que caia
+ * entre os dois passos é refeito no boot seguinte.
+ */
+const removeSupersededStations = async (lineId: string, seed: LineSeed): Promise<void> => {
+  if (!(await meshSuperseded(lineId, seed.meshVersion))) return;
+
+  const codes = seed.stations.map((station) => station.code);
+  const removed = await db.query(`DELETE FROM stations WHERE line_id = $1 AND code <> ALL($2::text[])`, [
     lineId,
-    LEGACY_PROCEDURE_TITLES,
+    codes,
   ]);
-  if (!detection.rows[0]?.superseded) return;
+  if (removed.rowCount) {
+    logger.info(`Malha anterior da linha: ${removed.rowCount} estação(ões) que a malha nova não tem removida(s).`);
+  }
+};
+
+/**
+ * @param lineId linha semeada, a única cuja malha o deploy move.
+ * @param meshVersion identificador da malha que a semeadura acabou de escrever.
+ * @param alignmentFactor fator de traçado dessa malha, gravado junto com ela: a
+ *   medida é do traçado, então troca quando o traçado troca.
+ * @param fromLegacyVoltage o banco tinha colunas de tensão em kV neste boot.
+ */
+const adoptSeededMesh = async (lineId: string, seed: LineSeed, fromLegacyVoltage: boolean): Promise<void> => {
+  const { meshVersion, alignmentFactor } = seed;
+  const current = await db.query<LineMeshRow>(`SELECT mesh_version FROM lines WHERE id = $1`, [lineId]);
+  if (current.rows[0]?.mesh_version === meshVersion && !fromLegacyVoltage) return;
 
   // Numa transação só: a linha nunca fica com parte da malha anterior removida.
+  // O lock serializa duas instâncias subindo juntas; a releitura dentro dele é o
+  // que evita a segunda fazer tudo de novo.
   await withTransaction(async (client) => {
+    await client.query('SELECT pg_advisory_xact_lock($1, hashtext($2))', [MESH_MIGRATION_LOCK, lineId]);
+    const state = await client.query<LineMeshRow>(`SELECT mesh_version FROM lines WHERE id = $1 FOR UPDATE`, [lineId]);
+    const previous = state.rows[0]?.mesh_version ?? null;
+    if (previous === meshVersion && !fromLegacyVoltage) return;
+
     const trains = await client.query(
       `DELETE FROM trains
         WHERE line_id = $1
-          AND current_station_code NOT IN (SELECT code FROM stations WHERE line_id = $1)`,
+          AND (current_station_code NOT IN (SELECT code FROM stations WHERE line_id = $1)
+            OR (next_station_code IS NOT NULL
+                AND next_station_code NOT IN (SELECT code FROM stations WHERE line_id = $1)))`,
       [lineId],
     );
     const procedures = await client.query(`DELETE FROM procedures WHERE line_id = $1 AND title = ANY($2::text[])`, [
@@ -387,26 +492,41 @@ const purgeSupersededLineData = async (lineId: string): Promise<void> => {
       `UPDATE work_orders SET category = 'SUBESTACAO_SR' WHERE line_id = $1 AND category = 'TSS_SUBESTACAO'`,
       [lineId],
     );
-    // Seção de energia de uma SR que não alimenta mais nenhuma estação desta
-    // linha: o painel a listaria sem ter o que energizar.
-    const sections = await client.query(
-      `DELETE FROM power_sections
-        WHERE line_id = $1
-          AND substation NOT IN (SELECT substation FROM stations WHERE line_id = $1)`,
-      [lineId],
-    );
+    // As seções desta linha são recriadas energizadas pela carga inicial: a SR-01
+    // da malha nova não é a mesma instalação que a SR-01 da anterior, então a
+    // manobra registrada lá não vale aqui.
+    const sections = await client.query(`DELETE FROM power_sections WHERE line_id = $1`, [lineId]);
+    // Leituras em kV não se convertem em leituras de trilho de alimentação.
+    const samples = fromLegacyVoltage
+      ? await client.query(
+          `DELETE FROM telemetry_samples
+            WHERE station_id IN (SELECT id FROM stations WHERE line_id = $1)`,
+          [lineId],
+        )
+      : { rowCount: 0 };
+
+    await client.query(`UPDATE lines SET mesh_version = $2, alignment_factor = $3 WHERE id = $1`, [
+      lineId,
+      meshVersion,
+      alignmentFactor,
+    ]);
 
     logger.info(
-      `Dados da malha anterior migrados: ${trains.rowCount ?? 0} composição(ões) removida(s), ` +
+      `Malha da linha adotada (${previous ?? 'não registrada'} -> ${meshVersion}): ` +
+        `${trains.rowCount ?? 0} composição(ões) removida(s), ` +
         `${procedures.rowCount ?? 0} procedimento(s) substituído(s), ` +
         `${workOrders.rowCount ?? 0} OS(s) recategorizada(s), ` +
-        `${sections.rowCount ?? 0} seção(ões) de energia descartada(s).`,
+        `${sections.rowCount ?? 0} seção(ões) de energia reiniciada(s)` +
+        (fromLegacyVoltage ? `, ${samples.rowCount ?? 0} janela(s) de telemetria em kV descartada(s).` : '.'),
     );
   });
 };
 
 export const runMigrations = async (): Promise<void> => {
   await db.query(TENANCY_DDL);
+  // A pergunta vem antes da renomeação, que é o que apaga o rastro dela: um banco
+  // em kV mediu a tensão noutro sistema de tração, e os números não se convertem.
+  const fromLegacyVoltage = await hasLegacyVoltageColumns();
   // Antes da semeadura: `stations` pode existir de uma versão anterior, com a
   // tensão em kV e sem as integrações, e o INSERT abaixo já usa as colunas novas.
   await db.query(LEGACY_VOLTAGE_COLUMNS_DDL);
@@ -417,7 +537,7 @@ export const runMigrations = async (): Promise<void> => {
   await upgradeLegacySchema(tenantId, lineId);
   // Depois do backfill: é ele que traz para esta linha os dados gravados antes
   // de existir noção de cliente, e é entre eles que pode haver malha anterior.
-  await purgeSupersededLineData(lineId);
+  await adoptSeededMesh(lineId, DEMO_TENANT_SEED.lines[0], fromLegacyVoltage);
   await db.query(INDEX_DDL);
   await renameLegacyOperatorRole();
 
@@ -433,7 +553,21 @@ export const runMigrations = async (): Promise<void> => {
 
 /** Cria o cliente de demonstração e a sua malha, se ainda não existirem. */
 const seedTenancy = async (): Promise<{ tenantId: string; lineId: string }> => {
-  const seed = METRO_SP_SEED;
+  const seed = DEMO_TENANT_SEED;
+
+  // O cliente de demonstração mudou de nome quando a linha do produto mudou de
+  // concessionária. Renomear o registro, e não semear um segundo, é o que
+  // mantém os dados dele — e o destino do backfill — onde estavam. Idempotente:
+  // num banco já renomeado não existe mais nenhum dos slugs anteriores.
+  const renamed = await db.query(
+    `UPDATE tenants SET slug = $1, name = $2
+      WHERE slug = ANY($3::text[])
+        AND NOT EXISTS (SELECT 1 FROM tenants WHERE slug = $1)`,
+    [seed.slug, seed.name, [...seed.previousSlugs]],
+  );
+  if (renamed.rowCount) {
+    logger.info(`Cliente de demonstração renomeado para "${seed.name}" (${seed.slug}).`);
+  }
 
   const tenant = await db.query<{ id: string }>(
     `INSERT INTO tenants (slug, name) VALUES ($1, $2)
@@ -444,6 +578,19 @@ const seedTenancy = async (): Promise<{ tenantId: string; lineId: string }> => {
   const tenantId = tenant.rows[0].id;
 
   const [lineSeed] = seed.lines;
+  // Mesma regra do cliente: a linha de demonstração é renomeada, não duplicada.
+  // Sem isto, trocar a malha do produto deixaria duas linhas no cliente — a
+  // anterior com as estações, as composições e o histórico dela.
+  const renamedLine = await db.query(
+    `UPDATE lines SET code = $2, name = $3
+      WHERE tenant_id = $1 AND code = ANY($4::text[])
+        AND NOT EXISTS (SELECT 1 FROM lines WHERE tenant_id = $1 AND code = $2)`,
+    [tenantId, lineSeed.code, lineSeed.name, [...lineSeed.previousCodes]],
+  );
+  if (renamedLine.rowCount) {
+    logger.info(`Linha de demonstração renomeada para "${lineSeed.name}" (${lineSeed.code}).`);
+  }
+
   const line = await db.query<{ id: string }>(
     `INSERT INTO lines (tenant_id, code, name) VALUES ($1, $2, $3)
      ON CONFLICT (tenant_id, code) DO UPDATE SET code = EXCLUDED.code
@@ -451,6 +598,9 @@ const seedTenancy = async (): Promise<{ tenantId: string; lineId: string }> => {
     [tenantId, lineSeed.code, lineSeed.name],
   );
   const lineId = line.rows[0].id;
+
+  await adoptInstallationMeshMarker(lineId);
+  await removeSupersededStations(lineId, lineSeed);
 
   // DO NOTHING e não DO UPDATE: a semeadura é ponto de partida, não fonte de
   // verdade. Uma estação ajustada pelo cliente não pode ser revertida no boot.

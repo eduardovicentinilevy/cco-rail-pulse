@@ -30,11 +30,11 @@ describe('TelemetrySimulator', () => {
   it('classifica a leitura conforme os limiares SCADA', () => {
     const snapshot = new TelemetrySimulator(catalog, 1000).snapshot();
 
-    // AIP fica em fim de alimentação (620 V) — abaixo do limiar crítico de 640 V.
-    assert.equal(snapshot.find((item) => item.currentStationCode === 'AIP')?.status, 'CRÍTICO');
-    // SAC opera em 680 V — faixa de atenção.
-    assert.equal(snapshot.find((item) => item.currentStationCode === 'SAC')?.status, 'ATENÇÃO');
-    assert.equal(snapshot.find((item) => item.currentStationCode === 'VMD')?.status, 'NORMAL');
+    // ITA fica em fim de alimentação (620 V) — abaixo do limiar crítico de 640 V.
+    assert.equal(snapshot.find((item) => item.currentStationCode === 'ITA')?.status, 'CRÍTICO');
+    // FGO opera em 680 V — faixa de atenção.
+    assert.equal(snapshot.find((item) => item.currentStationCode === 'FGO')?.status, 'ATENÇÃO');
+    assert.equal(snapshot.find((item) => item.currentStationCode === 'BRA')?.status, 'NORMAL');
   });
 
   it('mantém a deriva dentro do limite em torno da tensão de referência', async () => {
@@ -66,29 +66,29 @@ describe('TelemetrySimulator', () => {
     let readings = loaded.tick();
     for (let cycle = 0; cycle < 40; cycle += 1) readings = loaded.tick();
 
-    const vmd = readings.find((item) => item.currentStationCode === 'VMD')!;
+    const bra = readings.find((item) => item.currentStationCode === 'BRA')!;
     const target = 752 - 3 * LOAD_SAG_V_PER_TRAIN;
-    assert.ok(Math.abs(vmd.voltageV - target) <= MAX_DRIFT_V, `VMD em ${vmd.voltageV} V, alvo ${target} V`);
+    assert.ok(Math.abs(bra.voltageV - target) <= MAX_DRIFT_V, `BRA em ${bra.voltageV} V, alvo ${target} V`);
     // Seção sem carga continua perto da referência.
-    const tti = readings.find((item) => item.currentStationCode === 'TTI')!;
-    assert.ok(Math.abs(tti.voltageV - 749) <= MAX_DRIFT_V);
+    const blv = readings.find((item) => item.currentStationCode === 'BLV')!;
+    assert.ok(Math.abs(blv.voltageV - 749) <= MAX_DRIFT_V);
   });
 
   it('seção desenergizada lê 0 V, crítica — inclusive no snapshot inicial', () => {
     let energized = false;
     const simulator = new TelemetrySimulator(demoCatalog(), 1000, { isEnergized: (sr: string) => sr !== 'SR-03' || energized });
 
-    const initial = simulator.snapshot().find((item) => item.currentStationCode === 'TRI')!;
+    const initial = simulator.snapshot().find((item) => item.currentStationCode === 'SMA')!;
     assert.equal(initial.voltageV, 0);
     assert.equal(initial.status, 'CRÍTICO');
 
-    const tri = simulator.tick().find((item) => item.currentStationCode === 'TRI')!;
-    assert.equal(tri.voltageV, 0);
+    const sma = simulator.tick().find((item) => item.currentStationCode === 'SMA')!;
+    assert.equal(sma.voltageV, 0);
 
     // Reenergizada: volta ao patamar do trecho na leitura seguinte, sem "subir" do zero.
     energized = true;
-    const restored = simulator.tick().find((item) => item.currentStationCode === 'TRI')!;
-    assert.ok(Math.abs(restored.voltageV - 751) <= MAX_DRIFT_V, `TRI em ${restored.voltageV} V`);
+    const restored = simulator.tick().find((item) => item.currentStationCode === 'SMA')!;
+    assert.ok(Math.abs(restored.voltageV - 749) <= MAX_DRIFT_V, `SMA em ${restored.voltageV} V`);
     assert.equal(restored.status, 'NORMAL');
   });
 
@@ -111,7 +111,7 @@ describe('TelemetrySimulator', () => {
     const demo = new TelemetrySimulator(demoCatalog(), 1000).snapshot();
     const outro = new TelemetrySimulator(otherTenantCatalog(), 1000).snapshot();
 
-    assert.equal(demo.length, 14);
+    assert.equal(demo.length, 15);
     assert.equal(outro.length, 3);
     assert.deepEqual(
       outro.map((reading) => reading.currentStationCode),

@@ -442,7 +442,7 @@ const CreateWorkOrderModal: React.FC<CreateWorkOrderModalProps> = ({ session, st
             className="rp-input"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Ex: Substituir disjuntor extrarrápido da SR-06 Alto do Ipiranga"
+            placeholder="Ex: Substituir disjuntor extrarrápido da SR-02 Itaberaba"
             maxLength={120}
             required
           />

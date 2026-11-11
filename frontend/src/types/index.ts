@@ -22,20 +22,28 @@ export interface Station {
   position: number;
   code: string;
   name: string;
-  /** Subestação retificadora (SR) que alimenta o terceiro trilho no trecho. */
+  /** Subestação retificadora (SR) que alimenta o trilho de alimentação no trecho. */
   substation: string;
-  /** Tensão de referência do terceiro trilho, em Vcc. */
+  /** Tensão de referência do trilho de alimentação, em Vcc. */
   nominalVoltageV: number;
-  /** Última leitura SCADA do terceiro trilho, em Vcc. */
+  /** Última leitura SCADA do trilho de alimentação, em Vcc. */
   voltageV: number;
   status: StationStatus;
   /** Intervalo entre composições, em segundos; `null` quando não cadastrado. */
   headwaySeconds: number | null;
   /** Integrações com outras linhas e modais, como cadastradas na estação. */
   connections: string[];
-  /** Posição normalizada (0–1) no traçado esquemático desenhado pelo mapa. */
+  /**
+   * Posição normalizada (0–1) no traçado esquemático.
+   *
+   * Só serve à linha cadastrada sem coordenada geográfica: onde há `lat`/`lon`,
+   * o mapa projeta o traçado delas.
+   */
   mapX: number | null;
   mapY: number | null;
+  /** Coordenadas da estação (WGS 84); `null` quando ainda não cadastradas. */
+  lat: number | null;
+  lon: number | null;
 }
 
 /** 1 = sentido do último terminal do traçado; -1 = sentido do primeiro. */

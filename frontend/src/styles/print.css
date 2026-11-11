@@ -19,31 +19,41 @@
   .rp-main { padding: 0; }
 
   /*
-   * O papel segue a identidade da Linha 2-Verde: fundo branco, grafite como
-   * cor de texto/título e o verde da linha como régua de destaque. Os valores
+   * O papel segue a identidade da Linha 6-Laranja: fundo branco, marinho como
+   * cor de texto/título e o laranja da linha como régua de destaque. Os valores
    * são fixos (não os tokens do tema), porque um documento impresso não deve
-   * variar com o tema do console.
+   * variar com o tema do console — inclusive as cores de status, que no tema
+   * escuro clareiam e perderiam contraste sob o texto branco das pílulas.
    */
+  :root,
+  :root[data-theme='dark'] {
+    --cco-success: #1f7a3a;
+    --cco-warning: #856100;
+    --cco-danger: #bf2e2a;
+    --cco-info: #3363c2;
+  }
+
   body {
     background: #fff !important;
-    color: #17201d !important;
+    color: #172238 !important;
   }
 
   .rp-card,
   .rp-metric {
     background: #fff !important;
     background-image: none !important;
-    border: 1px solid #d6ddda !important;
+    border: 1px solid #d5dbe5 !important;
     box-shadow: none !important;
     break-inside: avoid;
   }
 
   .rp-metric::before { display: none; }
 
-  .rp-eyebrow { color: #007e5e !important; }
+  /* Laranja de tinta no texto (≥ 4,5:1); a régua, sem texto, usa o chapado. */
+  .rp-eyebrow { color: #a14f00 !important; }
 
   .rp-page-header {
-    border-bottom: 3px solid #007e5e !important;
+    border-bottom: 3px solid #f2871a !important;
     padding-bottom: var(--sp-3, 0.75rem) !important;
   }
 
@@ -52,20 +62,20 @@
   .rp-metric__value,
   .rp-feed__message,
   .rp-table td {
-    color: #17201d !important;
+    color: #172238 !important;
   }
 
   .rp-card__subtitle,
   .rp-page-header__subtitle,
   .rp-metric__label,
   .rp-metric__hint {
-    color: #56605c !important;
+    color: #556079 !important;
   }
 
-  .rp-table-wrap { overflow: visible; border-color: #d6ddda !important; }
+  .rp-table-wrap { overflow: visible; border-color: #d5dbe5 !important; }
   .rp-table { min-width: 0; }
   .rp-table th {
-    background: #17201d !important;
+    background: #1c2b4a !important;
     color: #fff !important;
   }
 
@@ -74,14 +84,14 @@
     border: none !important;
     border-radius: 999px !important;
     padding: 0.2rem 0.6rem !important;
-    background: var(--rp-status, #17201d) !important;
+    background: var(--rp-status, #1c2b4a) !important;
     color: #fff !important;
   }
 
   .rp-feed { max-height: none; overflow: visible; }
-  .rp-feed__item { background: #fff !important; border-color: #d6ddda !important; }
+  .rp-feed__item { background: #fff !important; border-color: #d5dbe5 !important; }
 
-  .rp-signature__line { border-top-color: #17201d !important; }
+  .rp-signature__line { border-top-color: #172238 !important; }
 
   @page { margin: 1.5cm; }
 }

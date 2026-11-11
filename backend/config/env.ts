@@ -57,7 +57,7 @@ export const env = {
    * corpo do login). É o que mantém uma instalação de um cliente só funcionando
    * sem que ninguém precise digitar o cliente na tela de acesso.
    */
-  defaultTenantSlug: (process.env.DEFAULT_TENANT_SLUG ?? 'metro-sp').trim().toLowerCase(),
+  defaultTenantSlug: (process.env.DEFAULT_TENANT_SLUG ?? 'linha-uni').trim().toLowerCase(),
   /**
    * Domínio base das instalações multi-cliente. Com ele definido, o subdomínio do
    * Host vira o slug do cliente: `cliente.railpulse.app` → `cliente`.
