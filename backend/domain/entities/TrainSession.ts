@@ -1,6 +1,6 @@
 // backend/domain/entities/TrainSession.ts
 import { ValidationError } from '../../shared/errors';
-import { LINE_SPEED_KMH, runTimeMs, segmentLengthM } from '../operation';
+import { LINE_SPEED_KMH, runTimeMs } from '../operation';
 import type { Direction } from '../operation';
 
 export const TRAIN_STATUSES = ['NORMAL', 'ATENÇÃO', 'EMERGÊNCIA'] as const;
@@ -9,7 +9,13 @@ export type TrainStatus = (typeof TRAIN_STATUSES)[number];
 export const TRAIN_COMMANDS = ['HALT', 'RESTRICT_SPEED', 'RELEASE'] as const;
 export type TrainCommand = (typeof TRAIN_COMMANDS)[number];
 
-/** Velocidade máxima dos trens Metropolis da Linha 6 (limite de projeto), em km/h. */
+/**
+ * Teto de velocidade aceito pela plataforma, em km/h.
+ * Limite de sanidade da telemetria, não a homologação de uma linha específica:
+ * a velocidade homologada por linha ainda não é dado cadastrado. Fica acima da
+ * velocidade de linha da marcha para deixar folga ao material rodante — os
+ * trens da linha de demonstração são de projeto para 90 km/h.
+ */
 export const MAX_SPEED_KMH = 90;
 /** Velocidade imposta por restrição operacional (V.R.), em km/h. */
 export const RESTRICTED_SPEED_KMH = 20;
@@ -220,11 +226,10 @@ export class TrainSession {
   }
 
   /** Recalcula o restante do trecho à velocidade dada, a partir do ponto atual. */
-  private replan(speedKmH: number, now: Date, timeScale: number): void {
+  private replan(speedKmH: number, now: Date, timeScale: number, length: number): void {
     const motion = this.motion;
     if (!motion) return;
     const progress = this.progressAt(now);
-    const length = segmentLengthM(this.currentStationCode, motion.toStationCode) ?? 0;
     this.motion = {
       ...motion,
       progress,
@@ -239,9 +244,14 @@ export class TrainSession {
    * A posição e a tensão medida são preservadas — um comando não teletransporta o trem:
    * a frenagem de emergência para o trem onde ele está, inclusive no meio do trecho, e a
    * restrição ou a liberação recalculam o tempo que falta até a próxima estação.
-   * `timeScale` é a aceleração do relógio da simulação (1 = tempo real).
+   * `timeScale` é a aceleração do relógio da simulação (1 = tempo real), e
+   * `segmentLengthM` é o comprimento do trecho em curso, em metros.
+   *
+   * O comprimento vem de fora porque a composição não conhece a malha: cada
+   * linha tem a sua, e o trecho `PSO`→`ANR` de um cliente não mede o mesmo que o
+   * de outro. Quando o trem está na plataforma, ele não é usado.
    */
-  public applyCommand(command: TrainCommand, now: Date = new Date(), timeScale = 1): void {
+  public applyCommand(command: TrainCommand, now: Date, timeScale: number, segmentLengthM: number): void {
     switch (command) {
       case 'HALT':
         this.status = 'EMERGÊNCIA';
@@ -251,8 +261,11 @@ export class TrainSession {
       case 'RESTRICT_SPEED':
         this.status = 'ATENÇÃO';
         if (this.motion) {
-          if (this.motion.remainingMs === null) this.resumeFromStandstill(RESTRICTED_SPEED_KMH, now, timeScale);
-          else this.replan(RESTRICTED_SPEED_KMH, now, timeScale);
+          if (this.motion.remainingMs === null) {
+            this.resumeFromStandstill(RESTRICTED_SPEED_KMH, now, timeScale, segmentLengthM);
+          } else {
+            this.replan(RESTRICTED_SPEED_KMH, now, timeScale, segmentLengthM);
+          }
         } else {
           this.speedKmH = 0;
         }
@@ -260,8 +273,11 @@ export class TrainSession {
       case 'RELEASE':
         this.status = 'NORMAL';
         if (this.motion) {
-          if (this.motion.remainingMs === null) this.resumeFromStandstill(CRUISE_SPEED_KMH, now, timeScale);
-          else this.replan(CRUISE_SPEED_KMH, now, timeScale);
+          if (this.motion.remainingMs === null) {
+            this.resumeFromStandstill(CRUISE_SPEED_KMH, now, timeScale, segmentLengthM);
+          } else {
+            this.replan(CRUISE_SPEED_KMH, now, timeScale, segmentLengthM);
+          }
         } else {
           this.speedKmH = 0;
         }
@@ -271,16 +287,15 @@ export class TrainSession {
   }
 
   /** Tempo, a partir do repouso, para completar o trecho em curso à velocidade dada. */
-  public remainingRunTimeMs(speedKmH: number, timeScale: number): number {
+  public remainingRunTimeMs(speedKmH: number, timeScale: number, segmentLengthM: number): number {
     const motion = this.motion;
     if (!motion) return 0;
-    const length = segmentLengthM(this.currentStationCode, motion.toStationCode) ?? 0;
-    return runTimeMs(length * (1 - motion.progress), speedKmH) / timeScale;
+    return runTimeMs(segmentLengthM * (1 - motion.progress), speedKmH) / timeScale;
   }
 
   /** Retoma, a partir do repouso, um trem parado no meio do trecho. */
-  private resumeFromStandstill(speedKmH: number, now: Date, timeScale: number): void {
-    this.resume(this.remainingRunTimeMs(speedKmH, timeScale), speedKmH, now);
+  private resumeFromStandstill(speedKmH: number, now: Date, timeScale: number, segmentLengthM: number): void {
+    this.resume(this.remainingRunTimeMs(speedKmH, timeScale, segmentLengthM), speedKmH, now);
   }
 
   public toSnapshot(now: Date = new Date()): TrainSnapshot {

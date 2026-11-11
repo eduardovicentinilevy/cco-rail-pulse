@@ -85,8 +85,12 @@ jobs:
 
       - name: Sobe o backend e valida o bootstrap
         run: |
-          npx tsx backend/presentation/http/server.ts &
-          SERVER_PID=$!
+          # `setsid` põe o servidor no seu próprio grupo de processos: `npx tsx`
+          # ainda gera um filho node, e matar só o pai deixaria a porta 3333
+          # ocupada para o passo de isolamento, que sobe o backend dele.
+          setsid npx tsx backend/presentation/http/server.ts &
+          SERVER_PGID=$!
+          trap 'kill -- -$SERVER_PGID 2>/dev/null || true' EXIT
           # Aguarda o /health responder ONLINE (self-healing DDL + seed concluídos).
           for attempt in $(seq 1 30); do
             if curl -sf http://localhost:3333/health | grep -q '"status":"ONLINE"'; then
@@ -102,6 +106,8 @@ jobs:
             -d '{"operatorId":"EDP-042","password":"123456"}' | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
           test -n "$TOKEN"
           curl -sf http://localhost:3333/api/network/trains -H "Authorization: Bearer $TOKEN" | grep -q 'T-01'
+          # A malha vem do banco, não de constante: a sessão nomeia a sua linha.
+          curl -sf http://localhost:3333/api/network/stations -H "Authorization: Bearer $TOKEN" | grep -q '"code":"L6"'
           # Rota protegida sem token precisa ser recusada.
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3333/api/network/trains)" = "401"
           # Central de Alarmes, Comunicações e Procedimentos: schema e seed também
@@ -109,4 +115,24 @@ jobs:
           curl -sf http://localhost:3333/api/alarms/meta -H "Authorization: Bearer $TOKEN" | grep -q 'CRITICAL'
           curl -sf http://localhost:3333/api/communications/meta -H "Authorization: Bearer $TOKEN" | grep -q 'RADIO_TREM'
           curl -sf http://localhost:3333/api/procedures -H "Authorization: Bearer $TOKEN" | grep -q 'EMERGENCIA'
-          kill $SERVER_PID
+          # Ordens de Serviço: a tabela nasce amarrada à linha, então a rota só
+          # responde com o escopo da sessão resolvido.
+          curl -sf http://localhost:3333/api/work-orders/meta -H "Authorization: Bearer $TOKEN" | grep -q 'SUBESTACAO_SR'
+          curl -sf http://localhost:3333/api/work-orders/stats -H "Authorization: Bearer $TOKEN" | grep -q '"open":0'
+          kill -- -"$SERVER_PGID" 2>/dev/null || true
+          # Só segue quando a porta estiver realmente livre: um servidor
+          # sobrevivente responderia ao passo seguinte com o estado de antes
+          # do segundo cliente existir.
+          for attempt in $(seq 1 20); do
+            curl -sf http://localhost:3333/health >/dev/null 2>&1 || break
+            sleep 1
+          done
+          if curl -sf http://localhost:3333/health >/dev/null 2>&1; then
+            echo "O backend do bootstrap não encerrou: a porta 3333 segue ocupada." >&2
+            exit 1
+          fi
+
+      - name: Isolamento entre clientes
+        env:
+          PGPASSWORD: postgres
+        run: bash scripts/check-tenant-isolation.sh

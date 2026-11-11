@@ -23,12 +23,12 @@ const peakFactor = (hour: number, minute: number): number => {
 };
 
 /**
- * Peso de fluxo da estação: o miolo do traçado (Água Branca a Higienópolis) recebe
- * mais gente que as pontas, e cada integração com outra linha soma baldeação.
+ * Peso de fluxo da estação: o miolo do traçado recebe mais gente que as pontas,
+ * e cada integração com outra linha soma baldeação.
  */
 const flowWeight = (station: Station, total: number): number => {
   const center = (total - 1) / 2;
-  const distance = Math.abs(station.order - 1 - center) / center;
+  const distance = Math.abs(station.position - 1 - center) / center;
   const transfers = Math.min(station.connections.length, 2) * 0.12;
   return Math.min(1, 1 - distance * 0.7 + transfers);
 };

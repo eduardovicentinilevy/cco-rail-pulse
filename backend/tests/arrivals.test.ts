@@ -3,8 +3,13 @@ import assert from 'node:assert/strict';
 
 import { TrainSession } from '../domain/entities/TrainSession';
 import { PLATFORM_CLEARANCE_MS, predictArrivals } from '../domain/arrivals';
-import { LINE_SPEED_KMH, dwellTimeMs, segmentRunTimeMs } from '../domain/operation';
+import { LINE_SPEED_KMH, operationFor } from '../domain/operation';
 import type { Direction } from '../domain/operation';
+import { demoCatalog } from './helpers/catalog';
+
+const operation = operationFor(demoCatalog());
+const segmentRunTimeMs = (from: string, to: string, speed: number) => operation.segmentRunTimeMs(from, to, speed);
+const dwellTimeMs = (code: string) => operation.dwellTimeMs(code);
 
 const NOW = new Date('2026-11-05T12:00:00Z');
 
@@ -12,7 +17,7 @@ const atPlatform = (id: string, station: string, direction: Direction, status: '
   new TrainSession(id, station, 0, 750, status, NOW, { direction });
 
 const board = (fleet: TrainSession[], dwellRemaining = 0, timeScale = 1) =>
-  predictArrivals(fleet, NOW, { timeScale, dwellRemainingMs: () => dwellRemaining });
+  predictArrivals(fleet, NOW, { operation, timeScale, dwellRemainingMs: () => dwellRemaining });
 
 describe('Previsão de chegadas', () => {
   it('trem na plataforma aparece com ETA zero na própria estação', () => {

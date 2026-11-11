@@ -1,9 +1,9 @@
 // frontend/src/components/dashboard/LineMap.tsx
 import React, { useMemo } from 'react';
 import type { Station, Train } from '../../types';
-import { LINE_NAME, stationAccessibleName } from '../../data/stations';
+import { stationAccessibleName } from '../../data/stations';
 import { PHASE_LABELS } from '../../data/trains';
-import { NORTH, RIVER, ROUTE, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
+import { projectionFor, VIEW_HEIGHT, VIEW_WIDTH } from '../../data/lineGeometry';
 import { buildCurveSegments, curveToPath } from '../../lib/curve';
 import type { Point } from '../../lib/curve';
 import { useTrainMotion } from '../../hooks/useTrainMotion';
@@ -12,6 +12,8 @@ interface LineMapProps {
   stations: Station[];
   trains: Train[];
   selectedStation: Station;
+  /** Nome da linha desenhada, usado na descrição acessível do mapa. */
+  lineName: string;
   onSelectStation: (station: Station) => void;
 }
 
@@ -35,10 +37,24 @@ const STATUS_COLOR: Record<Station['status'], string> = {
   'CRÍTICO': 'var(--cco-danger)',
 };
 
-export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStation, onSelectStation }) => {
+export const LineMap: React.FC<LineMapProps> = ({
+  stations,
+  trains,
+  selectedStation,
+  lineName,
+  onSelectStation,
+}) => {
+  // Uma projeção por malha recebida: é ela que decide se o traçado sai das
+  // coordenadas geográficas da linha ou da coordenada normalizada do cadastro.
+  const projection = useMemo(() => projectionFor(stations), [stations]);
+  const compass = projection.compass;
   const points = useMemo(
-    () => stations.map((station) => ({ station, ...(ROUTE[station.code] ?? { x: 0, y: 0 }) })),
-    [stations],
+    () =>
+      stations.map((station, index) => ({
+        station,
+        ...projection.stationPoint(station, index, stations.length),
+      })),
+    [stations, projection],
   );
 
   // Curva Catmull-Rom (convertida para Bézier cúbica) compartilhada entre o
@@ -99,7 +115,7 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
         viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
         className="rp-map__canvas"
         role="img"
-        aria-label={`Mapa da ${LINE_NAME} com a posição das composições`}
+        aria-label={`Mapa da ${lineName} com a posição das composições`}
       >
         <defs>
           <linearGradient id="rp-rail-gradient" x1="0" y1="0" x2="1" y2="1">
@@ -115,35 +131,26 @@ export const LineMap: React.FC<LineMapProps> = ({ stations, trains, selectedStat
           </filter>
         </defs>
 
-        {/* Referência urbana projetada das mesmas coordenadas das estações: o Rio
-            Tietê, atravessado em túnel entre Freguesia do Ó (FGO) e Santa Marina (SMA). */}
-        <path d={RIVER.path} className="rp-map__river" fill="none" />
-        <text
-          x={RIVER.label.x}
-          y={RIVER.label.y}
-          className="rp-map__river-label"
-          textAnchor="middle"
-          transform={`rotate(${RIVER.label.angle} ${RIVER.label.x} ${RIVER.label.y})`}
-        >
-          {RIVER.name}
-        </text>
-
-        {/* O mapa é girado para a linha caber deitada no painel: a rosa indica o norte real. */}
-        <g className="rp-map__compass" transform={`translate(${NORTH.x} ${NORTH.y})`} aria-hidden="true">
+        {/* O mapa é girado para a linha caber deitada no painel: a rosa indica o
+            norte real. Só aparece onde o traçado vem de coordenada geográfica —
+            coordenada normalizada não tem orientação a mostrar. */}
+        {compass && (
+          <g className="rp-map__compass" transform={`translate(${compass.x} ${compass.y})`} aria-hidden="true">
           <circle r="22" className="rp-map__compass-ring" />
-          <g transform={`rotate(${NORTH.angle})`}>
+          <g transform={`rotate(${compass.angle})`}>
             <path d="M 0 -17 L 6 2 L 0 -2 L -6 2 Z" className="rp-map__compass-needle" />
             <path d="M 0 17 L 6 2 L 0 -2 L -6 2 Z" className="rp-map__compass-tail" />
           </g>
           <text
-            x={NORTH.dx * 32}
-            y={NORTH.dy * 32 + 4}
+            x={compass.dx * 32}
+            y={compass.dy * 32 + 4}
             className="rp-map__compass-label"
             textAnchor="middle"
           >
-            N
-          </text>
-        </g>
+              N
+            </text>
+          </g>
+        )}
 
         {/* Halo do trilho, depois o trilho sólido por cima. */}
         <path d={path} className="rp-map__rail-glow" fill="none" filter="url(#rp-rail-glow)" />

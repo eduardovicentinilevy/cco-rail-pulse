@@ -392,18 +392,10 @@
   border-radius: var(--radius-md);
 }
 
-.rp-map__river {
-  stroke: var(--map-river-stroke);
-  stroke-width: 14;
-  stroke-linecap: round;
-}
-
-.rp-map__river-label {
-  fill: var(--map-river-label);
-  font-size: 13px;
-  font-style: italic;
-  font-family: var(--cco-font);
-}
+/* A decoração geográfica da linha (rio, avenida e os seus rótulos) saiu do mapa
+   compartilhado: é cartografia de uma linha só, e desenhada aqui apareceria
+   sobre a linha de qualquer cliente. Volta com a identidade visual por cliente,
+   junto do estilo que ela precisar. */
 
 /* Rosa dos ventos: o mapa é girado para a linha caber deitada no painel. */
 .rp-map__compass-ring {
@@ -421,6 +413,7 @@
   font-weight: 800;
   font-family: var(--cco-font);
 }
+
 
 .rp-map__rail {
   stroke-width: 5;

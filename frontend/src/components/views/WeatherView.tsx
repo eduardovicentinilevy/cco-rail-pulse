@@ -11,10 +11,15 @@ interface WeatherViewProps {
 }
 
 /**
- * Estações nas duas margens do Rio Tietê, atravessado em túnel entre Freguesia
- * do Ó e Santa Marina — várzea de alagamento recorrente (ver procedimento METEOROLOGIA).
+ * Fração das estações tratadas como suscetíveis a alagamento.
+ *
+ * Antes eram códigos fixos de uma linha (a faixa do Rio Tietê na Linha 6, depois
+ * a várzea do Tamanduateí na Linha 2), o que deixava o painel inerte na malha de
+ * qualquer outro cliente. A suscetibilidade agora sai do hash do código da
+ * estação: estável entre recargas, e válida para qualquer malha. Onde o trecho
+ * sensível é real, o procedimento de METEOROLOGIA da linha é que o nomeia.
  */
-const FLOOD_RISK_CODES = new Set(['FGO', 'SMA']);
+const FLOOD_PRONE_RATIO = 0.15;
 
 const TIME_BUCKET_MS = 10 * 60_000;
 
@@ -55,13 +60,13 @@ const deriveWeather = (station: Station, bucket: number): StationWeather => {
   const rainMmH = rainRoll < 0.7 ? 0 : ((rainRoll - 0.7) / 0.3) * 45;
   const windKmH = pseudoRandom(seed + 2) * 70;
 
-  const canFlood = FLOOD_RISK_CODES.has(station.code);
+  const canFlood = (hashString(`FLOOD-${station.code}`) % 100) / 100 < FLOOD_PRONE_RATIO;
   const floodRisk: RiskLevel = canFlood && rainMmH > 25 ? 'CRÍTICO' : canFlood && rainMmH > 10 ? 'ATENÇÃO' : 'NORMAL';
   const heatRisk: RiskLevel = temperatureC > 38 ? 'CRÍTICO' : temperatureC > 34 ? 'ATENÇÃO' : 'NORMAL';
   const windRisk: RiskLevel = windKmH > 60 ? 'CRÍTICO' : windKmH > 45 ? 'ATENÇÃO' : 'NORMAL';
 
   const advisories: string[] = [];
-  if (floodRisk !== 'NORMAL') advisories.push('Risco de alagamento na travessia do Rio Tietê (FGO–SMA) — monitore os acessos e siga o procedimento METEOROLOGIA.');
+  if (floodRisk !== 'NORMAL') advisories.push('Risco de alagamento no trecho da estação — monitore os acessos e siga os procedimentos de METEOROLOGIA da linha.');
   if (heatRisk !== 'NORMAL') advisories.push('Calor elevado nas plataformas — reforce a ventilação e monitore a temperatura dos equipamentos.');
   if (windRisk !== 'NORMAL') advisories.push('Rajadas fortes — risco de queda de árvores e objetos sobre acessos e poços de ventilação.');
 

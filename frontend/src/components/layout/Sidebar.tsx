@@ -1,6 +1,5 @@
 // frontend/src/components/layout/Sidebar.tsx
 import React, { useEffect, useRef } from 'react';
-import { LINE_NAME } from '../../data/stations';
 
 export interface NavItem<T extends string> {
   key: T;
@@ -19,6 +18,9 @@ interface SidebarProps<T extends string> {
   groups: ReadonlyArray<NavGroup<T>>;
   activeKey: T;
   collapsed: boolean;
+  /** Identificação da linha no cabeçalho da barra, vinda da sessão. */
+  lineName: string;
+  lineCode: string;
   /** Rodapé com a identificação do operador e do turno. */
   footer?: React.ReactNode;
   onSelect: (key: T) => void;
@@ -35,6 +37,8 @@ export const Sidebar = <T extends string>({
   groups,
   activeKey,
   collapsed,
+  lineName,
+  lineCode,
   footer,
   onSelect,
   onToggleCollapse,
@@ -63,11 +67,11 @@ export const Sidebar = <T extends string>({
       <div className="rp-sidebar__brand">
         {/* O número da linha num círculo laranja, como na sinalização das linhas. */}
         <span className="rp-sidebar__mark" aria-hidden="true">
-          6
+          {lineCode}
         </span>
         <span className="rp-sidebar__wordmark">
           <span className="rp-sidebar__name">RailPulse CCO</span>
-          <span className="rp-sidebar__line">{LINE_NAME}</span>
+          <span className="rp-sidebar__line">{lineName}</span>
         </span>
       </div>
 

@@ -1,8 +1,8 @@
 // backend/application/services/VoltageAlarmMonitor.ts
-import { findStation, VOLTAGE_CRITICAL_V, VOLTAGE_WARNING_V } from '../../domain/line';
+import { LineCatalog, VOLTAGE_CRITICAL_V, VOLTAGE_WARNING_V } from '../../domain/line';
 import type { VoltageStatus } from '../../domain/line';
 import { domainEventBus } from '../events/event-bus';
-import type { SystemAlert } from '../events/event-bus';
+import type { LineEvent, SystemAlert } from '../events/event-bus';
 import type { StationTelemetryDTO } from '../dtos/TrainDTO';
 
 /** Leituras consecutivas na nova faixa antes de mudar o estado do alarme (filtra picos). */
@@ -54,9 +54,20 @@ export const evaluateReading = (
 
 const formatV = (voltageV: number) => `${Math.round(voltageV)} V`;
 
-/** Texto do alarme para uma transição confirmada. */
-export const alarmFor = (stationCode: string, previous: VoltageStatus, next: VoltageStatus, voltageV: number): SystemAlert => {
-  const station = findStation(stationCode);
+/**
+ * Texto do alarme para uma transição confirmada.
+ *
+ * A estação é procurada no catálogo da linha que gerou a leitura: o alarme nomeia
+ * a subestação daquela malha, nunca a de outro cliente com o mesmo código.
+ */
+export const alarmFor = (
+  catalog: LineCatalog,
+  stationCode: string,
+  previous: VoltageStatus,
+  next: VoltageStatus,
+  voltageV: number,
+): SystemAlert => {
+  const station = catalog.find(stationCode);
   const where = station ? `${station.substation} / ${station.name} (${station.code})` : stationCode;
   const timestamp = new Date().toISOString();
 
@@ -88,17 +99,24 @@ export const alarmFor = (stationCode: string, previous: VoltageStatus, next: Vol
 };
 
 /**
- * Monitor de alarmes SCADA do terceiro trilho.
+ * Monitor de alarmes SCADA do terceiro trilho de uma linha.
  *
  * Observa cada lote de telemetria e só alarma em TRANSIÇÃO confirmada — com
  * debounce e histerese, como um SCADA real: uma estação parada em subtensão gera
  * um alarme, não um por ciclo; e um pico isolado não gera nenhum.
+ *
+ * Há um monitor por linha: o barramento é do processo inteiro, então o lote de
+ * outra linha é descartado aqui — sem isso, o estado de alarme da `AIP` de um
+ * cliente seria mexido pela leitura da `AIP` de outro.
  */
 export class VoltageAlarmMonitor {
   private readonly points = new Map<string, AlarmPointState>();
 
-  private readonly onBatch = (batch: StationTelemetryDTO[]) => {
-    for (const reading of batch) this.observe(reading);
+  constructor(private readonly catalog: LineCatalog) {}
+
+  private readonly onBatch = (event: LineEvent<StationTelemetryDTO[]>) => {
+    if (event.lineId !== this.catalog.id) return;
+    for (const reading of event.payload) this.observe(reading);
   };
 
   public start(): void {
@@ -120,7 +138,10 @@ export class VoltageAlarmMonitor {
     const { state, changed } = evaluateReading(previous, reading.voltageV);
     this.points.set(reading.currentStationCode, state);
     if (changed) {
-      domainEventBus.emit('system:alert', alarmFor(reading.currentStationCode, previous.status, state.status, reading.voltageV));
+      domainEventBus.emit('system:alert', {
+        lineId: this.catalog.id,
+        payload: alarmFor(this.catalog, reading.currentStationCode, previous.status, state.status, reading.voltageV),
+      });
     }
   }
 }

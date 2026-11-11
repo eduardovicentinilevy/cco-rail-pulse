@@ -6,10 +6,17 @@ import { operatorRepository } from '../../infrastructure/repositories/pg-operato
 import { AuditLogger } from '../../infrastructure/audit/AuditLogger';
 import { ConflictError, NotFoundError } from '../../shared/errors';
 import { domainEventBus } from '../events/event-bus';
+import { lineCatalogRepository } from '../../infrastructure/repositories/pg-line-catalog.repository';
+import { operationFor } from '../../domain/operation';
 import type { TrainCommand, TrainSnapshot, TrainStatus } from '../../domain/entities/TrainSession';
 
 export interface ProcessCommandRequest {
-  operatorId: string;
+  /** Linha em que a composição circula — a numeração só é única dentro dela. */
+  lineId: string;
+  /** Cliente da sessão: é dele a trilha de auditoria que este comando alimenta. */
+  tenantId: string;
+  /** Crachá do operador, não o id interno: é o que a trilha registra. */
+  operatorCredential: string;
   trainId: string;
   /** Nome bruto do comando como o painel o expõe (ex.: EMERGENCY_BRAKE_OVERRIDE) — só para auditoria. */
   rawCommand: string;
@@ -104,11 +111,14 @@ export const isLockTimeout = (error: unknown): boolean =>
  */
 export class ProcessTrainCommandUseCase {
   public async execute(request: ProcessCommandRequest): Promise<ProcessCommandResult> {
-    const { operatorId, trainId, rawCommand, command, targetBlock } = request;
+    const { lineId, tenantId, operatorCredential, trainId, rawCommand, command, targetBlock } = request;
     const auditAction = `EXEC_${rawCommand}`;
     const auditTarget = `TRAIN_${trainId}_BLOCK_${targetBlock ?? '?'}`;
 
     try {
+      const catalog = await lineCatalogRepository.byId(lineId);
+      const operation = catalog ? operationFor(catalog) : null;
+
       const result = await withTransaction(async (client) => {
         // 1. Adquirir lock — com prazo, para não enfileirar operadores indefinidamente
         //    atrás de uma transação travada (ver "Mitigação de deadlock" acima).
@@ -116,27 +126,37 @@ export class ProcessTrainCommandUseCase {
         //    interpolar valor nenhum, mesmo que a configuração venha de env em vez de
         //    entrada do operador.
         await client.query(`SELECT set_config('lock_timeout', $1, true)`, [String(env.trainCommandLockTimeoutMs)]);
-        const train = await TrainRepository.findByIdWithLock(trainId, client);
+        const train = await TrainRepository.findByIdWithLock(lineId, trainId, client);
 
         // 2. Validar estado.
         if (!train) {
           throw new NotFoundError(`Composição ${trainId} não encontrada na malha ferroviária.`);
         }
         const applied = train.status !== RESULTING_STATUS[command];
+        const motion = train.motion;
+        const segmentLengthM = motion
+          ? (operation?.segmentLengthM(train.currentStationCode, motion.toStationCode) ?? 0)
+          : 0;
 
         // 3. Persistir na auditoria — atômico com o passo 4 (mesma transação/client).
         await operatorRepository.logAudit(
-          operatorId,
-          auditAction,
-          auditTarget,
-          applied ? 'EXECUTED' : 'NO_OP',
+          {
+            tenantId,
+            credential: operatorCredential,
+            action: auditAction,
+            target: auditTarget,
+            status: applied ? 'EXECUTED' : 'NO_OP',
+          },
           client,
         );
 
         // 4. Executar.
         if (applied) {
-          train.applyCommand(command, new Date(), env.simulationTimeScale);
-          await TrainRepository.save(train, client);
+          // O comando replaneja o trecho em curso, e o comprimento dele é da linha:
+          // o `PSO`→`ANR` de um cliente não mede o mesmo que o de outro. Numa linha
+          // sem malha cadastrada o trecho vale zero, e aí só o estado muda.
+          train.applyCommand(command, new Date(), env.simulationTimeScale, segmentLengthM);
+          await TrainRepository.save(lineId, train, client);
         }
 
         return { snapshot: train.toSnapshot(), applied };
@@ -144,13 +164,23 @@ export class ProcessTrainCommandUseCase {
       });
 
       // 6. Emitir — só depois do commit, e só quando algo de fato mudou.
-      AuditLogger.record({ operatorId, action: auditAction, targetResource: auditTarget, severity: SEVERITY[command] });
+      AuditLogger.record({
+        operatorId: operatorCredential,
+        action: auditAction,
+        targetResource: auditTarget,
+        severity: SEVERITY[command],
+      });
       if (result.applied) {
-        domainEventBus.emit('train:updated', result.snapshot);
+        // Carimbado com a linha de origem: o gateway entrega por sala, então o
+        // evento só alcança os painéis desta linha.
+        domainEventBus.emit('train:updated', { lineId, payload: result.snapshot });
         domainEventBus.emit('system:alert', {
-          severity: SEVERITY[command],
-          message: `Comando ${rawCommand} executado no ${trainId} pelo operador ${operatorId}`,
-          timestamp: new Date().toISOString(),
+          lineId,
+          payload: {
+            severity: SEVERITY[command],
+            message: `Comando ${rawCommand} executado no ${trainId} pelo operador ${operatorCredential}`,
+            timestamp: new Date().toISOString(),
+          },
         });
       }
 
@@ -164,7 +194,13 @@ export class ProcessTrainCommandUseCase {
 
       // Best-effort: uma tentativa recusada/falha também é um evento de auditoria válido,
       // mas não pode, por si só, mascarar o erro original caso a própria escrita falhe.
-      await operatorRepository.logAudit(operatorId, auditAction, auditTarget, 'FAILED');
+      await operatorRepository.logAudit({
+        tenantId,
+        credential: operatorCredential,
+        action: auditAction,
+        target: auditTarget,
+        status: 'FAILED',
+      });
 
       throw publicError;
     }

@@ -12,16 +12,32 @@ export interface SystemAlert {
   timestamp: string;
 }
 
+/**
+ * Evento carimbado com a linha de origem.
+ *
+ * O barramento é um só para o processo inteiro, mas cada evento pertence a uma
+ * linha. Sem o carimbo, o gateway não teria como entregar a telemetria de um
+ * cliente apenas aos painéis daquele cliente.
+ */
+export interface LineEvent<T> {
+  lineId: string;
+  payload: T;
+}
+
 /** Contrato dos eventos de domínio publicados no barramento. */
 export interface DomainEvents {
-  'telemetry:updated': [StationTelemetryDTO[]];
-  'train:updated': [TrainSnapshot];
-  'incident:changed': [IncidentSnapshot];
-  'workorder:changed': [WorkOrderSnapshot];
-  'system:alert': [SystemAlert];
-  /** Seção do terceiro trilho energizada ou desenergizada pelo CCO. */
-  'power:changed': [PowerSectionSnapshot];
-  /** Operador desativado — o gateway WS derruba qualquer socket já aberto em nome dele. */
+  'telemetry:updated': [LineEvent<StationTelemetryDTO[]>];
+  'train:updated': [LineEvent<TrainSnapshot>];
+  'incident:changed': [LineEvent<IncidentSnapshot>];
+  'workorder:changed': [LineEvent<WorkOrderSnapshot>];
+  'system:alert': [LineEvent<SystemAlert>];
+  /** Seção do terceiro trilho energizada ou desenergizada pelo CCO, na linha dela. */
+  'power:changed': [LineEvent<PowerSectionSnapshot>];
+  /**
+   * Operador desativado — o gateway WS derruba qualquer socket já aberto em nome dele.
+   * Não é evento de linha: o operador pertence ao cliente, e o id aqui é a chave
+   * interna (UUID), única em toda a instalação.
+   */
   'operator:deactivated': [{ operatorId: string }];
 }
 

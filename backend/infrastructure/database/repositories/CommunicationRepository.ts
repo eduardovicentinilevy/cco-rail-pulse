@@ -25,6 +25,7 @@ const toSnapshot = (row: CommunicationRow): CommunicationSnapshot => ({
 });
 
 export interface CreateCommunicationInput {
+  lineId: string;
   channel: CommunicationChannel;
   direction: CommunicationDirection;
   stationCode: string | null;
@@ -34,6 +35,7 @@ export interface CreateCommunicationInput {
 }
 
 export interface CommunicationQuery {
+  lineId: string;
   limit: number;
   offset: number;
   channel?: CommunicationChannel;
@@ -52,19 +54,34 @@ const SELECT_COLUMNS = 'id, channel, direction, station_code, train_id, operator
 export class CommunicationRepository {
   public static async create(input: CreateCommunicationInput): Promise<CommunicationSnapshot> {
     const result = await db.query<CommunicationRow>(
-      `INSERT INTO communications (channel, direction, station_code, train_id, operator_id, message)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO communications (line_id, channel, direction, station_code, train_id, operator_id, message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING ${SELECT_COLUMNS}`,
-      [input.channel, input.direction, input.stationCode, input.trainId, input.operatorId, input.message],
+      [
+        input.lineId,
+        input.channel,
+        input.direction,
+        input.stationCode,
+        input.trainId,
+        input.operatorId,
+        input.message,
+      ],
     );
     return toSnapshot(result.rows[0]);
   }
 
-  public static async list({ limit, offset, channel, search }: CommunicationQuery): Promise<CommunicationPage> {
+  public static async list({
+    lineId,
+    limit,
+    offset,
+    channel,
+    search,
+  }: CommunicationQuery): Promise<CommunicationPage> {
     const filter = search?.trim() ? `%${search.trim()}%` : null;
 
-    const whereClause = (channelParam: number, searchParam: number) => `
-      ($${channelParam}::text IS NULL OR channel = $${channelParam})
+    const whereClause = (lineParam: number, channelParam: number, searchParam: number) => `
+      line_id = $${lineParam}
+      AND ($${channelParam}::text IS NULL OR channel = $${channelParam})
       AND (
         $${searchParam}::text IS NULL
         OR message ILIKE $${searchParam}
@@ -76,14 +93,14 @@ export class CommunicationRepository {
     const [page, count] = await Promise.all([
       db.query<CommunicationRow>(
         `SELECT ${SELECT_COLUMNS} FROM communications
-         WHERE ${whereClause(3, 4)}
+         WHERE ${whereClause(3, 4, 5)}
          ORDER BY created_at DESC
          LIMIT $1 OFFSET $2`,
-        [limit, offset, channel ?? null, filter],
+        [limit, offset, lineId, channel ?? null, filter],
       ),
       db.query<{ total: string }>(
-        `SELECT COUNT(*)::text AS total FROM communications WHERE ${whereClause(1, 2)}`,
-        [channel ?? null, filter],
+        `SELECT COUNT(*)::text AS total FROM communications WHERE ${whereClause(1, 2, 3)}`,
+        [lineId, channel ?? null, filter],
       ),
     ]);
 

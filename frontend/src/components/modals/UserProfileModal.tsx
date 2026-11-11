@@ -3,10 +3,11 @@ import React, { useState } from 'react';
 import type { OperatorSession } from '../../types';
 import { Modal } from '../common/Modal';
 import { DEFAULT_AVATAR_URL } from '../../config/env';
-import { LINE_TERMINALS } from '../../data/stations';
 
 interface UserProfileModalProps {
   session: OperatorSession;
+  /** Terminais do traçado, já formatados a partir da malha recebida. */
+  terminals: string;
   onUpdateAvatar: (url: string) => Promise<void>;
   onClose: () => void;
 }
@@ -20,7 +21,12 @@ const isValidHttpUrl = (value: string): boolean => {
   }
 };
 
-export const UserProfileModal: React.FC<UserProfileModalProps> = ({ session, onUpdateAvatar, onClose }) => {
+export const UserProfileModal: React.FC<UserProfileModalProps> = ({
+  session,
+  terminals,
+  onUpdateAvatar,
+  onClose,
+}) => {
   const [avatarInput, setAvatarInput] = useState(session.avatarUrl ?? '');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,9 +129,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ session, onU
         <div className="rp-terminal__metrics">
           <div className="rp-metric-row">
             <span>Eixo operacional</span>
-            <strong>
-              {LINE_TERMINALS.west} ➔ {LINE_TERMINALS.east}
-            </strong>
+            <strong>{terminals || '—'}</strong>
           </div>
           <div className="rp-metric-row">
             <span>Perfil de acesso</span>

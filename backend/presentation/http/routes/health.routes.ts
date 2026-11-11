@@ -2,17 +2,16 @@
 import { Router } from 'express';
 import { db } from '../../../infrastructure/database/postgres';
 import { env } from '../../../config/env';
-import { LINE_NAME, LINE_OPERATOR } from '../../../domain/line';
 
 export const healthRouter: Router = Router();
 
 const startedAt = Date.now();
 
 healthRouter.get('/health', async (_req, res) => {
+  // Sem nome de linha: /health é anônimo e a instalação pode servir vários
+  // clientes. Quem quer saber a linha da sessão pede GET /api/network/stations.
   const base = {
     service: 'railpulse-cco',
-    line: LINE_NAME,
-    operator: LINE_OPERATOR,
     environment: env.nodeEnv,
     architecture: 'Event-Driven (EDA)',
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),

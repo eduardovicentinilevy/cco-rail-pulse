@@ -53,6 +53,17 @@ export const env = {
   bcryptRounds: toInt(process.env.BCRYPT_ROUNDS, 10),
   telemetryIntervalMs: toInt(process.env.TELEMETRY_INTERVAL_MS, 3000),
   /**
+   * Cliente assumido quando a requisição não traz slug (subdomínio, header ou
+   * corpo do login). É o que mantém uma instalação de um cliente só funcionando
+   * sem que ninguém precise digitar o cliente na tela de acesso.
+   */
+  defaultTenantSlug: (process.env.DEFAULT_TENANT_SLUG ?? 'linha-uni').trim().toLowerCase(),
+  /**
+   * Domínio base das instalações multi-cliente. Com ele definido, o subdomínio do
+   * Host vira o slug do cliente: `cliente.railpulse.app` → `cliente`.
+   */
+  tenantBaseDomain: (process.env.TENANT_BASE_DOMAIN ?? '').trim().toLowerCase(),
+  /**
    * Aceleração do relógio da operação simulada. 1 = tempo real (percursos de 50–115 s
    * entre estações, paradas de 25–35 s, manobra de 2 min nos terminais); 10 = tudo
    * dez vezes mais rápido, útil para demonstrações. Limitado a 1–60.

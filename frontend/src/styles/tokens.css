@@ -123,8 +123,8 @@
   --body-tint-navy: rgba(28, 43, 74, 0.05);
 
   /* --- Mapa da linha ------------------------------------------------------ */
-  --map-river-stroke: rgba(70, 120, 170, 0.3);
-  --map-river-label: rgba(50, 90, 135, 0.78);
+  /* A decoração geográfica de uma linha (rio, avenida) não é desenhada no mapa
+     compartilhado; a rosa dos ventos é, porque sai da projeção da própria malha. */
   --map-compass-ring: rgba(28, 43, 74, 0.16);
   --map-compass-tail: rgba(28, 43, 74, 0.32);
 
@@ -179,8 +179,6 @@
   --body-tint-brand: rgba(242, 135, 26, 0.08);
   --body-tint-navy: rgba(60, 85, 140, 0.16);
 
-  --map-river-stroke: rgba(110, 160, 210, 0.32);
-  --map-river-label: rgba(150, 185, 225, 0.8);
   --map-compass-ring: rgba(237, 241, 247, 0.16);
   --map-compass-tail: rgba(237, 241, 247, 0.3);
 

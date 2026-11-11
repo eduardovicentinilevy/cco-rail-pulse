@@ -6,12 +6,13 @@ import { useClock, useElapsed } from '../../hooks/useClock';
 import { DEFAULT_AVATAR_URL } from '../../config/env';
 import type { CriticalAlerts } from '../../hooks/useCriticalAlerts';
 import type { Theme } from '../../hooks/useTheme';
-import { LINE_NAME, LINE_TERMINALS } from '../../data/stations';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
 interface HeaderProps {
   session: OperatorSession;
+  /** Terminais do traçado, já formatados a partir da malha recebida. */
+  terminals: string;
   connectionStatus: ConnectionStatus;
   shiftStartedAt: number;
   criticalAlarms: number;
@@ -33,6 +34,7 @@ const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
 
 export const Header: React.FC<HeaderProps> = ({
   session,
+  terminals,
   connectionStatus,
   shiftStartedAt,
   criticalAlarms,
@@ -56,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="truncate">
             <h1 className="rp-header__title">Centro de Controle Operacional</h1>
             <p className="rp-header__subtitle">
-              {LINE_NAME} • CBTC &amp; telemetria SCADA • {LINE_TERMINALS.west} ➔ {LINE_TERMINALS.east}
+              {session.line.name} • CBTC &amp; telemetria SCADA{terminals && ` • ${terminals}`}
             </p>
           </div>
         </div>
@@ -149,7 +151,12 @@ export const Header: React.FC<HeaderProps> = ({
       </header>
 
       {isProfileOpen && (
-        <UserProfileModal session={session} onUpdateAvatar={onUpdateAvatar} onClose={() => setIsProfileOpen(false)} />
+        <UserProfileModal
+          session={session}
+          terminals={terminals}
+          onUpdateAvatar={onUpdateAvatar}
+          onClose={() => setIsProfileOpen(false)}
+        />
       )}
     </>
   );

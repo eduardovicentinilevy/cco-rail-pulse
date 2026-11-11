@@ -9,6 +9,8 @@ import {
   isTrainCommand,
 } from '../domain/entities/TrainSession';
 import { ValidationError } from '../shared/errors';
+import { operationFor } from '../domain/operation';
+import { demoCatalog } from './helpers/catalog';
 
 const buildTrain = () => new TrainSession('T-01', 'BRA', 45, 752, 'NORMAL', new Date('2026-09-16T10:00:00Z'));
 
@@ -116,10 +118,13 @@ describe('TrainSession — marcha entre estações', () => {
 describe('TrainSession — comandos operacionais', () => {
   const T0 = new Date('2026-11-05T12:00:00Z');
   const at = (ms: number) => new Date(T0.getTime() + ms);
+  // A composição não conhece a malha: o comprimento do trecho em curso vem de
+  // fora, da marcha da linha em que ela circula.
+  const BRA_MAR_M = operationFor(demoCatalog()).segmentLengthM('BRA', 'MAR')!;
 
   it('HALT imobiliza a composição', () => {
     const train = buildTrain();
-    train.applyCommand('HALT', T0);
+    train.applyCommand('HALT', T0, 1, BRA_MAR_M);
 
     assert.equal(train.speedKmH, 0);
     assert.equal(train.status, 'EMERGÊNCIA');
@@ -129,7 +134,7 @@ describe('TrainSession — comandos operacionais', () => {
   it('HALT em marcha para o trem no meio do trecho, sem teletransporte', () => {
     const train = buildTrain();
     train.depart('MAR', 60_000, CRUISE_SPEED_KMH, T0);
-    train.applyCommand('HALT', at(30_000));
+    train.applyCommand('HALT', at(30_000), 1, BRA_MAR_M);
 
     assert.equal(train.currentStationCode, 'BRA');
     assert.equal(train.motion?.toStationCode, 'MAR');
@@ -140,7 +145,7 @@ describe('TrainSession — comandos operacionais', () => {
   it('RESTRICT_SPEED em marcha recalcula o trecho, mais devagar', () => {
     const train = buildTrain();
     train.depart('MAR', 60_000, CRUISE_SPEED_KMH, T0);
-    train.applyCommand('RESTRICT_SPEED', at(30_000));
+    train.applyCommand('RESTRICT_SPEED', at(30_000), 1, BRA_MAR_M);
 
     assert.equal(train.status, 'ATENÇÃO');
     assert.equal(train.speedKmH, RESTRICTED_SPEED_KMH);
@@ -149,8 +154,8 @@ describe('TrainSession — comandos operacionais', () => {
 
   it('RELEASE na plataforma normaliza sem dar velocidade a trem parado', () => {
     const train = buildTrain();
-    train.applyCommand('HALT', T0);
-    train.applyCommand('RELEASE', T0);
+    train.applyCommand('HALT', T0, 1, BRA_MAR_M);
+    train.applyCommand('RELEASE', T0, 1, BRA_MAR_M);
 
     assert.equal(train.status, 'NORMAL');
     assert.equal(train.speedKmH, 0);
@@ -159,8 +164,8 @@ describe('TrainSession — comandos operacionais', () => {
   it('RELEASE entre estações retoma a marcha à velocidade de cruzeiro', () => {
     const train = buildTrain();
     train.depart('MAR', 60_000, CRUISE_SPEED_KMH, T0);
-    train.applyCommand('HALT', at(30_000));
-    train.applyCommand('RELEASE', at(40_000));
+    train.applyCommand('HALT', at(30_000), 1, BRA_MAR_M);
+    train.applyCommand('RELEASE', at(40_000), 1, BRA_MAR_M);
 
     assert.equal(train.phase, 'EM_MARCHA');
     assert.equal(train.speedKmH, CRUISE_SPEED_KMH);
@@ -170,18 +175,18 @@ describe('TrainSession — comandos operacionais', () => {
   it('o relógio acelerado encurta o trecho recalculado na mesma proporção', () => {
     const real = buildTrain();
     real.depart('MAR', 60_000, CRUISE_SPEED_KMH, T0);
-    real.applyCommand('RESTRICT_SPEED', T0, 1);
+    real.applyCommand('RESTRICT_SPEED', T0, 1, BRA_MAR_M);
 
     const fast = buildTrain();
     fast.depart('MAR', 6_000, CRUISE_SPEED_KMH, T0);
-    fast.applyCommand('RESTRICT_SPEED', T0, 10);
+    fast.applyCommand('RESTRICT_SPEED', T0, 10, BRA_MAR_M);
 
     assert.ok(Math.abs((fast.remainingAt(T0) ?? 0) - (real.remainingAt(T0) ?? 0) / 10) < 1);
   });
 
   it('preserva posição e tensão medida — um comando não teletransporta o trem', () => {
     const train = buildTrain();
-    train.applyCommand('HALT');
+    train.applyCommand('HALT', T0, 1, BRA_MAR_M);
 
     assert.equal(train.currentStationCode, 'BRA');
     assert.equal(train.voltageV, 752);

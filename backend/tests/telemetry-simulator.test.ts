@@ -1,22 +1,34 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { LOAD_SAG_V_PER_TRAIN, MAX_DRIFT_V, TelemetrySimulator } from '../application/services/TelemetrySimulator';
-import { LINE_STATIONS } from '../domain/line';
+import {
+  LOAD_SAG_V_PER_TRAIN,
+  MAX_DRIFT_V,
+  TelemetrySimulator,
+} from '../application/services/TelemetrySimulator';
+import { demoCatalog, otherTenantCatalog } from './helpers/catalog';
 
 describe('TelemetrySimulator', () => {
-  it('parte da tensão nominal de cada subestação', () => {
-    const snapshot = new TelemetrySimulator(1000).snapshot();
+  const catalog = demoCatalog();
 
-    assert.equal(snapshot.length, LINE_STATIONS.length);
-    for (const station of LINE_STATIONS) {
+  it('parte da tensão nominal de cada subestação', () => {
+    const snapshot = new TelemetrySimulator(catalog, 1000).snapshot();
+
+    assert.equal(snapshot.length, catalog.size);
+    for (const station of catalog.stations) {
       const reading = snapshot.find((item) => item.currentStationCode === station.code);
       assert.equal(reading?.voltageV, station.nominalVoltageV, station.code);
     }
   });
 
+  it('carimba cada leitura com a estação da malha, que é por onde a série é gravada', () => {
+    for (const reading of new TelemetrySimulator(catalog, 1000).snapshot()) {
+      assert.equal(reading.stationId, catalog.find(reading.currentStationCode)?.id);
+    }
+  });
+
   it('classifica a leitura conforme os limiares SCADA', () => {
-    const snapshot = new TelemetrySimulator(1000).snapshot();
+    const snapshot = new TelemetrySimulator(catalog, 1000).snapshot();
 
     // ITA fica em fim de alimentação (620 V) — abaixo do limiar crítico de 640 V.
     assert.equal(snapshot.find((item) => item.currentStationCode === 'ITA')?.status, 'CRÍTICO');
@@ -26,13 +38,13 @@ describe('TelemetrySimulator', () => {
   });
 
   it('mantém a deriva dentro do limite em torno da tensão de referência', async () => {
-    const simulator = new TelemetrySimulator(5);
+    const simulator = new TelemetrySimulator(catalog, 5);
     simulator.start();
     await new Promise((resolve) => setTimeout(resolve, 200));
     simulator.stop();
 
     for (const reading of simulator.snapshot()) {
-      const station = LINE_STATIONS.find((item) => item.code === reading.currentStationCode);
+      const station = catalog.find(reading.currentStationCode);
       assert.ok(station);
       const drift = Math.abs(reading.voltageV - station.nominalVoltageV);
       assert.ok(drift <= MAX_DRIFT_V + 1e-9, `${reading.currentStationCode} derivou ${drift.toFixed(1)} V`);
@@ -40,7 +52,7 @@ describe('TelemetrySimulator', () => {
   });
 
   it('expõe a última leitura de cada estação para as composições', () => {
-    const simulator = new TelemetrySimulator(1000);
+    const simulator = new TelemetrySimulator(catalog, 1000);
     const snapshot = simulator.snapshot();
 
     for (const reading of snapshot) {
@@ -50,7 +62,7 @@ describe('TelemetrySimulator', () => {
   });
 
   it('trens em marcha derrubam a tensão da seção que os alimenta', () => {
-    const loaded = new TelemetrySimulator(1000, { loadAt: (sr) => (sr === 'SR-01' ? 3 : 0) });
+    const loaded = new TelemetrySimulator(demoCatalog(), 1000, { loadAt: (sr: string) => (sr === 'SR-01' ? 3 : 0) });
     let readings = loaded.tick();
     for (let cycle = 0; cycle < 40; cycle += 1) readings = loaded.tick();
 
@@ -64,7 +76,7 @@ describe('TelemetrySimulator', () => {
 
   it('seção desenergizada lê 0 V, crítica — inclusive no snapshot inicial', () => {
     let energized = false;
-    const simulator = new TelemetrySimulator(1000, { isEnergized: (sr) => sr !== 'SR-03' || energized });
+    const simulator = new TelemetrySimulator(demoCatalog(), 1000, { isEnergized: (sr: string) => sr !== 'SR-03' || energized });
 
     const initial = simulator.snapshot().find((item) => item.currentStationCode === 'SMA')!;
     assert.equal(initial.voltageV, 0);
@@ -81,7 +93,7 @@ describe('TelemetrySimulator', () => {
   });
 
   it('start é idempotente e stop encerra o ciclo', () => {
-    const simulator = new TelemetrySimulator(1000);
+    const simulator = new TelemetrySimulator(catalog, 1000);
     simulator.start();
     simulator.start();
     assert.equal(simulator.isRunning, true);
@@ -89,5 +101,25 @@ describe('TelemetrySimulator', () => {
     simulator.stop();
     assert.equal(simulator.isRunning, false);
     assert.doesNotThrow(() => simulator.stop());
+  });
+
+  /**
+   * Dois simuladores no mesmo processo são o caso que o multi-tenant precisa
+   * suportar: cada um enxerga só a sua malha.
+   */
+  it('simula cada linha sobre a sua própria malha', () => {
+    const demo = new TelemetrySimulator(demoCatalog(), 1000).snapshot();
+    const outro = new TelemetrySimulator(otherTenantCatalog(), 1000).snapshot();
+
+    assert.equal(demo.length, 15);
+    assert.equal(outro.length, 3);
+    assert.deepEqual(
+      outro.map((reading) => reading.currentStationCode),
+      ['JAB', 'CNC', 'SPO'],
+    );
+    assert.equal(
+      demo.some((reading) => reading.currentStationCode === 'JAB'),
+      false,
+    );
   });
 });
