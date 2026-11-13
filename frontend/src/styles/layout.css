@@ -37,6 +37,7 @@
   gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-3);
   background-color: var(--cco-bg-void);
+  background-image: linear-gradient(180deg, var(--cco-brand-softer), transparent 14rem);
   border-right: 1px solid var(--cco-border);
   overflow-y: auto;
   overflow-x: hidden;
@@ -70,7 +71,7 @@
   font-weight: 800;
   font-size: var(--fs-lg);
   border-radius: 50%;
-  box-shadow: 0 0 20px var(--cco-brand-glow);
+  box-shadow: 0 0 0 4px var(--cco-brand-soft), 0 6px 18px -6px var(--cco-brand-glow);
 }
 
 .rp-sidebar__wordmark {
@@ -102,6 +103,8 @@
   gap: 2px;
 }
 
+.rp-sidebar__group + .rp-sidebar__group { margin-top: var(--sp-1); }
+
 .rp-sidebar__group-label {
   padding: var(--sp-2) var(--sp-3) var(--sp-1);
   font-size: var(--fs-2xs);
@@ -118,7 +121,7 @@
   align-items: center;
   gap: var(--sp-3);
   width: 100%;
-  padding: 0.6rem 0.7rem;
+  padding: 0.5rem 0.7rem;
   border: none;
   background: transparent;
   color: var(--cco-text-muted);
@@ -137,10 +140,15 @@
   color: var(--cco-text-main);
 }
 
+.rp-nav-item:hover .rp-nav-item__icon { color: var(--cco-text-main); }
+
 .rp-nav-item[aria-current='page'] {
   background-color: var(--cco-brand-soft);
   color: var(--cco-brand-ink);
+  font-weight: 700;
 }
+
+.rp-nav-item[aria-current='page'] .rp-nav-item__icon { color: var(--cco-brand-ink); }
 
 /* Trilho luminoso à esquerda do item ativo — o laranja da Linha 6. */
 .rp-nav-item[aria-current='page']::before {
@@ -160,8 +168,10 @@
   display: grid;
   place-items: center;
   width: 1.5rem;
+  height: 1.5rem;
   flex-shrink: 0;
-  font-size: var(--fs-md);
+  color: var(--cco-text-dim);
+  transition: color var(--dur-fast) var(--ease);
 }
 
 .rp-nav-item__label {
@@ -220,8 +230,20 @@
   padding-inline: 0;
 }
 
-.rp-shell[data-collapsed='true'] .rp-nav-item::before {
+.rp-shell[data-collapsed='true'] .rp-nav-item[aria-current='page']::before {
   left: -0.5rem;
+}
+
+/* No trilho o contador vira um selo no canto do ícone, que continua centrado. */
+.rp-shell[data-collapsed='true'] .rp-nav-item__badge {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.25rem;
+  min-width: 1.05rem;
+  padding: 0 0.22rem;
+  font-size: 0.58rem;
+  line-height: 1.5;
+  box-shadow: 0 0 0 2px var(--cco-bg-void);
 }
 
 .rp-shell[data-collapsed='true'] .rp-sidebar__brand {
@@ -265,10 +287,27 @@
 }
 
 .rp-header__actions {
+  /* Uma só altura para pílulas, botões e perfil: a barra lê como uma régua. */
+  --control-h: 2.25rem;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   flex-wrap: wrap;
+}
+
+.rp-header__actions > .rp-btn,
+.rp-header__actions > .rp-header__stat,
+.rp-header__actions > .rp-header__connection,
+.rp-header__actions > .rp-profile {
+  min-height: var(--control-h);
+}
+
+.rp-header__actions > .rp-icon-btn {
+  width: var(--control-h);
+  height: var(--control-h);
+  background-color: var(--cco-bg-secondary);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-md);
 }
 
 .rp-header__stat {
@@ -278,7 +317,7 @@
   padding: 0.42rem 0.72rem;
   background-color: var(--cco-bg-secondary);
   border: 1px solid var(--cco-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--fs-xs);
   color: var(--cco-text-muted);
 }
@@ -293,7 +332,7 @@
   border: 1px solid var(--rp-status);
   background-color: var(--rp-status-soft);
   color: var(--rp-status);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -384,17 +423,35 @@
   border-bottom: 1px solid var(--cco-border);
 }
 
+/* Fio da marca antes do rótulo: ancora o título como abertura de página. */
+.rp-page-header .rp-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.rp-page-header .rp-eyebrow::before {
+  content: '';
+  width: 1.1rem;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--cco-brand);
+}
+
 .rp-page-header__title {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-2xl);
   font-weight: 800;
+  line-height: 1.2;
   letter-spacing: var(--tracking-tight);
-  margin: var(--sp-1) 0 0.2rem;
+  margin: var(--sp-1) 0 0.3rem;
+  text-wrap: balance;
 }
 
 .rp-page-header__subtitle {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
   color: var(--cco-text-muted);
-  max-width: 62ch;
+  max-width: 68ch;
 }
 
 /* --- Responsividade --------------------------------------------------------- */
@@ -414,7 +471,17 @@
   }
 
   .rp-nav-item { justify-content: center; padding-inline: 0; }
-  .rp-nav-item::before { left: -0.5rem; }
+  .rp-nav-item[aria-current='page']::before { left: -0.5rem; }
+  .rp-nav-item__badge {
+    position: absolute;
+    top: 0.1rem;
+    right: 0.25rem;
+    min-width: 1.05rem;
+    padding: 0 0.22rem;
+    font-size: 0.58rem;
+    line-height: 1.5;
+    box-shadow: 0 0 0 2px var(--cco-bg-void);
+  }
   .rp-sidebar__brand { justify-content: center; padding-inline: 0; }
   .rp-sidebar__toggle { display: none; }
 }
@@ -446,19 +513,26 @@
   .rp-sidebar::-webkit-scrollbar { display: none; }
 
   .rp-sidebar__brand {
+    /* Sem isto a faixa espreme a marca e o círculo vaza para fora da tela. */
+    flex-shrink: 0;
     border-bottom: none;
     border-right: 1px solid var(--cco-border);
     padding: 0 var(--sp-3) 0 0;
   }
 
+  .rp-sidebar { background-image: none; }
+  .rp-sidebar__group + .rp-sidebar__group { margin-top: 0; }
+  .rp-nav-item { width: auto; min-width: 2.5rem; }
+  .rp-nav-item__badge { right: -0.1rem; }
+
   .rp-sidebar__group { flex-direction: row; gap: var(--sp-1); }
   .rp-sidebar__group-label { display: none; }
   .rp-sidebar__footer { display: none; }
 
-  .rp-nav-item::before {
+  .rp-nav-item[aria-current='page']::before {
     left: 50%;
     top: auto;
-    bottom: -0.35rem;
+    bottom: -0.3rem;
     transform: translateX(-50%);
     width: 1.4rem;
     height: 3px;

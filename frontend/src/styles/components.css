@@ -107,6 +107,16 @@
   box-shadow: 0 8px 22px -10px var(--cco-brand-glow), var(--shadow-inset);
 }
 
+/* Desabilitado: neutro de verdade. O laranja a 45% de opacidade parecia um
+   botão ativo lavado, não um botão indisponível. */
+.rp-btn--primary:disabled {
+  opacity: 1;
+  background: var(--cco-bg-elevated);
+  border-color: var(--cco-border);
+  color: var(--cco-text-dim);
+  box-shadow: none;
+}
+
 .rp-btn--primary:hover:not(:disabled) {
   /* O hover clareia em vez de escurecer: com texto marinho, o laranja claro
      sobe para ~6,9:1, enquanto o profundo cairia para ~3,4:1. */
@@ -165,7 +175,10 @@
   width: 100%;
   padding: 0.7rem 0.85rem;
   font-size: var(--fs-xs);
+  gap: var(--sp-3);
 }
+
+.rp-btn--command .rp-icon { font-size: var(--fs-lg); }
 
 .rp-btn--danger {
   background-color: var(--cco-danger-soft);
@@ -174,7 +187,7 @@
 }
 
 .rp-btn--danger:hover:not(:disabled) {
-  background-color: rgba(209, 58, 54, 0.22);
+  background-color: color-mix(in srgb, var(--cco-danger) 22%, transparent);
   border-color: var(--cco-danger);
 }
 
@@ -185,7 +198,7 @@
 }
 
 .rp-btn--warning:hover:not(:disabled) {
-  background-color: rgba(194, 118, 6, 0.22);
+  background-color: color-mix(in srgb, var(--cco-warning) 22%, transparent);
   border-color: var(--cco-warning);
 }
 
@@ -193,22 +206,29 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.9rem;
-  height: 1.9rem;
+  width: 2rem;
+  height: 2rem;
   flex-shrink: 0;
   border: 1px solid var(--cco-border);
   background-color: transparent;
   color: var(--cco-text-muted);
   border-radius: var(--radius-sm);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   line-height: 1;
-  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  transition:
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
 }
 
-.rp-icon-btn:hover {
+.rp-icon-btn:hover:not(:disabled) {
   color: var(--cco-brand-ink);
   border-color: var(--cco-brand);
+  background-color: var(--cco-brand-softer);
 }
+
+.rp-icon-btn[aria-pressed='true'] { color: var(--cco-brand-ink); }
+.rp-icon-btn:disabled { opacity: 0.45; }
 
 /* --- Spinner --------------------------------------------------------------- */
 .rp-spinner {
@@ -277,7 +297,9 @@
 .rp-search__icon {
   position: absolute;
   left: 0.75rem;
-  font-size: var(--fs-sm);
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-md);
   color: var(--cco-text-dim);
   pointer-events: none;
 }
@@ -287,10 +309,12 @@
 .rp-search__clear {
   position: absolute;
   right: 0.5rem;
+  display: grid;
+  place-items: center;
   border: none;
   background: transparent;
   color: var(--cco-text-muted);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-md);
   padding: 0.25rem;
   line-height: 1;
   border-radius: var(--radius-sm);
@@ -439,7 +463,11 @@
   gap: var(--sp-1);
   overflow: hidden;
   background-color: var(--cco-bg-secondary);
-  background-image: var(--grad-surface);
+  /* Um véu da cor do status no canto da faixa: o KPI adianta o estado antes
+     de o número ser lido, sem tingir o cartão inteiro. */
+  background-image:
+    linear-gradient(105deg, var(--rp-status-soft, var(--cco-brand-softer)), transparent 42%),
+    var(--grad-surface);
   border: 1px solid var(--cco-border);
   border-radius: var(--radius-lg);
   padding: var(--sp-5);
@@ -468,18 +496,21 @@
 }
 
 .rp-metric__label {
-  font-size: var(--fs-xs);
-  font-weight: 600;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.07em;
   color: var(--cco-text-muted);
 }
 
 .rp-metric__value {
   font-family: var(--cco-font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--fs-3xl);
   font-weight: 800;
   line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-block: 0.1rem;
   color: var(--rp-status, var(--cco-text-main));
 }
 
@@ -532,12 +563,13 @@
   top: 0;
   z-index: 1;
   background-color: var(--cco-bg-void);
-  padding: 0.75rem 1rem;
-  font-size: var(--fs-xs);
-  font-weight: 600;
+  padding: 0.7rem 1rem;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
   color: var(--cco-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
   border-bottom: 1px solid var(--cco-border);
 }
 
@@ -566,8 +598,20 @@
   font-size: var(--fs-sm);
 }
 
-.rp-empty__icon { font-size: 1.6rem; opacity: 0.7; }
-.rp-empty__hint { font-size: var(--fs-xs); color: var(--cco-text-dim); }
+.rp-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: var(--sp-1);
+  border-radius: 50%;
+  background-color: var(--cco-bg-elevated);
+  border: 1px solid var(--cco-border);
+  color: var(--cco-text-muted);
+}
+
+.rp-empty__title { font-weight: 600; color: var(--cco-text-main); }
+.rp-empty__hint { max-width: 46ch; font-size: var(--fs-xs); color: var(--cco-text-muted); }
 
 .rp-skeleton {
   border-radius: var(--radius-md);
@@ -670,7 +714,7 @@
   animation: rp-toast-in var(--dur-base) var(--ease);
 }
 
-.rp-toast__icon { flex-shrink: 0; color: var(--rp-status); }
+.rp-toast__icon { display: grid; place-items: center; flex-shrink: 0; color: var(--rp-status); }
 .rp-toast__message { flex: 1; min-width: 0; line-height: 1.35; }
 
 /* --- Paleta de comandos ------------------------------------------------------ */
@@ -750,8 +794,10 @@
   place-items: center;
   width: 1.3rem;
   flex-shrink: 0;
-  opacity: 0.8;
+  color: var(--cco-text-dim);
 }
+
+.rp-palette__item[aria-selected='true'] .rp-palette__icon { color: var(--cco-brand-ink); }
 
 .rp-palette__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -865,7 +911,8 @@
   height: 2.25rem;
   flex-shrink: 0;
   border-radius: var(--radius-md);
-  background-color: var(--cco-bg-elevated);
+  background-color: var(--cco-brand-soft);
+  color: var(--cco-brand-ink);
   font-size: var(--fs-lg);
 }
 

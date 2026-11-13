@@ -110,6 +110,14 @@ table {
   background-color: var(--cco-brand);
 }
 
+/* --- Ícones ----------------------------------------------------------------
+   O reset acima põe todo <svg> em bloco; o ícone precisa correr com o texto. */
+.rp-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.2em;
+}
+
 /* --- Utilitários ----------------------------------------------------------- */
 .mono {
   font-family: var(--cco-font-mono);

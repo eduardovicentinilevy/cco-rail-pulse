@@ -7,6 +7,7 @@ import { useClock } from '../../hooks/useClock';
 import { hashString } from '../../lib/hash';
 import { formatNumber } from '../../lib/format';
 import { LINE_NAME } from '../../data/stations';
+import { Icon } from '../common/Icon';
 
 interface VideoWallViewProps {
   stations: Station[];
@@ -142,7 +143,7 @@ export const VideoWallView: React.FC<VideoWallViewProps> = ({
                     </span>
                   ) : (
                     <span className="rp-wall__cam-offline">
-                      <span aria-hidden="true">⚠</span> SEM SINAL
+                      <Icon name="alert" /> SEM SINAL
                     </span>
                   )}
                 </button>

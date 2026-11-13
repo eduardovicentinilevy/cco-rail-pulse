@@ -1,18 +1,20 @@
 // frontend/src/components/common/EmptyState.tsx
 import React from 'react';
+import { Icon } from './Icon';
+import type { IconName } from './Icon';
 
 interface EmptyStateProps {
-  icon?: string;
+  icon?: IconName;
   title: string;
   hint?: string;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ icon = '🛈', title, hint }) => (
+export const EmptyState: React.FC<EmptyStateProps> = ({ icon = 'info', title, hint }) => (
   <div className="rp-empty">
-    <span className="rp-empty__icon" aria-hidden="true">
-      {icon}
+    <span className="rp-empty__icon">
+      <Icon name={icon} size="1.4rem" />
     </span>
-    <span>{title}</span>
+    <span className="rp-empty__title">{title}</span>
     {hint && <span className="rp-empty__hint">{hint}</span>}
   </div>
 );

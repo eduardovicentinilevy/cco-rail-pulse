@@ -1,6 +1,8 @@
 // frontend/src/components/LoginScreen.tsx
 import React, { useCallback, useRef, useState } from 'react';
-import { LINE_NAME, LINE_OPERATOR } from '../data/stations';
+import { LINE_NAME, LINE_OPERATOR, LINE_STATIONS, LINE_TERMINALS, TRACTION_NOMINAL_V } from '../data/stations';
+import { LineSilhouette } from './common/LineSilhouette';
+import { Icon } from './common/Icon';
 
 interface LoginScreenProps {
   onLogin: (operatorId: string, password: string) => Promise<{ mfaRequired: boolean; challengeToken?: string }>;
@@ -9,6 +11,13 @@ interface LoginScreenProps {
   notice?: string | null;
   onDismissNotice?: () => void;
 }
+
+/** Números da malha exibidos no painel de marca — todos derivados do catálogo. */
+const BRAND_FACTS = [
+  { label: 'Estações', value: String(LINE_STATIONS.length) },
+  { label: 'Subestações', value: String(new Set(LINE_STATIONS.map((station) => station.substation)).size) },
+  { label: 'Tração', value: `${TRACTION_NOMINAL_V} Vcc` },
+];
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSubmitMfaCode, notice, onDismissNotice }) => {
   const [operatorId, setOperatorId] = useState('');
@@ -83,149 +92,188 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onSubmitMfaCo
 
   return (
     <main className="rp-login">
-      <div className="rp-login__card">
-        <header className="rp-login__header">
-          <span className="rp-login__tag">Acesso restrito</span>
-          <h1 className="rp-login__title">RailPulse CCO</h1>
-          <p className="rp-login__subtitle">
-            Centro de Controle Operacional • {LINE_NAME} • {LINE_OPERATOR}
-          </p>
-        </header>
+      {/* Painel de marca: paleta fixa em marinho, como o telão da sala de controle. */}
+      <section className="rp-login__brand" aria-label={`${LINE_NAME} — ${LINE_OPERATOR}`}>
+        <div className="rp-login__brand-top">
+          <span className="rp-login__mark" aria-hidden="true">
+            6
+          </span>
+          <span className="rp-login__wordmark">
+            <strong>RailPulse CCO</strong>
+            <span>
+              {LINE_NAME} • {LINE_OPERATOR}
+            </span>
+          </span>
+        </div>
 
-        {notice && (
-          <p className="rp-login__error" role="status" style={{ marginBottom: 'var(--sp-4)' }}>
-            {notice}
+        <div className="rp-login__brand-body">
+          <p className="rp-login__headline">Centro de Controle Operacional</p>
+          <p className="rp-login__lede">
+            Supervisão CBTC, energia de tração e ocorrências de {LINE_TERMINALS.west} a {LINE_TERMINALS.east}, em
+            tempo real.
           </p>
-        )}
+          <LineSilhouette className="rp-login__route" />
+        </div>
 
-        {challengeToken ? (
-          <form className="rp-stack" onSubmit={handleMfaSubmit} noValidate>
-            <p className="rp-hint" style={{ marginBottom: 'var(--sp-2)' }}>
-              Credencial confirmada. Digite o código de 6 dígitos do seu aplicativo autenticador.
+        <dl className="rp-login__facts">
+          {BRAND_FACTS.map((fact) => (
+            <div key={fact.label} className="rp-login__fact">
+              <dt>{fact.label}</dt>
+              <dd className="mono">{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <section className="rp-login__panel">
+        <div className="rp-login__card">
+          <header className="rp-login__header">
+            <span className="rp-login__tag">
+              <Icon name="lock" />
+              Acesso restrito
+            </span>
+            <h1 className="rp-login__title">{challengeToken ? 'Verificação em duas etapas' : 'Iniciar turno'}</h1>
+            <p className="rp-login__subtitle">
+              {challengeToken
+                ? 'Confirme o código do seu aplicativo autenticador.'
+                : 'Entre com a sua credencial de operador do CCO.'}
             </p>
+          </header>
 
-            <div className="rp-field">
-              <label className="rp-label" htmlFor="mfaCode">
-                Código de verificação
-              </label>
-              <input
-                id="mfaCode"
-                name="mfaCode"
-                ref={mfaCodeRef}
-                className="rp-input mono"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={mfaCode}
-                onChange={(event) => {
-                  setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6));
-                  if (error) setError(null);
-                }}
-                placeholder="000000"
-                style={{ letterSpacing: '0.4em', textAlign: 'center', fontSize: 'var(--fs-xl)' }}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={error ? 'login-error' : undefined}
-                disabled={isLoading}
-                required
-              />
-            </div>
+          {notice && (
+            <p className="rp-login__error" role="status" style={{ marginBottom: 'var(--sp-4)' }}>
+              {notice}
+            </p>
+          )}
 
-            {error && (
-              <p id="login-error" className="rp-login__error" role="alert">
-                <span aria-hidden="true">⚠</span>
-                {error}
-              </p>
-            )}
+          {challengeToken ? (
+            <form className="rp-stack" onSubmit={handleMfaSubmit} noValidate>
+              <p className="rp-hint">Credencial confirmada. Digite o código de 6 dígitos.</p>
 
-            <button type="submit" className="rp-btn rp-btn--primary rp-btn--lg rp-btn--block" disabled={!canSubmitMfa}>
-              {isLoading && <span className="rp-spinner" aria-hidden="true" />}
-              {isLoading ? 'Verificando…' : 'Confirmar e iniciar turno'}
-            </button>
-
-            <button type="button" className="rp-btn rp-btn--ghost rp-btn--block" onClick={handleBackToCredentials} disabled={isLoading}>
-              Voltar
-            </button>
-          </form>
-        ) : (
-          <form className="rp-stack" onSubmit={handleSubmit} noValidate>
-            <div className="rp-field">
-              <label className="rp-label" htmlFor="operatorId">
-                Credencial do operador
-              </label>
-              <input
-                id="operatorId"
-                name="operatorId"
-                className="rp-input mono"
-                type="text"
-                autoComplete="username"
-                autoFocus
-                value={operatorId}
-                onChange={(event) => {
-                  setOperatorId(event.target.value.toUpperCase());
-                  if (error) setError(null);
-                }}
-                placeholder="Ex: EDP-042"
-                disabled={isLoading}
-                required
-              />
-            </div>
-
-            <div className="rp-field">
-              <label className="rp-label" htmlFor="password">
-                Senha de acesso
-              </label>
-              <div className="rp-search">
+              <div className="rp-field">
+                <label className="rp-label" htmlFor="mfaCode">
+                  Código de verificação
+                </label>
                 <input
-                  id="password"
-                  name="password"
-                  ref={passwordRef}
-                  className="rp-input"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
+                  id="mfaCode"
+                  name="mfaCode"
+                  ref={mfaCodeRef}
+                  className="rp-input mono"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={mfaCode}
                   onChange={(event) => {
-                    setPassword(event.target.value);
+                    setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6));
                     if (error) setError(null);
                   }}
-                  placeholder="••••••••"
-                  style={{ paddingLeft: '0.8rem' }}
+                  placeholder="000000"
+                  style={{ letterSpacing: '0.4em', textAlign: 'center', fontSize: 'var(--fs-xl)' }}
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? 'login-error' : undefined}
                   disabled={isLoading}
                   required
                 />
-                <button
-                  type="button"
-                  className="rp-search__clear"
-                  onClick={() => setShowPassword((value) => !value)}
-                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                  aria-pressed={showPassword}
-                  disabled={isLoading}
-                >
-                  {showPassword ? '🙈' : '👁'}
-                </button>
               </div>
-            </div>
 
-            {error && (
-              <p id="login-error" className="rp-login__error" role="alert">
-                <span aria-hidden="true">⚠</span>
-                {error}
-              </p>
-            )}
+              {error && (
+                <p id="login-error" className="rp-login__error" role="alert">
+                  <Icon name="alert" />
+                  {error}
+                </p>
+              )}
 
-            <button type="submit" className="rp-btn rp-btn--primary rp-btn--lg rp-btn--block" disabled={!canSubmit}>
-              {isLoading && <span className="rp-spinner" aria-hidden="true" />}
-              {isLoading ? 'Autenticando…' : 'Autenticar e iniciar turno'}
-            </button>
-          </form>
-        )}
+              <button type="submit" className="rp-btn rp-btn--primary rp-btn--lg rp-btn--block" disabled={!canSubmitMfa}>
+                {isLoading && <span className="rp-spinner" aria-hidden="true" />}
+                {isLoading ? 'Verificando…' : 'Confirmar e iniciar turno'}
+              </button>
 
-        <p className="rp-login__footer">
-          Comandos e acessos ficam registrados na trilha de auditoria da operação.
-        </p>
-      </div>
+              <button type="button" className="rp-btn rp-btn--ghost rp-btn--block" onClick={handleBackToCredentials} disabled={isLoading}>
+                Voltar
+              </button>
+            </form>
+          ) : (
+            <form className="rp-stack" onSubmit={handleSubmit} noValidate>
+              <div className="rp-field">
+                <label className="rp-label" htmlFor="operatorId">
+                  Credencial do operador
+                </label>
+                <input
+                  id="operatorId"
+                  name="operatorId"
+                  className="rp-input mono"
+                  type="text"
+                  autoComplete="username"
+                  autoFocus
+                  value={operatorId}
+                  onChange={(event) => {
+                    setOperatorId(event.target.value.toUpperCase());
+                    if (error) setError(null);
+                  }}
+                  placeholder="Ex: EDP-042"
+                  disabled={isLoading}
+                  required
+                />
+              </div>
+
+              <div className="rp-field">
+                <label className="rp-label" htmlFor="password">
+                  Senha de acesso
+                </label>
+                <div className="rp-search">
+                  <input
+                    id="password"
+                    name="password"
+                    ref={passwordRef}
+                    className="rp-input"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      if (error) setError(null);
+                    }}
+                    placeholder="••••••••"
+                    style={{ paddingLeft: '0.8rem' }}
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'login-error' : undefined}
+                    disabled={isLoading}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="rp-search__clear"
+                    onClick={() => setShowPassword((value) => !value)}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                    aria-pressed={showPassword}
+                    disabled={isLoading}
+                  >
+                    <Icon name={showPassword ? 'eye-off' : 'eye'} />
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <p id="login-error" className="rp-login__error" role="alert">
+                  <Icon name="alert" />
+                  {error}
+                </p>
+              )}
+
+              <button type="submit" className="rp-btn rp-btn--primary rp-btn--lg rp-btn--block" disabled={!canSubmit}>
+                {isLoading && <span className="rp-spinner" aria-hidden="true" />}
+                {isLoading ? 'Autenticando…' : 'Autenticar e iniciar turno'}
+              </button>
+            </form>
+          )}
+
+          <p className="rp-login__footer">
+            <Icon name="shield" />
+            Comandos e acessos ficam registrados na trilha de auditoria da operação.
+          </p>
+        </div>
+      </section>
     </main>
   );
 };

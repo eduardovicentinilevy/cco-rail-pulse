@@ -158,7 +158,7 @@ export const TimetableDispatchView: React.FC<TimetableDispatchViewProps> = ({ tr
 
       {visible.length === 0 ? (
         <EmptyState
-          icon="🕒"
+          icon="clock"
           title={dispatches.length === 0 ? 'Nenhuma composição em circulação.' : 'Nenhum desvio de tabela no momento.'}
         />
       ) : (

@@ -6,6 +6,7 @@ import { EmptyState } from '../common/EmptyState';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useResource } from '../../hooks/useResource';
 import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
+import { Icon } from '../common/Icon';
 
 interface ProceduresViewProps {
   session: OperatorSession;
@@ -60,7 +61,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({ session, onAuthE
         <header className="rp-card__header">
           <div className="rp-search">
             <span className="rp-search__icon" aria-hidden="true">
-              ⌕
+              <Icon name="search" />
             </span>
             <input
               className="rp-input"
@@ -77,7 +78,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({ session, onAuthE
                 onClick={() => setSearch('')}
                 aria-label="Limpar busca"
               >
-                ✕
+                <Icon name="x" />
               </button>
             )}
           </div>
@@ -112,9 +113,9 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({ session, onAuthE
             ))}
           </div>
         ) : error ? (
-          <EmptyState icon="⚠" title="Não foi possível carregar os procedimentos." hint={error} />
+          <EmptyState icon="alert" title="Não foi possível carregar os procedimentos." hint={error} />
         ) : procedures.length === 0 ? (
-          <EmptyState icon="▤" title="Nenhum procedimento para os filtros atuais." />
+          <EmptyState icon="clipboard" title="Nenhum procedimento para os filtros atuais." />
         ) : (
           <ul className="rp-stack rp-stack--tight" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             {procedures.map((procedure) => {
@@ -137,7 +138,7 @@ export const ProceduresView: React.FC<ProceduresViewProps> = ({ session, onAuthE
                       </div>
                       <span className="rp-hint">{procedure.summary}</span>
                     </div>
-                    <span aria-hidden="true">{isExpanded ? '▲' : '▼'}</span>
+                    <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} size="1.25rem" className="rp-procedure__chevron" />
                   </button>
 
                   {isExpanded && (

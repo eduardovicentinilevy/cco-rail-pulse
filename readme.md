@@ -161,7 +161,7 @@ O projeto adota os princípios de **Clean Architecture** combinados com **Event-
 
 * **Biblioteca:** React 19 com TypeScript (modo `strict`)
 * **Visualização de Dados:** Recharts
-* **Estilização:** Design system em CSS puro (tokens `--cco-*`, componentes e breakpoints) — Montserrat + JetBrains Mono. Identidade da Linha 6-Laranja: laranja da linha (`#F2871A`) com o azul-marinho (`#1C2B4A`) como par quase complementar — o texto sobre o laranja é marinho (~5,5:1), já que o branco não passa de 2,5:1 —, cores de status separadas da marca, temas claro e escuro e um mosaico de sala de controle em marinho profundo
+* **Estilização:** Design system em CSS puro (tokens `--cco-*`, componentes e breakpoints) — Montserrat + JetBrains Mono. Identidade da Linha 6-Laranja: laranja da linha (`#F2871A`) com o azul-marinho (`#1C2B4A`) como par quase complementar — o texto sobre o laranja é marinho (~5,5:1), já que o branco não passa de 2,5:1 —, cores de status separadas da marca, temas claro e escuro e um mosaico de sala de controle em marinho profundo. Ícones em SVG próprio (`components/common/Icon.tsx`), de traço único e cor herdada do tema, no lugar de glifos Unicode e emojis
 * **Build Tool:** Vite
 
 ---

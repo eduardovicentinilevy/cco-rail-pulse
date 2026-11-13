@@ -5,6 +5,7 @@ import { api, ApiError } from '../../services/api';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
 import { hashString } from '../../lib/hash';
+import { Icon } from '../common/Icon';
 
 interface CamerasViewProps {
   session: OperatorSession;
@@ -142,7 +143,7 @@ export const CamerasView: React.FC<CamerasViewProps> = ({ session, stations, onN
         <header className="rp-card__header">
           <div className="rp-search">
             <span className="rp-search__icon" aria-hidden="true">
-              ⌕
+              <Icon name="search" />
             </span>
             <input
               className="rp-input"
@@ -154,7 +155,7 @@ export const CamerasView: React.FC<CamerasViewProps> = ({ session, stations, onN
             />
             {search && (
               <button type="button" className="rp-search__clear" onClick={() => setSearch('')} aria-label="Limpar busca">
-                ✕
+                <Icon name="x" />
               </button>
             )}
           </div>
@@ -175,7 +176,7 @@ export const CamerasView: React.FC<CamerasViewProps> = ({ session, stations, onN
         </header>
 
         {camerasByStation.size === 0 ? (
-          <EmptyState icon="✅" title="Nenhuma câmera para os filtros atuais." />
+          <EmptyState icon="check-circle" title="Nenhuma câmera para os filtros atuais." />
         ) : (
           <div className="rp-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))', gap: 'var(--sp-4)' }}>
             {Array.from(camerasByStation.entries()).map(([stationCode, stationCameras]) => (

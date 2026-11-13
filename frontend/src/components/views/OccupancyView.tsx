@@ -144,7 +144,7 @@ export const OccupancyView: React.FC<OccupancyViewProps> = ({ stations }) => {
         </header>
 
         {rows.length === 0 ? (
-          <EmptyState icon="🚶" title="Sem estações carregadas para estimar ocupação." />
+          <EmptyState icon="people" title="Sem estações carregadas para estimar ocupação." />
         ) : (
           <div className="rp-table-wrap">
             <table className="rp-table">

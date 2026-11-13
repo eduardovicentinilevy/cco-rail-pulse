@@ -32,7 +32,7 @@ export const StationsGrid: React.FC<StationsGridProps> = ({
     </header>
 
     {stations.length === 0 ? (
-      <EmptyState icon="🔎" title="Nenhuma estação corresponde ao filtro." hint="Ajuste a busca ou limpe os filtros." />
+      <EmptyState icon="search" title="Nenhuma estação corresponde ao filtro." hint="Ajuste a busca ou limpe os filtros." />
     ) : (
       <div className="rp-grid rp-grid--cards">
         {stations.map((station) => {

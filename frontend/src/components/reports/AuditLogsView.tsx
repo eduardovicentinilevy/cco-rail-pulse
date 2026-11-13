@@ -9,6 +9,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useResource } from '../../hooks/useResource';
 import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
 import { downloadTextFile, formatDateTime, toCsv } from '../../lib/format';
+import { Icon } from '../common/Icon';
 
 interface AuditLogsViewProps {
   token: string;
@@ -93,7 +94,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ token, onClose, on
       <div className="rp-row rp-row--between">
         <div className="rp-search">
           <span className="rp-search__icon" aria-hidden="true">
-            ⌕
+            <Icon name="search" />
           </span>
           <input
             className="rp-input"
@@ -105,7 +106,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ token, onClose, on
           />
           {search && (
             <button type="button" className="rp-search__clear" onClick={() => handleSearchChange('')} aria-label="Limpar filtro">
-              ✕
+              <Icon name="x" />
             </button>
           )}
         </div>
@@ -123,11 +124,11 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ token, onClose, on
         </div>
       )}
 
-      {!isLoading && error && <EmptyState icon="⚠" title="Não foi possível carregar os registros." hint={error} />}
+      {!isLoading && error && <EmptyState icon="alert" title="Não foi possível carregar os registros." hint={error} />}
 
       {!isLoading && !error && logs.length === 0 && (
         <EmptyState
-          icon="🗒"
+          icon="file-text"
           title={search ? 'Nenhum registro corresponde ao filtro.' : 'Nenhum evento de auditoria registrado ainda.'}
         />
       )}

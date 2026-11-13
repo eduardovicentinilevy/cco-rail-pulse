@@ -11,6 +11,7 @@ import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
 import { formatDateTime } from '../../lib/format';
 import { DEFAULT_AVATAR_URL } from '../../config/env';
 import type { ConfirmRequest } from '../common/ConfirmDialog';
+import { Icon } from '../common/Icon';
 
 interface TeamViewProps {
   session: OperatorSession;
@@ -125,7 +126,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ session, onNotify, onRequest
 
       {!canManage && (
         <p className="rp-login__error" role="status">
-          <span aria-hidden="true">🔒</span>
+          <Icon name="lock" />
           Seu perfil ({roleLabel(session.role)}) permite consultar o cadastro, mas não alterá-lo. As ações de gestão
           exigem Supervisor ou Administrador — a restrição é aplicada também no servidor.
         </p>
@@ -164,10 +165,10 @@ export const TeamView: React.FC<TeamViewProps> = ({ session, onNotify, onRequest
         )}
 
         {!isLoading && error && (
-          <EmptyState icon="⚠" title="Não foi possível carregar o cadastro." hint={error} />
+          <EmptyState icon="alert" title="Não foi possível carregar o cadastro." hint={error} />
         )}
 
-        {!isLoading && !error && operators.length === 0 && <EmptyState icon="👥" title="Nenhum operador cadastrado." />}
+        {!isLoading && !error && operators.length === 0 && <EmptyState icon="people" title="Nenhum operador cadastrado." />}
 
         {!isLoading && operators.length > 0 && (
           <div className="rp-table-wrap">
@@ -407,7 +408,7 @@ const CreateOperatorModal: React.FC<CreateOperatorModalProps> = ({
 
         {error && (
           <p className="rp-login__error" role="alert">
-            <span aria-hidden="true">⚠</span>
+            <Icon name="alert" />
             {error}
           </p>
         )}

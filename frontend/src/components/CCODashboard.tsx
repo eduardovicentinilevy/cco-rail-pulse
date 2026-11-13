@@ -57,6 +57,7 @@ import { useFavorites } from '../hooks/useFavorites';
 import type { Theme } from '../hooks/useTheme';
 import type { VoltageSample } from './VoltageChartWidget';
 import { formatTime, formatVoltage } from '../lib/format';
+import { Icon } from './common/Icon';
 
 interface CCODashboardProps {
   session: OperatorSession;
@@ -123,50 +124,50 @@ const NAV_ORDER: readonly TabKey[] = [
 const NAV_GROUPS: ReadonlyArray<NavGroup<TabKey>> = [
   {
     label: 'Sala de Controle',
-    items: [{ key: 'wall', label: 'Mosaico Operacional', icon: '▦' }],
+    items: [{ key: 'wall', label: 'Mosaico Operacional', icon: 'grid' }],
   },
   {
     label: 'Atalhos',
-    items: [{ key: 'favorites', label: 'Favoritos', icon: '★' }],
+    items: [{ key: 'favorites', label: 'Favoritos', icon: 'star' }],
   },
   {
     label: 'Supervisão',
     items: [
-      { key: 'overview', label: 'Painel executivo', icon: '◉' },
-      { key: 'ats', label: 'Via CBTC', icon: '⌖' },
-      { key: 'arrivals', label: 'Chegadas & intervalos', icon: '⏱' },
-      { key: 'incidents', label: 'Ocorrências', icon: '⚠' },
-      { key: 'alarms', label: 'Central de Alarmes', icon: '◍' },
-      { key: 'occupancy', label: 'Ocupação', icon: '◐' },
-      { key: 'cameras', label: 'CFTV', icon: '◙' },
-      { key: 'weather', label: 'Clima & riscos', icon: '☂' },
+      { key: 'overview', label: 'Painel executivo', icon: 'gauge' },
+      { key: 'ats', label: 'Via CBTC', icon: 'train' },
+      { key: 'arrivals', label: 'Chegadas & intervalos', icon: 'clock' },
+      { key: 'incidents', label: 'Ocorrências', icon: 'alert' },
+      { key: 'alarms', label: 'Central de Alarmes', icon: 'bell' },
+      { key: 'occupancy', label: 'Ocupação', icon: 'people' },
+      { key: 'cameras', label: 'CFTV', icon: 'camera' },
+      { key: 'weather', label: 'Clima & riscos', icon: 'rain' },
     ],
   },
   {
     label: 'Energia & ativos',
     items: [
-      { key: 'energy', label: 'Energia de tração', icon: '⚡' },
-      { key: 'history', label: 'Série histórica', icon: '◫' },
-      { key: 'assets', label: 'Saúde de ativos', icon: '⚙' },
-      { key: 'workorders', label: 'Ordens de serviço', icon: '🛠' },
+      { key: 'energy', label: 'Energia de tração', icon: 'bolt' },
+      { key: 'history', label: 'Série histórica', icon: 'chart-line' },
+      { key: 'assets', label: 'Saúde de ativos', icon: 'activity' },
+      { key: 'workorders', label: 'Ordens de serviço', icon: 'wrench' },
     ],
   },
   {
     label: 'Gestão',
     items: [
-      { key: 'analytics', label: 'Relatórios & KPIs', icon: '◧' },
-      { key: 'timetable', label: 'Escala & partidas', icon: '◔' },
-      { key: 'handover', label: 'Passagem de turno', icon: '⇄' },
-      { key: 'comms', label: 'Comunicações', icon: '☏' },
-      { key: 'procedures', label: 'Procedimentos', icon: '▤' },
-      { key: 'team', label: 'Equipe', icon: '⬡' },
+      { key: 'analytics', label: 'Relatórios & KPIs', icon: 'chart-bar' },
+      { key: 'timetable', label: 'Escala & partidas', icon: 'calendar' },
+      { key: 'handover', label: 'Passagem de turno', icon: 'swap' },
+      { key: 'comms', label: 'Comunicações', icon: 'message' },
+      { key: 'procedures', label: 'Procedimentos', icon: 'clipboard' },
+      { key: 'team', label: 'Equipe', icon: 'id-card' },
     ],
   },
   {
     label: 'Sistema',
     items: [
-      { key: 'status', label: 'Status do sistema', icon: '◈' },
-      { key: 'settings', label: 'Configurações', icon: '⚑' },
+      { key: 'status', label: 'Status do sistema', icon: 'server' },
+      { key: 'settings', label: 'Configurações', icon: 'sliders' },
     ],
   },
 ];
@@ -676,7 +677,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       id: `station-${station.code}`,
       label: `${station.code} — ${station.name}`,
       group: 'Estações',
-      icon: '⌖',
+      icon: 'pin' as const,
       hint: formatVoltage(station.voltageV),
       keywords: `${station.substation} ${station.status}`,
       run: () => {
@@ -689,7 +690,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
       id: `train-${train.trainId}`,
       label: `${train.trainId} — ${PHASE_LABELS[train.phase]}`,
       group: 'Composições',
-      icon: '▭',
+      icon: 'train' as const,
       hint: train.currentStationCode,
       keywords: train.status,
       run: () => {
@@ -703,21 +704,21 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
         id: 'action-audit',
         label: 'Abrir trilha de auditoria',
         group: 'Ações',
-        icon: '☰',
+        icon: 'shield',
         run: () => setIsAuditOpen(true),
       },
       {
         id: 'action-sound',
         label: alerts.preferences.sound ? 'Silenciar alertas sonoros' : 'Ativar alertas sonoros',
         group: 'Ações',
-        icon: alerts.preferences.sound ? '🔇' : '🔔',
+        icon: alerts.preferences.sound ? 'volume-off' : 'volume',
         run: alerts.toggleSound,
       },
       {
         id: 'action-print',
         label: 'Imprimir passagem de turno',
         group: 'Ações',
-        icon: '⎙',
+        icon: 'printer',
         run: () => {
           setActiveTab('handover');
           window.setTimeout(() => window.print(), 600);
@@ -855,7 +856,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
             <div className="rp-row rp-row--between">
               <div className="rp-search">
                 <span className="rp-search__icon" aria-hidden="true">
-                  ⌕
+                  <Icon name="search" />
                 </span>
                 <input
                   ref={searchInputRef}
@@ -873,7 +874,7 @@ export const CCODashboard: React.FC<CCODashboardProps> = ({
                     onClick={() => setSearchQuery('')}
                     aria-label="Limpar busca"
                   >
-                    ✕
+                    <Icon name="x" />
                   </button>
                 )}
               </div>

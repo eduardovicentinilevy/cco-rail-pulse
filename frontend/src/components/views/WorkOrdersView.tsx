@@ -17,6 +17,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useResource } from '../../hooks/useResource';
 import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
 import { downloadTextFile, formatDateTime, toCsv } from '../../lib/format';
+import { Icon } from '../common/Icon';
 
 interface WorkOrdersViewProps {
   session: OperatorSession;
@@ -183,7 +184,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ session, station
         <header className="rp-card__header">
           <div className="rp-search">
             <span className="rp-search__icon" aria-hidden="true">
-              ⌕
+              <Icon name="search" />
             </span>
             <input
               className="rp-input"
@@ -200,7 +201,7 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ session, station
                 onClick={() => applyFilter(setSearch, '')}
                 aria-label="Limpar busca"
               >
-                ✕
+                <Icon name="x" />
               </button>
             )}
           </div>
@@ -245,10 +246,10 @@ export const WorkOrdersView: React.FC<WorkOrdersViewProps> = ({ session, station
             ))}
           </div>
         ) : error ? (
-          <EmptyState icon="⚠" title="Não foi possível carregar as ordens de serviço." hint={error} />
+          <EmptyState icon="alert" title="Não foi possível carregar as ordens de serviço." hint={error} />
         ) : workOrders.length === 0 ? (
           <EmptyState
-            icon="✅"
+            icon="check-circle"
             title="Nenhuma OS para os filtros atuais."
             hint="Abra uma ordem de serviço para iniciar um novo trabalho de manutenção."
           />
@@ -536,7 +537,7 @@ const CreateWorkOrderModal: React.FC<CreateWorkOrderModalProps> = ({ session, st
 
         {error && (
           <p className="rp-login__error" role="alert">
-            <span aria-hidden="true">⚠</span>
+            <Icon name="alert" />
             {error}
           </p>
         )}

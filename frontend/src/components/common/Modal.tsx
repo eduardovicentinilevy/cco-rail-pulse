@@ -2,6 +2,7 @@
 import React, { useCallback, useId } from 'react';
 import type { ReactNode } from 'react';
 import { useModalBehavior } from '../../hooks/useModalBehavior';
+import { Icon } from './Icon';
 
 interface ModalProps {
   title: string;
@@ -50,7 +51,7 @@ export const Modal: React.FC<ModalProps> = ({ title, subtitle, wide = false, onC
             )}
           </div>
           <button type="button" className="rp-icon-btn" onClick={onClose} aria-label="Fechar diálogo">
-            ✕
+            <Icon name="x" />
           </button>
         </header>
 

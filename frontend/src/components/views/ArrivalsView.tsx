@@ -64,7 +64,7 @@ export const ArrivalsView: React.FC<ArrivalsViewProps> = ({ arrivals, fetchedAt,
   if (!arrivals) {
     return (
       <EmptyState
-        icon="⏱"
+        icon="clock"
         title="Calculando a previsão de chegadas…"
         hint="A previsão aparece assim que o motor de operação responder."
       />

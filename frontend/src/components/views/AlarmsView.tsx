@@ -8,6 +8,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useResource } from '../../hooks/useResource';
 import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
 import { downloadTextFile, formatDateTime, toCsv } from '../../lib/format';
+import { Icon } from '../common/Icon';
 
 interface AlarmsViewProps {
   session: OperatorSession;
@@ -187,7 +188,7 @@ export const AlarmsView: React.FC<AlarmsViewProps> = ({
         <header className="rp-card__header">
           <div className="rp-search">
             <span className="rp-search__icon" aria-hidden="true">
-              ⌕
+              <Icon name="search" />
             </span>
             <input
               className="rp-input"
@@ -204,7 +205,7 @@ export const AlarmsView: React.FC<AlarmsViewProps> = ({
                 onClick={() => applyFilter(setSearch, '')}
                 aria-label="Limpar busca"
               >
-                ✕
+                <Icon name="x" />
               </button>
             )}
           </div>
@@ -249,10 +250,10 @@ export const AlarmsView: React.FC<AlarmsViewProps> = ({
             ))}
           </div>
         ) : error ? (
-          <EmptyState icon="⚠" title="Não foi possível carregar os alarmes." hint={error} />
+          <EmptyState icon="alert" title="Não foi possível carregar os alarmes." hint={error} />
         ) : alarms.length === 0 ? (
           <EmptyState
-            icon="✅"
+            icon="check-circle"
             title="Nenhum alarme para os filtros atuais."
             hint="Alarmes surgem automaticamente a partir de ocorrências e comandos críticos."
           />

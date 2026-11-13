@@ -104,7 +104,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </header>
 
           {attentionStations.length === 0 ? (
-            <EmptyState icon="✅" title={`Todas as ${stations.length} estações operando em condição normal.`} />
+            <EmptyState icon="check-circle" title={`Todas as ${stations.length} estações operando em condição normal.`} />
           ) : (
             <ul className="rp-feed">
               {attentionStations.map((station) => (
@@ -138,7 +138,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </header>
 
           {alarms.length === 0 ? (
-            <EmptyState icon="🛈" title="Nenhuma ocorrência registrada nesta sessão." />
+            <EmptyState icon="info" title="Nenhuma ocorrência registrada nesta sessão." />
           ) : (
             <ul className="rp-feed">
               {alarms.slice(0, 6).map((alarm) => (

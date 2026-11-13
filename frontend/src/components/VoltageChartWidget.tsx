@@ -47,7 +47,7 @@ export const VoltageChartWidget: React.FC<VoltageChartWidgetProps> = ({ history,
   if (data.length === 0) {
     return (
       <EmptyState
-        icon="📈"
+        icon="chart-line"
         title="Aguardando as primeiras leituras de telemetria…"
         hint="As curvas aparecem assim que o barramento publicar o próximo lote."
       />

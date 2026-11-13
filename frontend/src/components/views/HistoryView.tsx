@@ -140,12 +140,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
         {isLoading && <div className="rp-skeleton" style={{ height: '18rem' }} aria-busy="true" />}
 
         {!isLoading && error && (
-          <EmptyState icon="⚠" title="Não foi possível carregar a série histórica." hint={error} />
+          <EmptyState icon="alert" title="Não foi possível carregar a série histórica." hint={error} />
         )}
 
         {!isLoading && !error && chartData.length === 0 && (
           <EmptyState
-            icon="🕑"
+            icon="clock"
             title="Ainda não há janelas arquivadas para este período."
             hint="O arquivamento grava uma janela por minuto — aguarde o próximo fechamento."
           />
@@ -155,7 +155,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
           <>
             <div className="rp-row" style={{ marginBottom: 'var(--sp-3)' }}>
               <span className="rp-card__subtitle">
-                {stationName} • {chartData.length} janelas no período
+                {stationName} • {chartData.length} {chartData.length === 1 ? 'janela' : 'janelas'} no período
               </span>
               {nominal !== null && <span className="rp-badge rp-badge--code">Referência {formatVoltage(nominal)}</span>}
             </div>
@@ -241,7 +241,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ session, stations, onA
         </header>
 
         {summary.length === 0 ? (
-          <EmptyState icon="📊" title="Sem dados agregados para o período selecionado." />
+          <EmptyState icon="chart-bar" title="Sem dados agregados para o período selecionado." />
         ) : (
           <div className="rp-table-wrap">
             <table className="rp-table">

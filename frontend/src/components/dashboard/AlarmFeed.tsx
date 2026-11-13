@@ -4,6 +4,7 @@ import type { AlarmEvent, AlarmLevel } from '../../types';
 import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
 import { downloadTextFile, toCsv } from '../../lib/format';
+import { Icon } from '../common/Icon';
 
 interface AlarmFeedProps {
   alarms: AlarmEvent[];
@@ -69,7 +70,7 @@ export const AlarmFeed: React.FC<AlarmFeedProps> = ({ alarms, onClear, onAcknowl
 
       {visibleAlarms.length === 0 ? (
         <EmptyState
-          icon="✅"
+          icon="check-circle"
           title={alarms.length === 0 ? 'Nenhuma ocorrência registrada nesta sessão.' : 'Nenhuma ocorrência para este filtro.'}
           hint="Eventos da malha e comandos de operadores aparecem aqui em tempo real."
         />
@@ -94,7 +95,7 @@ export const AlarmFeed: React.FC<AlarmFeedProps> = ({ alarms, onClear, onAcknowl
                 aria-label={`Reconhecer ocorrência: ${alarm.message}`}
                 title={alarm.acknowledged ? 'Reconhecida' : 'Reconhecer'}
               >
-                ✓
+                <Icon name="check" />
               </button>
             </li>
           ))}

@@ -18,6 +18,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useResource } from '../../hooks/useResource';
 import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
 import { downloadTextFile, formatDateTime, toCsv } from '../../lib/format';
+import { Icon } from '../common/Icon';
 
 interface IncidentsViewProps {
   session: OperatorSession;
@@ -191,7 +192,7 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
         <header className="rp-card__header">
           <div className="rp-search">
             <span className="rp-search__icon" aria-hidden="true">
-              ⌕
+              <Icon name="search" />
             </span>
             <input
               className="rp-input"
@@ -208,7 +209,7 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
                 onClick={() => applyFilter(setSearch, '')}
                 aria-label="Limpar busca"
               >
-                ✕
+                <Icon name="x" />
               </button>
             )}
           </div>
@@ -253,10 +254,10 @@ export const IncidentsView: React.FC<IncidentsViewProps> = ({
             ))}
           </div>
         ) : error ? (
-          <EmptyState icon="⚠" title="Não foi possível carregar as ocorrências." hint={error} />
+          <EmptyState icon="alert" title="Não foi possível carregar as ocorrências." hint={error} />
         ) : incidents.length === 0 ? (
           <EmptyState
-            icon="✅"
+            icon="check-circle"
             title="Nenhuma ocorrência para os filtros atuais."
             hint="Registre uma ocorrência para iniciar a tratativa formal."
           />
@@ -549,7 +550,7 @@ const CreateIncidentModal: React.FC<CreateIncidentModalProps> = ({
 
         {error && (
           <p className="rp-login__error" role="alert">
-            <span aria-hidden="true">⚠</span>
+            <Icon name="alert" />
             {error}
           </p>
         )}

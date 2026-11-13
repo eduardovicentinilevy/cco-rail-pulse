@@ -5,6 +5,7 @@ import { StatusPill } from '../common/StatusPill';
 import { EmptyState } from '../common/EmptyState';
 import { hashString } from '../../lib/hash';
 import { formatNumber } from '../../lib/format';
+import { Icon } from '../common/Icon';
 
 interface WeatherViewProps {
   stations: Station[];
@@ -135,7 +136,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ stations }) => {
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState icon="☀️" title="Nenhuma estação com risco climático no momento." hint="Todas as condições estão dentro da faixa operacional." />
+        <EmptyState icon="sun" title="Nenhuma estação com risco climático no momento." hint="Todas as condições estão dentro da faixa operacional." />
       ) : (
         <div className="rp-grid rp-grid--panels">
           {visible.map((reading) => (
@@ -163,8 +164,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ stations }) => {
               {reading.advisories.length > 0 && (
                 <ul className="rp-stack rp-stack--tight" style={{ marginTop: 'var(--sp-2)' }}>
                   {reading.advisories.map((advisory) => (
-                    <li key={advisory} className="rp-hint" style={{ color: 'var(--cco-warning)' }}>
-                      ⚠ {advisory}
+                    <li key={advisory} className="rp-hint rp-advisory">
+                      <Icon name="alert" />
+                      <span>{advisory}</span>
                     </li>
                   ))}
                 </ul>

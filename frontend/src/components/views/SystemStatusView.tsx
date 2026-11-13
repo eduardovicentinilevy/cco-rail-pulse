@@ -7,6 +7,7 @@ import { EmptyState } from '../common/EmptyState';
 import { formatDuration, formatTime } from '../../lib/format';
 import type { ConnectionStatus } from '../layout/Header';
 import { LINE_NAME } from '../../data/stations';
+import { Icon } from '../common/Icon';
 
 type HealthSnapshot = Awaited<ReturnType<typeof api.health>>;
 
@@ -99,8 +100,8 @@ export const SystemStatusView: React.FC<SystemStatusViewProps> = ({ connectionSt
 
         <div className="rp-check-list">
           <div className="rp-check-item">
-            <span className="rp-check-item__icon" aria-hidden="true">
-              ◈
+            <span className="rp-check-item__icon">
+              <Icon name="server" />
             </span>
             <div className="rp-check-item__text">
               <span className="rp-check-item__title">API REST</span>
@@ -110,8 +111,8 @@ export const SystemStatusView: React.FC<SystemStatusViewProps> = ({ connectionSt
           </div>
 
           <div className="rp-check-item">
-            <span className="rp-check-item__icon" aria-hidden="true">
-              ▤
+            <span className="rp-check-item__icon">
+              <Icon name="database" />
             </span>
             <div className="rp-check-item__text">
               <span className="rp-check-item__title">Banco de dados PostgreSQL</span>
@@ -121,8 +122,8 @@ export const SystemStatusView: React.FC<SystemStatusViewProps> = ({ connectionSt
           </div>
 
           <div className="rp-check-item">
-            <span className="rp-check-item__icon" aria-hidden="true">
-              ⇄
+            <span className="rp-check-item__icon">
+              <Icon name="swap" />
             </span>
             <div className="rp-check-item__text">
               <span className="rp-check-item__title">Gateway de telemetria (WebSocket)</span>
@@ -132,8 +133,8 @@ export const SystemStatusView: React.FC<SystemStatusViewProps> = ({ connectionSt
           </div>
 
           <div className="rp-check-item">
-            <span className="rp-check-item__icon" aria-hidden="true">
-              ⚡
+            <span className="rp-check-item__icon">
+              <Icon name="activity" />
             </span>
             <div className="rp-check-item__text">
               <span className="rp-check-item__title">Simulador de telemetria SCADA</span>
@@ -148,7 +149,7 @@ export const SystemStatusView: React.FC<SystemStatusViewProps> = ({ connectionSt
         </div>
       </section>
 
-      {error && <EmptyState icon="⚠" title="Falha ao consultar a API REST." hint={error} />}
+      {error && <EmptyState icon="alert" title="Falha ao consultar a API REST." hint={error} />}
     </div>
   );
 };

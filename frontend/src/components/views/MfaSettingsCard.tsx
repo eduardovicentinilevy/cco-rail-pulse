@@ -3,6 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { api, ApiError } from '../../services/api';
 import { useResource } from '../../hooks/useResource';
 import { useAuthErrorHandler } from '../../hooks/useAuthErrorHandler';
+import { Icon } from '../common/Icon';
 
 interface MfaSettingsCardProps {
   token: string;
@@ -182,7 +183,7 @@ export const MfaSettingsCard: React.FC<MfaSettingsCardProps> = ({ token, onAuthE
 
           {error && (
             <p className="rp-login__error" role="alert">
-              <span aria-hidden="true">⚠</span> {error}
+              <Icon name="alert" /> {error}
             </p>
           )}
 
@@ -224,7 +225,7 @@ export const MfaSettingsCard: React.FC<MfaSettingsCardProps> = ({ token, onAuthE
 
           {error && (
             <p className="rp-login__error" role="alert">
-              <span aria-hidden="true">⚠</span> {error}
+              <Icon name="alert" /> {error}
             </p>
           )}
 

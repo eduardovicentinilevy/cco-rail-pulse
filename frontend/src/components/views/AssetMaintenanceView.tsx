@@ -90,7 +90,7 @@ export const AssetMaintenanceView: React.FC<AssetMaintenanceViewProps> = ({ stat
       </div>
 
       {visibleAssets.length === 0 ? (
-        <EmptyState icon="✅" title="Nenhum ativo em alerta." hint="Todas as subestações operam dentro da faixa nominal." />
+        <EmptyState icon="check-circle" title="Nenhum ativo em alerta." hint="Todas as subestações operam dentro da faixa nominal." />
       ) : (
         <div className="rp-grid rp-grid--panels">
           {visibleAssets.map((asset) => (

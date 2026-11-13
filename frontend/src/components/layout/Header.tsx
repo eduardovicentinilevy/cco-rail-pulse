@@ -7,6 +7,7 @@ import { DEFAULT_AVATAR_URL } from '../../config/env';
 import type { CriticalAlerts } from '../../hooks/useCriticalAlerts';
 import type { Theme } from '../../hooks/useTheme';
 import { LINE_NAME, LINE_TERMINALS } from '../../data/stations';
+import { Icon } from '../common/Icon';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 
@@ -86,7 +87,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onOpenPalette}
             title="Busca rápida de seções, estações e composições"
           >
-            <span aria-hidden="true">⌕</span>
+            <Icon name="search" />
             Buscar
             <kbd className="rp-kbd">Ctrl</kbd>
             <kbd className="rp-kbd">K</kbd>
@@ -99,7 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
             aria-pressed={alerts.preferences.sound}
             title={alerts.preferences.sound ? 'Silenciar alertas sonoros' : 'Ativar alertas sonoros'}
           >
-            {alerts.preferences.sound ? '🔔' : '🔇'}
+            <Icon name={alerts.preferences.sound ? 'volume' : 'volume-off'} />
           </button>
 
           <button
@@ -109,10 +110,11 @@ export const Header: React.FC<HeaderProps> = ({
             aria-pressed={theme === 'dark'}
             title={theme === 'dark' ? 'Alternar para o modo claro' : 'Alternar para o modo escuro'}
           >
-            {theme === 'dark' ? '☀️' : '🌙'}
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
           </button>
 
           <button type="button" className="rp-btn" onClick={onOpenAuditLogs}>
+            <Icon name="shield" />
             Auditoria
             {criticalAlarms > 0 && (
               <span className="rp-badge" data-status="CRITICAL">
@@ -143,6 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           <button type="button" className="rp-btn rp-btn--outline" onClick={onLogout}>
+            <Icon name="logout" />
             Sair
           </button>
         </div>

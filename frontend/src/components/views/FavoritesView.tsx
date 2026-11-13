@@ -6,6 +6,7 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusPill } from '../common/StatusPill';
 import { formatVoltage } from '../../lib/format';
 import { directionArrow, PHASE_LABELS } from '../../data/trains';
+import { Icon } from '../common/Icon';
 
 interface FavoritesViewProps {
   stations: Station[];
@@ -47,7 +48,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ stations, trains, 
 
           {favoriteStations.length === 0 ? (
             <EmptyState
-              icon="☆"
+              icon="star"
               title="Nenhuma estação favoritada."
               hint="Na Via CBTC, selecione uma estação e use o botão ★ no terminal de controle."
             />
@@ -69,7 +70,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ stations, trains, 
                     aria-label={`Remover ${station.name} dos favoritos`}
                     title="Remover dos favoritos"
                   >
-                    ★
+                    <Icon name="star" filled />
                   </button>
                 </li>
               ))}
@@ -85,7 +86,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ stations, trains, 
 
           {favoriteTrains.length === 0 ? (
             <EmptyState
-              icon="☆"
+              icon="star"
               title="Nenhuma composição favoritada."
               hint="Na Via CBTC, selecione a composição alvo no terminal de controle e use o botão ★."
             />
@@ -109,7 +110,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ stations, trains, 
                     aria-label={`Remover ${train.trainId} dos favoritos`}
                     title="Remover dos favoritos"
                   >
-                    ★
+                    <Icon name="star" filled />
                   </button>
                 </li>
               ))}

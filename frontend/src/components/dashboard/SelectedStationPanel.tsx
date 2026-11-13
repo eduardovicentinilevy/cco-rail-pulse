@@ -7,6 +7,7 @@ import { formatVoltage } from '../../lib/format';
 import { formatClockDuration, secondsUntil } from '../../lib/arrivals';
 import { directionArrow, PHASE_LABELS } from '../../data/trains';
 import type { ConfirmRequest } from '../common/ConfirmDialog';
+import { Icon } from '../common/Icon';
 
 interface SelectedStationPanelProps {
   station: Station;
@@ -92,7 +93,7 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
             aria-pressed={isStationFavorite}
             title={isStationFavorite ? 'Remover estação dos favoritos' : 'Adicionar estação aos favoritos'}
           >
-            {isStationFavorite ? '★' : '☆'}
+            <Icon name="star" filled={isStationFavorite} />
           </button>
         </span>
         <h2 className="rp-card__title">{station.name}</h2>
@@ -109,7 +110,7 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
 
       {power && !power.energized && (
         <p className="rp-hint" role="status" data-status="CRÍTICO" style={{ color: 'var(--rp-status)' }}>
-          ⚡ Seção {power.substation} desenergizada — nenhuma composição parte rumo a esta estação.
+          <Icon name="bolt" /> Seção {power.substation} desenergizada — nenhuma composição parte rumo a esta estação.
         </p>
       )}
 
@@ -193,7 +194,7 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
                   : 'Adicionar composição aos favoritos'
               }
             >
-              {isTrainFavorite(targetTrain!.trainId) ? '★' : '☆'}
+              <Icon name="star" filled={isTrainFavorite(targetTrain!.trainId)} />
             </button>
           </span>
         ) : (
@@ -216,7 +217,7 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
           disabled={!hasTrain || isBusy}
           title={!hasTrain ? 'Nenhum trem neste bloco' : undefined}
         >
-          {pendingCommand === 'EMERGENCY_BRAKE_OVERRIDE' ? <span className="rp-spinner" aria-hidden="true" /> : '🚨'}
+          {pendingCommand === 'EMERGENCY_BRAKE_OVERRIDE' ? <span className="rp-spinner" aria-hidden="true" /> : <Icon name="stop" />}
           Acionar frenagem de emergência
         </button>
 
@@ -227,7 +228,7 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
           disabled={!hasTrain || isBusy}
           title={!hasTrain ? 'Nenhum trem neste bloco' : undefined}
         >
-          {pendingCommand === 'SPEED_RESTRICTION_20KM' ? <span className="rp-spinner" aria-hidden="true" /> : '⚠️'}
+          {pendingCommand === 'SPEED_RESTRICTION_20KM' ? <span className="rp-spinner" aria-hidden="true" /> : <Icon name="gauge" />}
           Impor restrição de 20 km/h (V.R.)
         </button>
 
@@ -238,12 +239,13 @@ export const SelectedStationPanel: React.FC<SelectedStationPanelProps> = ({
           disabled={!hasTrain || isBusy}
           title={!hasTrain ? 'Nenhum trem neste bloco' : undefined}
         >
-          {pendingCommand === 'RELEASE_SIGNAL' ? <span className="rp-spinner" aria-hidden="true" /> : '✅'}
+          {pendingCommand === 'RELEASE_SIGNAL' ? <span className="rp-spinner" aria-hidden="true" /> : <Icon name="check-circle" />}
           Liberar sinal e normalizar marcha
         </button>
 
         <button type="button" className="rp-btn rp-btn--command" onClick={onInjectAlert}>
-          📌 Registrar ocorrência na estação
+          <Icon name="pin" />
+          Registrar ocorrência na estação
         </button>
       </div>
     </aside>

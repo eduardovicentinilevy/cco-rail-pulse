@@ -1,11 +1,13 @@
 // frontend/src/components/layout/Sidebar.tsx
 import React, { useEffect, useRef } from 'react';
 import { LINE_NAME } from '../../data/stations';
+import { Icon } from '../common/Icon';
+import type { IconName } from '../common/Icon';
 
 export interface NavItem<T extends string> {
   key: T;
   label: string;
-  icon: string;
+  icon: IconName;
   /** Contador exibido à direita do item (ex.: ocorrências em aberto). */
   badge?: number;
 }
@@ -86,8 +88,8 @@ export const Sidebar = <T extends string>({
                 onClick={() => onSelect(item.key)}
                 title={item.label}
               >
-                <span className="rp-nav-item__icon" aria-hidden="true">
-                  {item.icon}
+                <span className="rp-nav-item__icon">
+                  <Icon name={item.icon} size="1.15rem" />
                 </span>
                 <span className="rp-nav-item__label">{item.label}</span>
                 {item.badge !== undefined && item.badge > 0 && (
@@ -109,8 +111,8 @@ export const Sidebar = <T extends string>({
           onClick={onToggleCollapse}
           aria-pressed={collapsed}
         >
-          <span className="rp-nav-item__icon" aria-hidden="true">
-            {collapsed ? '»' : '«'}
+          <span className="rp-nav-item__icon">
+            <Icon name={collapsed ? 'chevrons-right' : 'chevrons-left'} size="1.15rem" />
           </span>
           <span className="rp-nav-item__label">{collapsed ? 'Expandir' : 'Recolher'}</span>
         </button>

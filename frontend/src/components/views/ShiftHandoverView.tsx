@@ -89,7 +89,7 @@ export const ShiftHandoverView: React.FC<ShiftHandoverViewProps> = ({ session, s
   }
 
   if (error || !report) {
-    return <EmptyState icon="⚠" title="Não foi possível montar o relatório de turno." hint={error ?? undefined} />;
+    return <EmptyState icon="alert" title="Não foi possível montar o relatório de turno." hint={error ?? undefined} />;
   }
 
   const criticalPending = report.incidentsPending.filter((incident) => incident.severity === 'CRÍTICA').length;
@@ -155,7 +155,7 @@ export const ShiftHandoverView: React.FC<ShiftHandoverViewProps> = ({ session, s
         </header>
 
         {report.incidentsPending.length === 0 ? (
-          <EmptyState icon="✅" title="Nenhuma pendência — turno entregue sem ocorrências abertas." />
+          <EmptyState icon="check-circle" title="Nenhuma pendência — turno entregue sem ocorrências abertas." />
         ) : (
           <div className="rp-table-wrap">
             <table className="rp-table">
@@ -196,7 +196,7 @@ export const ShiftHandoverView: React.FC<ShiftHandoverViewProps> = ({ session, s
           </header>
 
           {report.commands.length === 0 ? (
-            <EmptyState icon="🛈" title="Nenhum comando crítico emitido neste turno." />
+            <EmptyState icon="info" title="Nenhum comando crítico emitido neste turno." />
           ) : (
             <ul className="rp-feed">
               {report.commands.map((command) => (
@@ -220,7 +220,7 @@ export const ShiftHandoverView: React.FC<ShiftHandoverViewProps> = ({ session, s
           </header>
 
           {report.incidentsResolved.length === 0 ? (
-            <EmptyState icon="🛈" title="Nenhuma ocorrência resolvida neste turno." />
+            <EmptyState icon="info" title="Nenhuma ocorrência resolvida neste turno." />
           ) : (
             <ul className="rp-feed">
               {report.incidentsResolved.map((incident) => (
@@ -244,7 +244,7 @@ export const ShiftHandoverView: React.FC<ShiftHandoverViewProps> = ({ session, s
         </header>
 
         {report.voltageExtremes.length === 0 ? (
-          <EmptyState icon="📊" title="Sem janelas de telemetria arquivadas neste turno." />
+          <EmptyState icon="chart-bar" title="Sem janelas de telemetria arquivadas neste turno." />
         ) : (
           <div className="rp-table-wrap">
             <table className="rp-table">

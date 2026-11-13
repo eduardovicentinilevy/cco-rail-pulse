@@ -1,6 +1,8 @@
 // frontend/src/components/common/CommandPalette.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useModalBehavior } from '../../hooks/useModalBehavior';
+import { Icon } from './Icon';
+import type { IconName } from './Icon';
 
 export interface PaletteAction {
   id: string;
@@ -8,7 +10,7 @@ export interface PaletteAction {
   /** Agrupamento exibido na lista (ex.: "Seções", "Estações"). */
   group: string;
   hint?: string;
-  icon?: string;
+  icon?: IconName;
   keywords?: string;
   run: () => void;
 }
@@ -111,7 +113,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ actions, onClose
     <div className="rp-overlay rp-overlay--top" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <div ref={containerRef} className="rp-palette" role="dialog" aria-modal="true" aria-label="Paleta de comandos">
         <div className="rp-palette__search">
-          <span aria-hidden="true">⌕</span>
+          <Icon name="search" />
           <input
             className="rp-palette__input"
             type="text"
@@ -154,8 +156,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ actions, onClose
                       onClose();
                     }}
                   >
-                    <span className="rp-palette__icon" aria-hidden="true">
-                      {action.icon ?? '›'}
+                    <span className="rp-palette__icon">
+                      <Icon name={action.icon ?? 'chevron-right'} />
                     </span>
                     <span className="rp-palette__label">{action.label}</span>
                     {action.hint && <span className="rp-palette__hint">{action.hint}</span>}
